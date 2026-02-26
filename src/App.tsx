@@ -1,8 +1,21 @@
+import { HashRouter, Navigate, Route, Routes } from 'react-router';
+import { AppLayout } from './components/layout/AppLayout';
+import { LibraryView } from './views/LibraryView';
+import { RecordView } from './views/RecordView';
+import { SettingsView } from './views/SettingsView';
+
 export function App() {
   return (
-    <main className="min-h-screen bg-warm-50 text-warm-900 flex items-center justify-center">
-      <h1 className="text-3xl font-semibold tracking-tight">openNotes</h1>
-    </main>
+    <HashRouter>
+      <Routes>
+        <Route element={<AppLayout />}>
+          <Route path="/" element={<Navigate to="/record" replace />} />
+          <Route path="/record" element={<RecordView />} />
+          <Route path="/library" element={<LibraryView />} />
+          <Route path="/settings" element={<SettingsView />} />
+        </Route>
+      </Routes>
+    </HashRouter>
   );
 }
 
