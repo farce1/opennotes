@@ -10,6 +10,8 @@ import {
 } from 'tauri-plugin-macos-permissions-api';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import type { SessionStatePayload } from '../types';
+
 type PermissionFlag = 'granted' | 'denied' | 'unknown';
 
 type PermissionStatus = {
@@ -41,6 +43,15 @@ function formatPermissionStatus(payload: PermissionPayload): PermissionStatus {
     mic: toFlag(payload.mic),
     screenRecording: toFlag(payload.screen_recording),
   };
+}
+
+function parseStartedAt(value: string | null): number {
+  if (!value) {
+    return Date.now();
+  }
+
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? parsed : Date.now();
 }
 
 export function useRecording() {
@@ -80,7 +91,7 @@ export function useRecording() {
     pausedAtRef.current = null;
     pausedAccumulatedMsRef.current = 0;
     setStartTime(startedAt);
-    setElapsedMs(0);
+    setElapsedMs(Math.max(0, Date.now() - startedAt));
     setIsRecording(true);
     setIsPaused(false);
   }, []);
@@ -125,7 +136,7 @@ export function useRecording() {
       }
 
       if (!micGranted) {
-        setPermissionStatus((prev) => ({ ...prev, mic: 'denied' }));
+        setPermissionStatus((previous) => ({ ...previous, mic: 'denied' }));
         setPermissionHint('Microphone access is required before recording can start.');
         return false;
       }
@@ -163,77 +174,6 @@ export function useRecording() {
       setPermissionLoading(false);
     }
   }, []);
-
-  const startRecording = useCallback(async () => {
-    if (isRecording) {
-      return true;
-    }
-
-    const permissionsOk = await ensurePermissions();
-    if (!permissionsOk) {
-      return false;
-    }
-
-    try {
-      await invoke('start_recording');
-      applyRecordingStarted(Date.now());
-      return true;
-    } catch (error) {
-      const message = String(error);
-      if (message.includes('already active') || message.includes('already')) {
-        applyRecordingStarted(Date.now());
-        return true;
-      }
-      setPermissionHint('Recording failed to start. Check permissions and audio device availability.');
-      return false;
-    }
-  }, [applyRecordingStarted, ensurePermissions, isRecording]);
-
-  const stopRecording = useCallback(async () => {
-    if (!isRecording) {
-      return null;
-    }
-
-    try {
-      const outputPath = await invoke<string>('stop_recording');
-      applyRecordingStopped();
-      return outputPath;
-    } catch {
-      setPermissionHint('Stopping recording failed. Try again from the widget controls.');
-      return null;
-    }
-  }, [applyRecordingStopped, isRecording]);
-
-  const pauseRecording = useCallback(async () => {
-    if (!isRecording || isPaused) {
-      return;
-    }
-
-    try {
-      await invoke('pause_recording');
-      pausedAtRef.current = Date.now();
-      setIsPaused(true);
-    } catch {
-      setPermissionHint('Failed to pause recording.');
-    }
-  }, [isPaused, isRecording]);
-
-  const resumeRecording = useCallback(async () => {
-    if (!isRecording || !isPaused) {
-      return;
-    }
-
-    try {
-      await invoke('resume_recording');
-      if (pausedAtRef.current) {
-        pausedAccumulatedMsRef.current += Date.now() - pausedAtRef.current;
-      }
-      pausedAtRef.current = null;
-      setIsPaused(false);
-    } catch {
-      setPermissionHint('Failed to resume recording.');
-    }
-  }, [isPaused, isRecording]);
 
   useEffect(() => {
     refreshElapsed();
@@ -291,12 +231,35 @@ export function useRecording() {
     let disposed = false;
     let unlisten: (() => void) | null = null;
 
-    void listen('recording-toggle', async () => {
-      if (isRecording) {
-        await stopRecording();
-      } else {
-        await startRecording();
+    void listen<SessionStatePayload>('session-state-changed', (event) => {
+      const { phase, startedAt } = event.payload;
+
+      if (phase === 'idle') {
+        applyRecordingStopped();
+        return;
       }
+
+      const startedAtMs = parseStartedAt(startedAt);
+      if (!startTimeRef.current) {
+        applyRecordingStarted(startedAtMs);
+      }
+
+      if (phase === 'paused') {
+        if (!pausedAtRef.current) {
+          pausedAtRef.current = Date.now();
+        }
+        setIsRecording(true);
+        setIsPaused(true);
+        return;
+      }
+
+      if (pausedAtRef.current) {
+        pausedAccumulatedMsRef.current += Date.now() - pausedAtRef.current;
+        pausedAtRef.current = null;
+      }
+
+      setIsRecording(true);
+      setIsPaused(false);
     }).then((cleanup) => {
       if (disposed) {
         cleanup();
@@ -311,42 +274,6 @@ export function useRecording() {
         unlisten();
       }
     };
-  }, [isRecording, startRecording, stopRecording]);
-
-  useEffect(() => {
-    let disposed = false;
-    const cleanups: Array<() => void> = [];
-
-    void Promise.all([
-      listen('recording-started', () => {
-        applyRecordingStarted(Date.now());
-      }),
-      listen('recording-stopped', () => {
-        applyRecordingStopped();
-      }),
-      listen('recording-paused', () => {
-        pausedAtRef.current = Date.now();
-        setIsPaused(true);
-      }),
-      listen('recording-resumed', () => {
-        if (pausedAtRef.current) {
-          pausedAccumulatedMsRef.current += Date.now() - pausedAtRef.current;
-        }
-        pausedAtRef.current = null;
-        setIsPaused(false);
-      }),
-    ]).then((handlers) => {
-      if (disposed) {
-        handlers.forEach((cleanup) => cleanup());
-        return;
-      }
-      cleanups.push(...handlers);
-    });
-
-    return () => {
-      disposed = true;
-      cleanups.forEach((cleanup) => cleanup());
-    };
   }, [applyRecordingStarted, applyRecordingStopped]);
 
   return {
@@ -358,10 +285,7 @@ export function useRecording() {
     permissionStatus,
     permissionHint,
     permissionLoading,
-    startRecording,
-    stopRecording,
-    pauseRecording,
-    resumeRecording,
+    ensurePermissions,
     refreshPermissions,
     openSystemSettings,
   };

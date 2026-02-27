@@ -1,9 +1,11 @@
+import { listen } from '@tauri-apps/api/event';
 import { AlertTriangle, CheckCircle2, Circle, Mic, Square } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 
 import { useModelSetup } from '../hooks/useModelSetup';
 import { useRecording } from '../hooks/useRecording';
+import { useSession } from '../hooks/useSession';
 import { useTranscript } from '../hooks/useTranscript';
 
 function formatElapsed(ms: number): string {
@@ -31,18 +33,37 @@ export function RecordView() {
     permissionStatus,
     permissionHint,
     permissionLoading,
-    startRecording,
-    stopRecording,
-    pauseRecording,
-    resumeRecording,
+    ensurePermissions,
     refreshPermissions,
     openSystemSettings,
   } = useRecording();
 
   const { modelStatus, checkModelReady } = useModelSetup();
-  const { segments, isTranscribing, startTranscription, stopTranscription, resetTranscript } = useTranscript();
+  const { segments, isTranscribing, addEvent, resetTranscript } = useTranscript();
+  const {
+    phase,
+    meetingId,
+    transcriptionDegraded,
+    isSaving,
+    startSession,
+    stopSession,
+    pauseSession,
+    resumeSession,
+  } = useSession();
 
-  const stateLabel = isRecording ? (isPaused ? 'Paused' : 'Recording') : 'Ready to Record';
+  const sessionActive = phase === 'recording' || phase === 'paused' || phase === 'stopping';
+
+  const stateLabel = useMemo(() => {
+    if (phase === 'stopping') {
+      return 'Saving';
+    }
+
+    if (isRecording) {
+      return isPaused ? 'Paused' : 'Recording';
+    }
+
+    return 'Ready to Record';
+  }, [isPaused, isRecording, phase]);
 
   const modelReady = modelStatus === 'ready';
   const modelBlocked = modelStatus === 'not_ready' || modelStatus === 'error';
@@ -58,63 +79,101 @@ export function RecordView() {
   }, [segments.length]);
 
   const transcriptHint = useMemo(() => {
-    if (isRecording && !segments.length) {
+    if (sessionActive && !segments.length) {
       return 'Listening for speech… segments appear after VAD completes a phrase.';
     }
 
-    if (!isRecording && segments.length) {
+    if (!sessionActive && segments.length) {
       return 'Recent transcript from the last recording session.';
     }
 
     return 'Live transcript appears here while recording.';
-  }, [isRecording, segments.length]);
+  }, [segments.length, sessionActive]);
 
-  const handleStartRecording = async () => {
+  const handleStartRecording = useCallback(async () => {
     setRecordingError(null);
 
     const ready = await checkModelReady();
     if (!ready) {
       setRecordingError('Transcription model not set up. Open Setup to download it before recording.');
-      return;
+      return false;
+    }
+
+    const permissionsOk = await ensurePermissions();
+    if (!permissionsOk) {
+      return false;
     }
 
     resetTranscript();
 
-    const started = await startRecording();
-    if (!started) {
-      return;
+    try {
+      await startSession((event) => {
+        addEvent(event);
+      });
+      return true;
+    } catch {
+      setRecordingError('Session failed to start. Verify audio permissions and model files, then retry.');
+      return false;
     }
+  }, [addEvent, checkModelReady, ensurePermissions, resetTranscript, startSession]);
 
-    const transcriptionStarted = await startTranscription();
-    if (!transcriptionStarted) {
-      await stopRecording();
-      setRecordingError('Transcription worker failed to start. Verify model files and retry.');
+  const handleStopRecording = useCallback(async () => {
+    try {
+      const completedMeetingId = await stopSession();
+      if (typeof completedMeetingId === 'number') {
+        navigate('/meeting-complete', {
+          state: {
+            meetingId: completedMeetingId,
+          },
+        });
+      }
+    } catch {
+      setRecordingError('Stopping the session failed. Please retry from the widget or tray controls.');
     }
-  };
+  }, [navigate, stopSession]);
 
-  const handleStopRecording = async () => {
-    await stopTranscription();
-    const outputPath = await stopRecording();
+  useEffect(() => {
+    let disposed = false;
+    let unlisten: (() => void) | null = null;
 
-    if (!outputPath) {
-      return;
-    }
+    void listen('recording-toggle', async () => {
+      if (phase === 'stopping') {
+        return;
+      }
 
-    const title = `Meeting — ${new Date().toLocaleString(undefined, {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit',
-    })}`;
+      if (phase === 'recording' || phase === 'paused') {
+        try {
+          const completedMeetingId = await stopSession();
+          if (typeof completedMeetingId === 'number') {
+            navigate('/meeting-complete', {
+              state: {
+                meetingId: completedMeetingId,
+              },
+            });
+          }
+        } catch {
+          setRecordingError('Unable to stop session from shortcut.');
+        }
+        return;
+      }
 
-    navigate('/meeting-complete', {
-      state: {
-        segments,
-        title,
-      },
+      await handleStartRecording();
+    }).then((cleanup) => {
+      if (disposed) {
+        cleanup();
+        return;
+      }
+
+      unlisten = cleanup;
     });
-  };
+
+    return () => {
+      disposed = true;
+      if (unlisten) {
+        unlisten();
+      }
+    };
+  }, [handleStartRecording, navigate, phase, stopSession]);
 
   return (
     <section className="flex h-full min-h-[calc(100vh-3rem)] items-center justify-center rounded-xl border border-warm-200/80 bg-white/60 px-6 py-10 shadow-sm dark:border-warm-700/70 dark:bg-warm-800/40">
@@ -127,8 +186,8 @@ export function RecordView() {
           />
           <h1 className="mt-4 text-2xl font-semibold text-warm-700 dark:text-warm-100">{stateLabel}</h1>
           <p className="mt-1 text-sm text-warm-500 dark:text-warm-300">
-            {isRecording
-              ? `Elapsed: ${formatElapsed(elapsedMs)} — transcription starts automatically with recording.`
+            {sessionActive
+              ? `Elapsed: ${formatElapsed(elapsedMs)} — session and transcription are coordinated automatically.`
               : 'Press Cmd+Shift+R, use the tray menu, or start recording here.'}
           </p>
         </div>
@@ -175,6 +234,12 @@ export function RecordView() {
               </span>
             )}
           </div>
+
+          {transcriptionDegraded ? (
+            <p className="rounded-lg border border-amber-300/70 bg-amber-50/70 px-3 py-2 text-xs text-amber-700 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-200">
+              Transcription encountered an issue during this session. Audio recording is still active.
+            </p>
+          ) : null}
 
           <div className="flex flex-wrap gap-2 pt-2">
             <button
@@ -240,7 +305,7 @@ export function RecordView() {
           <div
             ref={transcriptContainerRef}
             className={`h-56 rounded-lg border border-warm-200/70 bg-warm-50/50 p-3 dark:border-warm-700/70 dark:bg-warm-900/40 ${
-              isRecording ? 'overflow-y-hidden' : 'overflow-y-auto'
+              sessionActive ? 'overflow-y-hidden' : 'overflow-y-auto'
             }`}
           >
             {segments.length ? (
@@ -262,7 +327,7 @@ export function RecordView() {
         </div>
 
         <div className="flex flex-wrap items-center justify-center gap-3">
-          {!isRecording ? (
+          {!sessionActive ? (
             <button
               type="button"
               onClick={() => void handleStartRecording()}
@@ -275,8 +340,9 @@ export function RecordView() {
             <>
               <button
                 type="button"
-                onClick={() => void (isPaused ? resumeRecording() : pauseRecording())}
-                className="rounded-xl border border-warm-300 px-5 py-2.5 text-sm font-semibold text-warm-700 transition hover:bg-warm-100 dark:border-warm-600 dark:text-warm-100 dark:hover:bg-warm-800"
+                onClick={() => void (isPaused ? resumeSession() : pauseSession())}
+                disabled={phase === 'stopping' || isSaving}
+                className="rounded-xl border border-warm-300 px-5 py-2.5 text-sm font-semibold text-warm-700 transition hover:bg-warm-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-warm-600 dark:text-warm-100 dark:hover:bg-warm-800"
               >
                 {isPaused ? 'Resume' : 'Pause'}
               </button>
@@ -284,14 +350,19 @@ export function RecordView() {
               <button
                 type="button"
                 onClick={() => void handleStopRecording()}
-                className="inline-flex items-center gap-2 rounded-xl bg-red-500 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-red-600"
+                disabled={phase === 'stopping' || isSaving}
+                className="inline-flex items-center gap-2 rounded-xl bg-red-500 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-red-600 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <Square size={13} />
-                Stop Recording
+                {isSaving || phase === 'stopping' ? 'Saving…' : 'Stop Recording'}
               </button>
             </>
           )}
         </div>
+
+        {typeof meetingId === 'number' && phase === 'idle' ? (
+          <p className="text-center text-xs text-warm-500 dark:text-warm-300">Last saved meeting ID: {meetingId}</p>
+        ) : null}
       </div>
     </section>
   );

@@ -1,59 +1,28 @@
-import { listen } from '@tauri-apps/api/event';
-import { Pause, Play, Square } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { AlertCircle, Pause, Play, Square } from 'lucide-react';
 
 import { useRecording } from '../../hooks/useRecording';
+import { useSession } from '../../hooks/useSession';
 import { ElapsedTimer } from './ElapsedTimer';
 import { WaveformBar } from './WaveformBar';
 
 export function RecordingWidget() {
-  const {
-    isPaused,
-    isRecording,
-    audioLevel,
-    elapsedMs,
-    pauseRecording,
-    resumeRecording,
-    startRecording,
-    stopRecording,
-  } = useRecording();
-  const [isTranscribing, setIsTranscribing] = useState(false);
+  const { isPaused, isRecording, audioLevel, elapsedMs } = useRecording();
+  const { phase, transcriptionDegraded, pauseSession, resumeSession, stopSession } = useSession();
 
-  useEffect(() => {
-    let disposed = false;
-    const cleanups: Array<() => void> = [];
-
-    void Promise.all([
-      listen('transcribing-active', () => setIsTranscribing(true)),
-      listen('transcribing-inactive', () => setIsTranscribing(false)),
-      listen('recording-stopped', () => setIsTranscribing(false)),
-    ]).then((handlers) => {
-      if (disposed) {
-        handlers.forEach((cleanup) => cleanup());
-        return;
-      }
-
-      cleanups.push(...handlers);
-    });
-
-    return () => {
-      disposed = true;
-      cleanups.forEach((cleanup) => cleanup());
-    };
-  }, []);
+  const isSaving = phase === 'stopping';
+  const isTranscribing = phase === 'recording' || phase === 'paused';
 
   const onPauseToggle = async () => {
-    if (!isRecording) {
-      await startRecording();
+    if (!isRecording || isSaving) {
       return;
     }
 
     if (isPaused) {
-      await resumeRecording();
+      await resumeSession();
       return;
     }
 
-    await pauseRecording();
+    await pauseSession();
   };
 
   return (
@@ -64,11 +33,18 @@ export function RecordingWidget() {
       <div className="min-w-[78px]">
         <ElapsedTimer elapsedMs={elapsedMs} />
         <p
-          className={`mt-0.5 text-[10px] uppercase tracking-wide text-white/60 transition-opacity duration-200 ${
-            isTranscribing ? 'opacity-100' : 'opacity-0'
-          }`}
+          className={`mt-0.5 flex items-center gap-1 text-[10px] uppercase tracking-wide transition-opacity duration-200 ${
+            isTranscribing || transcriptionDegraded ? 'opacity-100' : 'opacity-0'
+          } ${transcriptionDegraded ? 'text-amber-300/90' : 'text-white/60'}`}
         >
-          Transcribing
+          {transcriptionDegraded ? (
+            <>
+              <AlertCircle size={10} className="text-amber-300/90" />
+              Transcription issue
+            </>
+          ) : (
+            'Transcribing'
+          )}
         </p>
       </div>
 
@@ -78,8 +54,9 @@ export function RecordingWidget() {
 
       <button
         type="button"
-        onClick={onPauseToggle}
-        className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20"
+        onClick={() => void onPauseToggle()}
+        disabled={!isRecording || isSaving}
+        className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-50"
         aria-label={isPaused ? 'Resume recording' : 'Pause recording'}
       >
         {isPaused ? <Play size={14} /> : <Pause size={14} />}
@@ -87,8 +64,9 @@ export function RecordingWidget() {
 
       <button
         type="button"
-        onClick={() => void stopRecording()}
-        className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-red-500/90 text-white transition hover:bg-red-500"
+        onClick={() => void stopSession()}
+        disabled={!isRecording || isSaving}
+        className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-red-500/90 text-white transition hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-50"
         aria-label="Stop recording"
       >
         <Square size={13} />
