@@ -18,3 +18,28 @@ export interface AppSettings {
   recordingShortcut: string;
   dataDirectory: string;
 }
+
+export interface TranscriptSegment {
+  text: string;
+  elapsedMs: number;
+  index: number;
+}
+
+export type ModelStatus =
+  | 'unknown'
+  | 'checking'
+  | 'not_ready'
+  | 'downloading'
+  | 'extracting'
+  | 'ready'
+  | 'error';
+
+export type TranscriptEvent =
+  | { event: 'segment'; data: { text: string; elapsedMs: number; index: number } }
+  | { event: 'transcribing'; data: { active: boolean } };
+
+export type DownloadEvent =
+  | { event: 'progress'; data: { downloadedBytes: number; totalBytes: number } }
+  | { event: 'extracting' }
+  | { event: 'complete' }
+  | { event: 'error'; data: { message: string } };
