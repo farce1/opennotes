@@ -206,6 +206,12 @@ pub async fn get_transcript_page(
 }
 
 #[tauri::command]
+pub async fn retranscribe_meeting(meeting_id: i64) -> Result<(), String> {
+    eprintln!("[retranscribe] requested for meeting_id={meeting_id} — not yet implemented");
+    Err("Re-transcription is not yet available. Coming in a future update.".to_string())
+}
+
+#[tauri::command]
 pub async fn start_recording(
     app: AppHandle,
     _state: tauri::State<'_, RecordingStateHandle>,

@@ -103,6 +103,7 @@ pub fn run() {
             commands::resume_session,
             commands::get_session_state,
             commands::get_transcript_page,
+            commands::retranscribe_meeting,
             commands::start_recording,
             commands::stop_recording,
             commands::pause_recording,
