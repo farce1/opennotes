@@ -30,6 +30,11 @@
     - [x] 05-02-PLAN.md — Ollama onboarding UI (setup wizard expansion, useOllamaSetup hook, model pull progress) (completed 2026-02-27)
     - [x] 05-03-PLAN.md — Frontend summary pipeline (useSummary hook, tab layout, SummaryPanel, markdown rendering, editing, export) (completed 2026-02-27)
 - [ ] Phase 06: Library + Data Workflows
+  - **Goal:** Evolve the meeting library from a basic chronological list into a productive workspace with full-text search (FTS5 snippets), inline filter chips, date-section grouping, sort controls, card/compact view toggle, enriched meeting cards, multi-select with bulk operations, inline title rename, soft-delete with trash/restore, per-meeting export (MD/TXT/JSON/PDF), bulk ZIP export, and full library backup/restore in Settings.
+  - **Plans:** 3 plans
+    - [ ] 06-01-PLAN.md — Backend foundation (SQLite FTS5 migration, soft-delete schema, Rust commands, dependency install, Tauri plugin setup)
+    - [ ] 06-02-PLAN.md — Library UI evolution (useLibrary hook, search/filter/sort, enriched cards, date grouping, view modes)
+    - [ ] 06-03-PLAN.md — Selection, export, backup (multi-select, bulk actions, inline rename, export module, backup/restore settings)
 - [ ] Phase 07: Settings Surface Expansion
 - [ ] Phase 08: Cross-Platform Hardening
 
@@ -42,6 +47,6 @@
 | 03 | Complete | 3/3 | 2026-02-27 |
 | 04 | Complete | 3/3 | 2026-02-27 |
 | 05 | Complete | 3/3 | 2026-02-27 |
-| 06 | Pending | 0/0 | - |
+| 06 | Planned | 0/3 | - |
 | 07 | Pending | 0/0 | - |
 | 08 | Pending | 0/0 | - |
