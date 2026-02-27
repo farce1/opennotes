@@ -18,6 +18,8 @@ pub struct RecordingState {
     pub loopback_stream: Option<Stream>,
     pub mic_sample_tx: Option<mpsc::SyncSender<Vec<f32>>>,
     pub system_sample_tx: Option<mpsc::SyncSender<Vec<f32>>>,
+    pub transcription_tx: Option<mpsc::SyncSender<Vec<f32>>>,
+    pub transcription_rx: Option<mpsc::Receiver<Vec<f32>>>,
     pub encoder_tx: Option<mpsc::SyncSender<Vec<i16>>>,
     pub mixer_handle: Option<JoinHandle<()>>,
     pub encoder_handle: Option<JoinHandle<()>>,
@@ -33,6 +35,8 @@ impl Default for RecordingState {
             loopback_stream: None,
             mic_sample_tx: None,
             system_sample_tx: None,
+            transcription_tx: None,
+            transcription_rx: None,
             encoder_tx: None,
             mixer_handle: None,
             encoder_handle: None,
@@ -63,6 +67,7 @@ pub fn start_recording(app: &AppHandle, output_path: PathBuf) -> Result<(), Stri
 
     let (mic_tx, mic_rx) = mpsc::sync_channel::<Vec<f32>>(128);
     let (system_tx, system_rx) = mpsc::sync_channel::<Vec<f32>>(128);
+    let (transcription_tx, transcription_rx) = mpsc::sync_channel::<Vec<f32>>(256);
     let (encoder_tx, encoder_rx) = mpsc::sync_channel::<Vec<i16>>(128);
 
     let mic_capture = capture::build_mic_stream(mic_tx.clone(), app.clone())?;
@@ -88,6 +93,7 @@ pub fn start_recording(app: &AppHandle, output_path: PathBuf) -> Result<(), Stri
 
     let mixer_state_handle = state_handle.clone();
     let encoder_tx_for_mixer = encoder_tx.clone();
+    let transcription_tx_for_mixer = transcription_tx.clone();
     let mixer_handle = thread::spawn(move || {
         let mut latest_system = Vec::<f32>::new();
         let mut stereo_mix = Vec::<f32>::new();
@@ -105,6 +111,7 @@ pub fn start_recording(app: &AppHandle, output_path: PathBuf) -> Result<(), Stri
                 continue;
             }
 
+            let _ = transcription_tx_for_mixer.try_send(mic_chunk.clone());
             mixer::mix_to_stereo(&mic_chunk, &latest_system, &mut stereo_mix);
             let pcm_i16 = mixer::f32_to_i16(&stereo_mix);
             let _ = encoder_tx_for_mixer.try_send(pcm_i16);
@@ -129,6 +136,8 @@ pub fn start_recording(app: &AppHandle, output_path: PathBuf) -> Result<(), Stri
         state.loopback_stream = loopback_stream;
         state.mic_sample_tx = Some(mic_tx);
         state.system_sample_tx = Some(system_tx);
+        state.transcription_tx = Some(transcription_tx);
+        state.transcription_rx = Some(transcription_rx);
         state.encoder_tx = Some(encoder_tx);
         state.mixer_handle = Some(mixer_handle);
         state.encoder_handle = Some(encoder_handle);
@@ -149,6 +158,8 @@ pub fn stop_recording(app: &AppHandle) -> Result<PathBuf, String> {
         loopback_stream,
         mic_sample_tx,
         system_sample_tx,
+        transcription_tx,
+        transcription_rx,
         mixer_handle,
         encoder_tx,
         encoder_handle,
@@ -170,6 +181,8 @@ pub fn stop_recording(app: &AppHandle) -> Result<PathBuf, String> {
             state.loopback_stream.take(),
             state.mic_sample_tx.take(),
             state.system_sample_tx.take(),
+            state.transcription_tx.take(),
+            state.transcription_rx.take(),
             state.mixer_handle.take(),
             state.encoder_tx.take(),
             state.encoder_handle.take(),
@@ -180,6 +193,8 @@ pub fn stop_recording(app: &AppHandle) -> Result<PathBuf, String> {
     drop(loopback_stream);
     drop(mic_sample_tx);
     drop(system_sample_tx);
+    drop(transcription_tx);
+    drop(transcription_rx);
 
     if let Some(handle) = mixer_handle {
         let _ = handle.join();

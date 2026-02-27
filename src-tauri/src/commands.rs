@@ -1,13 +1,16 @@
 use std::path::PathBuf;
+use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde::Serialize;
+use tauri::ipc::Channel;
 use tauri::{AppHandle, Emitter, Manager};
 
-use crate::{audio, tray::TrayMenuHandles, widget};
+use crate::{audio, transcription, tray::TrayMenuHandles, widget};
 
 pub type RecordingStateHandle = Arc<Mutex<audio::RecordingState>>;
+pub type TranscriptionStateHandle = Arc<Mutex<transcription::TranscriptionState>>;
 
 #[derive(Serialize)]
 pub struct PermissionStatus {
@@ -108,8 +111,15 @@ pub async fn stop_recording(
 pub async fn pause_recording(
     app: AppHandle,
     _state: tauri::State<'_, RecordingStateHandle>,
+    transcription_state: tauri::State<'_, TranscriptionStateHandle>,
 ) -> Result<(), String> {
-    audio::pause_recording(&app)
+    audio::pause_recording(&app)?;
+
+    if let Ok(state) = transcription_state.lock() {
+        transcription::flush_transcription(&state);
+    }
+
+    Ok(())
 }
 
 #[tauri::command]
@@ -118,6 +128,71 @@ pub async fn resume_recording(
     _state: tauri::State<'_, RecordingStateHandle>,
 ) -> Result<(), String> {
     audio::resume_recording(&app)
+}
+
+#[tauri::command]
+pub async fn start_transcription(
+    app: AppHandle,
+    recording_state: tauri::State<'_, RecordingStateHandle>,
+    transcription_state: tauri::State<'_, TranscriptionStateHandle>,
+    on_segment: Channel<transcription::TranscriptEvent>,
+) -> Result<(), String> {
+    {
+        let state = transcription_state
+            .lock()
+            .map_err(|_| "transcription state lock poisoned".to_string())?;
+        if state.worker_handle.is_some() {
+            let _ = app.emit("transcribing-active", ());
+            return Ok(());
+        }
+    }
+
+    let (audio_tx, audio_rx) = {
+        let mut state = recording_state
+            .lock()
+            .map_err(|_| "recording state lock poisoned".to_string())?;
+
+        if !state.is_recording.load(Ordering::SeqCst) {
+            return Err("recording must be active before starting transcription".to_string());
+        }
+
+        let audio_tx = state
+            .transcription_tx
+            .clone()
+            .ok_or_else(|| "transcription sender unavailable".to_string())?;
+        let audio_rx = state
+            .transcription_rx
+            .take()
+            .ok_or_else(|| "transcription receiver unavailable; restart recording".to_string())?;
+
+        (audio_tx, audio_rx)
+    };
+
+    let mut state = transcription_state
+        .lock()
+        .map_err(|_| "transcription state lock poisoned".to_string())?;
+    transcription::start_transcription_worker(&mut state, audio_tx, audio_rx, on_segment)?;
+
+    let _ = app.emit("transcribing-active", ());
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn stop_transcription(
+    app: AppHandle,
+    transcription_state: tauri::State<'_, TranscriptionStateHandle>,
+) -> Result<(), String> {
+    let mut state = transcription_state
+        .lock()
+        .map_err(|_| "transcription state lock poisoned".to_string())?;
+    transcription::stop_transcription_worker(&mut state);
+    let _ = app.emit("transcribing-inactive", ());
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn check_model_ready() -> Result<bool, String> {
+    Ok(transcription::model::check_model_ready())
 }
 
 #[tauri::command]

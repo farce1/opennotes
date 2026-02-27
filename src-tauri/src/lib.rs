@@ -1,9 +1,10 @@
 mod audio;
 mod commands;
+mod transcription;
 mod tray;
 mod widget;
 
-use commands::RecordingStateHandle;
+use commands::{RecordingStateHandle, TranscriptionStateHandle};
 use tauri::Emitter;
 use tauri::Manager;
 use tauri_plugin_global_shortcut::ShortcutState;
@@ -20,6 +21,8 @@ pub fn run() {
 
     let recording_state: RecordingStateHandle =
         std::sync::Arc::new(std::sync::Mutex::new(audio::RecordingState::default()));
+    let transcription_state: TranscriptionStateHandle =
+        std::sync::Arc::new(std::sync::Mutex::new(transcription::TranscriptionState::default()));
 
     let mut builder = tauri::Builder::default()
         .setup(|app| {
@@ -58,12 +61,16 @@ pub fn run() {
         .plugin(tauri_plugin_window_state::Builder::default().build())
         .plugin(tauri_plugin_notification::init())
         .manage(recording_state)
+        .manage(transcription_state)
         .invoke_handler(tauri::generate_handler![
             commands::update_tray_icon,
             commands::start_recording,
             commands::stop_recording,
             commands::pause_recording,
             commands::resume_recording,
+            commands::start_transcription,
+            commands::stop_transcription,
+            commands::check_model_ready,
             commands::check_audio_permissions,
             commands::update_tray_recording_state,
         ]);
