@@ -14,7 +14,7 @@
 
 - [x] CAPT-01: Microphone + system audio capture via cpal (loopback on macOS 14.6+)
 - [x] CAPT-02: Opus/OGG encoding at 48kHz stereo ~1MB/min
-- [ ] CAPT-03: Floating always-on-top recording widget (draggable, position memory, timer, waveform, controls)
-- [ ] CAPT-04: One-click recording from tray icon or global shortcut
-- [ ] CAPT-05: JIT macOS permissions with pre-explanation and denied guidance
+- [x] CAPT-03: Floating always-on-top recording widget (draggable, position memory, timer, waveform, controls)
+- [x] CAPT-04: One-click recording from tray icon or global shortcut
+- [x] CAPT-05: JIT macOS permissions with pre-explanation and denied guidance
 - [x] CAPT-06: Recording lifecycle (pause/resume/stop, 2-hour soft warning)
