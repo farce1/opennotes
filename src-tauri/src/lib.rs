@@ -2,6 +2,7 @@ mod audio;
 mod commands;
 mod db;
 mod download;
+mod llm;
 mod session;
 mod transcription;
 mod tray;
@@ -112,6 +113,12 @@ pub fn run() {
             commands::stop_transcription,
             commands::check_model_ready,
             commands::download_model,
+            commands::check_ollama_status,
+            commands::pull_ollama_model,
+            commands::generate_summary,
+            commands::get_summary,
+            commands::save_summary,
+            commands::update_meeting_title,
             commands::check_audio_permissions,
             commands::update_tray_recording_state,
         ]);

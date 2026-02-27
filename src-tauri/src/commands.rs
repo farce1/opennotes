@@ -8,7 +8,7 @@ use sqlx::SqlitePool;
 use tauri::ipc::Channel;
 use tauri::{AppHandle, Emitter, Manager};
 
-use crate::{audio, session, transcription, tray::TrayMenuHandles, widget};
+use crate::{audio, llm, session, transcription, tray::TrayMenuHandles, widget};
 
 pub type RecordingStateHandle = Arc<Mutex<audio::RecordingState>>;
 pub type TranscriptionStateHandle = Arc<Mutex<transcription::TranscriptionState>>;
@@ -337,6 +337,91 @@ pub async fn check_model_ready() -> Result<bool, String> {
 #[tauri::command]
 pub async fn download_model(on_event: Channel<crate::download::DownloadEvent>) -> Result<(), String> {
     crate::download::download_model(on_event).await
+}
+
+#[tauri::command]
+pub async fn check_ollama_status() -> Result<llm::detect::OllamaStatus, String> {
+    Ok(llm::detect::full_status(llm::DEFAULT_MODEL).await)
+}
+
+#[tauri::command]
+pub async fn pull_ollama_model(
+    model: Option<String>,
+    on_event: Channel<llm::OllamaPullEvent>,
+) -> Result<(), String> {
+    let selected_model = model.unwrap_or_else(|| llm::DEFAULT_MODEL.to_string());
+    llm::pull_model(&selected_model, &on_event).await
+}
+
+#[tauri::command]
+pub async fn generate_summary(
+    pool: tauri::State<'_, SqlitePool>,
+    meeting_id: i64,
+    on_token: Channel<llm::LlmTokenEvent>,
+) -> Result<(), String> {
+    let transcript_parts = sqlx::query_scalar::<_, String>(
+        "SELECT text
+         FROM transcripts
+         WHERE meeting_id = ?
+         ORDER BY segment_index",
+    )
+    .bind(meeting_id)
+    .fetch_all(pool.inner())
+    .await
+    .map_err(|err| format!("failed to load transcript for summary generation: {err}"))?;
+
+    if transcript_parts.is_empty() {
+        return Err("meeting has no transcript text to summarize".to_string());
+    }
+
+    let transcript = transcript_parts.join("\n");
+    let full_summary = llm::run_summary(&transcript, llm::DEFAULT_MODEL, &on_token).await?;
+    let extracted_title = llm::extract_title(&full_summary);
+    let cleaned_summary = llm::strip_title_line(&full_summary).trim().to_string();
+    let persisted_summary = if cleaned_summary.is_empty() {
+        full_summary
+    } else {
+        cleaned_summary
+    };
+
+    llm::save_summary(pool.inner(), meeting_id, &persisted_summary, llm::DEFAULT_MODEL).await?;
+
+    if let Some(title) = extracted_title {
+        llm::update_meeting_title(pool.inner(), meeting_id, &title).await?;
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn get_summary(
+    pool: tauri::State<'_, SqlitePool>,
+    meeting_id: i64,
+) -> Result<Option<llm::SummaryRow>, String> {
+    llm::get_summary(pool.inner(), meeting_id).await
+}
+
+#[tauri::command]
+pub async fn save_summary(
+    pool: tauri::State<'_, SqlitePool>,
+    meeting_id: i64,
+    content: String,
+) -> Result<i64, String> {
+    if let Some(existing) = llm::get_summary(pool.inner(), meeting_id).await? {
+        llm::update_summary_content(pool.inner(), meeting_id, &content).await?;
+        Ok(existing.id)
+    } else {
+        llm::save_summary(pool.inner(), meeting_id, &content, llm::DEFAULT_MODEL).await
+    }
+}
+
+#[tauri::command]
+pub async fn update_meeting_title(
+    pool: tauri::State<'_, SqlitePool>,
+    meeting_id: i64,
+    title: String,
+) -> Result<(), String> {
+    llm::update_meeting_title(pool.inner(), meeting_id, &title).await
 }
 
 #[tauri::command]
