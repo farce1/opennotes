@@ -2,6 +2,7 @@ mod audio;
 mod commands;
 mod tray;
 
+use commands::RecordingStateHandle;
 use tauri::Emitter;
 use tauri::Manager;
 use tauri_plugin_global_shortcut::ShortcutState;
@@ -15,6 +16,9 @@ pub fn run() {
         sql: include_str!("../migrations/001_initial.sql"),
         kind: MigrationKind::Up,
     }];
+
+    let recording_state: RecordingStateHandle =
+        std::sync::Arc::new(std::sync::Mutex::new(audio::RecordingState::default()));
 
     let mut builder = tauri::Builder::default()
         .setup(|app| {
@@ -52,7 +56,15 @@ pub fn run() {
         .plugin(tauri_plugin_macos_permissions::init())
         .plugin(tauri_plugin_window_state::Builder::default().build())
         .plugin(tauri_plugin_notification::init())
-        .invoke_handler(tauri::generate_handler![commands::update_tray_icon]);
+        .manage(recording_state)
+        .invoke_handler(tauri::generate_handler![
+            commands::update_tray_icon,
+            commands::start_recording,
+            commands::stop_recording,
+            commands::pause_recording,
+            commands::resume_recording,
+            commands::check_audio_permissions,
+        ]);
 
     #[cfg(desktop)]
     {
