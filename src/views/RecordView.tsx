@@ -8,6 +8,8 @@ import { useRecording } from '../hooks/useRecording';
 import { useSession } from '../hooks/useSession';
 import { useTranscript } from '../hooks/useTranscript';
 
+const FOUR_HOURS_MS = 4 * 60 * 60 * 1000;
+
 function formatElapsed(ms: number): string {
   const totalSeconds = Math.max(0, Math.floor(ms / 1000));
   const hours = Math.floor(totalSeconds / 3600);
@@ -24,11 +26,13 @@ function formatElapsed(ms: number): string {
 export function RecordView() {
   const navigate = useNavigate();
   const transcriptContainerRef = useRef<HTMLDivElement | null>(null);
+  const autoStopTriggeredRef = useRef(false);
   const [recordingError, setRecordingError] = useState<string | null>(null);
 
   const {
     isRecording,
     isPaused,
+    startTime,
     elapsedMs,
     permissionStatus,
     permissionHint,
@@ -110,6 +114,7 @@ export function RecordView() {
       await startSession((event) => {
         addEvent(event);
       });
+      autoStopTriggeredRef.current = false;
       return true;
     } catch {
       setRecordingError('Session failed to start. Verify audio permissions and model files, then retry.');
@@ -131,6 +136,31 @@ export function RecordView() {
       setRecordingError('Stopping the session failed. Please retry from the widget or tray controls.');
     }
   }, [navigate, stopSession]);
+
+  useEffect(() => {
+    if (!sessionActive || !startTime || phase === 'stopping') {
+      autoStopTriggeredRef.current = false;
+      return;
+    }
+
+    const remainingMs = FOUR_HOURS_MS - elapsedMs;
+    if (remainingMs <= 0) {
+      if (!autoStopTriggeredRef.current) {
+        autoStopTriggeredRef.current = true;
+        void handleStopRecording();
+      }
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      if (!autoStopTriggeredRef.current) {
+        autoStopTriggeredRef.current = true;
+        void handleStopRecording();
+      }
+    }, remainingMs);
+
+    return () => window.clearTimeout(timer);
+  }, [elapsedMs, handleStopRecording, phase, sessionActive, startTime]);
 
   useEffect(() => {
     let disposed = false;
