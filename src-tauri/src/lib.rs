@@ -1,3 +1,4 @@
+mod audio;
 mod commands;
 mod tray;
 
@@ -22,6 +23,7 @@ pub fn run() {
             std::fs::create_dir_all(&data_dir).expect("Failed to create data directory");
             std::fs::create_dir_all(data_dir.join("models")).ok();
             std::fs::create_dir_all(data_dir.join("logs")).ok();
+            std::fs::create_dir_all(data_dir.join("recordings")).ok();
 
             #[cfg(desktop)]
             {
@@ -47,6 +49,9 @@ pub fn run() {
                 .add_migrations("sqlite:~/.opennotes/data.db", migrations)
                 .build(),
         )
+        .plugin(tauri_plugin_macos_permissions::init())
+        .plugin(tauri_plugin_window_state::Builder::default().build())
+        .plugin(tauri_plugin_notification::init())
         .invoke_handler(tauri::generate_handler![commands::update_tray_icon]);
 
     #[cfg(desktop)]
