@@ -3,9 +3,9 @@ use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde::Serialize;
-use tauri::AppHandle;
+use tauri::{AppHandle, Emitter, Manager};
 
-use crate::audio;
+use crate::{audio, tray::TrayMenuHandles, widget};
 
 pub type RecordingStateHandle = Arc<Mutex<audio::RecordingState>>;
 
@@ -49,6 +49,19 @@ fn next_recording_output_path() -> Result<PathBuf, String> {
     Ok(path)
 }
 
+fn set_tray_start_stop_label(app: &AppHandle, is_recording: bool) -> Result<(), String> {
+    if let Some(handles) = app.try_state::<TrayMenuHandles>() {
+        let text = if is_recording {
+            "Stop Recording"
+        } else {
+            "Start Recording"
+        };
+        handles.start_stop.set_text(text).map_err(|err| err.to_string())?;
+    }
+
+    Ok(())
+}
+
 #[tauri::command]
 pub fn update_tray_icon(app: AppHandle, state: String) -> Result<(), String> {
     let tooltip = match state.as_str() {
@@ -70,7 +83,12 @@ pub async fn start_recording(
     _state: tauri::State<'_, RecordingStateHandle>,
 ) -> Result<(), String> {
     let output_path = next_recording_output_path()?;
-    audio::start_recording(&app, output_path)
+    audio::start_recording(&app, output_path)?;
+    widget::show_widget(&app).map_err(|err| err.to_string())?;
+    set_tray_start_stop_label(&app, true)?;
+    update_tray_icon(app.clone(), "recording".to_string())?;
+    let _ = app.emit("recording-started", ());
+    Ok(())
 }
 
 #[tauri::command]
@@ -79,6 +97,10 @@ pub async fn stop_recording(
     _state: tauri::State<'_, RecordingStateHandle>,
 ) -> Result<String, String> {
     let output_path = audio::stop_recording(&app)?;
+    widget::hide_widget(&app);
+    set_tray_start_stop_label(&app, false)?;
+    update_tray_icon(app.clone(), "idle".to_string())?;
+    let _ = app.emit("recording-stopped", ());
     Ok(output_path.to_string_lossy().to_string())
 }
 
@@ -127,5 +149,15 @@ pub async fn check_audio_permissions() -> Result<PermissionStatus, String> {
             mic: "granted".to_string(),
             screen_recording: "granted".to_string(),
         })
+    }
+}
+
+#[tauri::command]
+pub fn update_tray_recording_state(app: AppHandle, is_recording: bool) -> Result<(), String> {
+    set_tray_start_stop_label(&app, is_recording)?;
+    if is_recording {
+        update_tray_icon(app, "recording".to_string())
+    } else {
+        update_tray_icon(app, "idle".to_string())
     }
 }

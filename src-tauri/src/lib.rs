@@ -65,6 +65,7 @@ pub fn run() {
             commands::pause_recording,
             commands::resume_recording,
             commands::check_audio_permissions,
+            commands::update_tray_recording_state,
         ]);
 
     #[cfg(desktop)]

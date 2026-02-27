@@ -5,10 +5,18 @@ use tauri::{
     App, Emitter, Manager,
 };
 
+pub struct TrayMenuHandles {
+    pub start_stop: MenuItem<tauri::Wry>,
+}
+
 pub fn create_tray(app: &App) -> tauri::Result<()> {
     let start_stop = MenuItem::with_id(app, "start-stop", "Start Recording", true, None::<&str>)?;
     let show = MenuItem::with_id(app, "show", "Show openNotes", true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
+
+    app.manage(TrayMenuHandles {
+        start_stop: start_stop.clone(),
+    });
 
     let menu = Menu::with_items(app, &[&start_stop, &show, &quit])?;
 

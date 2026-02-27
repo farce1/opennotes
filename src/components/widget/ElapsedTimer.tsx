@@ -1,8 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-
 type ElapsedTimerProps = {
-  startTime: number | null;
-  isPaused: boolean;
+  elapsedMs: number;
 };
 
 function formatElapsed(ms: number): string {
@@ -13,37 +10,7 @@ function formatElapsed(ms: number): string {
   return `${hours}:${minutes}:${seconds}`;
 }
 
-export function ElapsedTimer({ startTime, isPaused }: ElapsedTimerProps) {
-  const [now, setNow] = useState(() => Date.now());
-  const pauseSnapshotRef = useRef<number>(0);
-
-  useEffect(() => {
-    if (!startTime) {
-      pauseSnapshotRef.current = 0;
-      return;
-    }
-
-    if (isPaused) {
-      pauseSnapshotRef.current = Date.now();
-      return;
-    }
-
-    const timer = window.setInterval(() => setNow(Date.now()), 1000);
-    return () => window.clearInterval(timer);
-  }, [isPaused, startTime]);
-
-  const elapsedMs = useMemo(() => {
-    if (!startTime) {
-      return 0;
-    }
-
-    if (isPaused && pauseSnapshotRef.current > 0) {
-      return pauseSnapshotRef.current - startTime;
-    }
-
-    return now - startTime;
-  }, [isPaused, now, startTime]);
-
+export function ElapsedTimer({ elapsedMs }: ElapsedTimerProps) {
   return (
     <span className="font-mono text-sm tracking-wide text-white tabular-nums">
       {formatElapsed(elapsedMs)}

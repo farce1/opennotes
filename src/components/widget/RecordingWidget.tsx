@@ -1,30 +1,27 @@
 import { Pause, Play, Square } from 'lucide-react';
 
+import { useRecording } from '../../hooks/useRecording';
 import { ElapsedTimer } from './ElapsedTimer';
 import { WaveformBar } from './WaveformBar';
-
-function useRecordingPlaceholder() {
-  return {
-    isPaused: false,
-    audioLevel: 0.16,
-    startTime: Date.now(),
-    pauseRecording: async () => {},
-    resumeRecording: async () => {},
-    stopRecording: async () => {},
-  };
-}
 
 export function RecordingWidget() {
   const {
     isPaused,
+    isRecording,
     audioLevel,
-    startTime,
+    elapsedMs,
     pauseRecording,
     resumeRecording,
+    startRecording,
     stopRecording,
-  } = useRecordingPlaceholder();
+  } = useRecording();
 
   const onPauseToggle = async () => {
+    if (!isRecording) {
+      await startRecording();
+      return;
+    }
+
     if (isPaused) {
       await resumeRecording();
       return;
@@ -38,7 +35,7 @@ export function RecordingWidget() {
       data-tauri-drag-region
       className="flex h-[72px] w-[280px] items-center gap-3 rounded-full border border-white/15 bg-black/80 px-4 shadow-xl backdrop-blur-sm"
     >
-      <ElapsedTimer startTime={startTime} isPaused={isPaused} />
+      <ElapsedTimer elapsedMs={elapsedMs} />
 
       <div className="flex-1">
         <WaveformBar level={audioLevel} />
@@ -55,7 +52,7 @@ export function RecordingWidget() {
 
       <button
         type="button"
-        onClick={stopRecording}
+        onClick={() => void stopRecording()}
         className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-red-500/90 text-white transition hover:bg-red-500"
         aria-label="Stop recording"
       >
