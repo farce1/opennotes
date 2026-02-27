@@ -1,3 +1,4 @@
+import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { AlertTriangle, CheckCircle2, Circle, Mic, Square } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -7,6 +8,7 @@ import { useModelSetup } from '../hooks/useModelSetup';
 import { useRecording } from '../hooks/useRecording';
 import { useSession } from '../hooks/useSession';
 import { useTranscript } from '../hooks/useTranscript';
+import type { OllamaStatus } from '../types';
 
 const FOUR_HOURS_MS = 4 * 60 * 60 * 1000;
 
@@ -103,6 +105,17 @@ export function RecordView() {
       return false;
     }
 
+    try {
+      const ollamaStatus = await invoke<OllamaStatus>('check_ollama_status');
+      if (!ollamaStatus.modelReady) {
+        setRecordingError('AI notes model not ready. Open Setup to finish Ollama setup before recording.');
+        return false;
+      }
+    } catch {
+      setRecordingError('Unable to verify AI notes model readiness. Open Setup and retry.');
+      return false;
+    }
+
     const permissionsOk = await ensurePermissions();
     if (!permissionsOk) {
       return false;
@@ -129,6 +142,7 @@ export function RecordView() {
         navigate('/meeting-complete', {
           state: {
             meetingId: completedMeetingId,
+            autoGenerate: true,
           },
         });
       }
@@ -178,6 +192,7 @@ export function RecordView() {
             navigate('/meeting-complete', {
               state: {
                 meetingId: completedMeetingId,
+                autoGenerate: true,
               },
             });
           }

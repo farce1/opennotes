@@ -1,13 +1,17 @@
 import { invoke } from '@tauri-apps/api/core';
-import { Check, Copy, Download, Plus, RotateCcw, TriangleAlert } from 'lucide-react';
+import { Copy, Download, Plus, RotateCcw, TriangleAlert } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router';
 
+import { SummaryExport } from '../components/SummaryExport';
+import { SummaryPanel } from '../components/SummaryPanel';
+import { useSummary } from '../hooks/useSummary';
 import { getDb } from '../lib/db';
 import type { Meeting, TranscriptRow, TranscriptSegment } from '../types';
 
 type MeetingCompleteRouteState = {
   meetingId: number;
+  autoGenerate?: boolean;
 };
 
 function formatElapsed(ms: number): string {
@@ -46,9 +50,30 @@ export function MeetingCompleteView() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [copyState, setCopyState] = useState<'idle' | 'copied' | 'error'>('idle');
   const [retranscribeMessage, setRetranscribeMessage] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'summary' | 'transcript'>('summary');
+  const [autoGenerateTriggered, setAutoGenerateTriggered] = useState(false);
+  const [summaryChecked, setSummaryChecked] = useState(false);
+  const [hadSummaryOnLoad, setHadSummaryOnLoad] = useState(false);
+  const [titleInput, setTitleInput] = useState('');
+  const [titleSaveState, setTitleSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
 
   const state = (location.state as MeetingCompleteRouteState | null) ?? null;
   const meetingId = typeof state?.meetingId === 'number' ? state.meetingId : null;
+
+  const {
+    summaryText,
+    generating,
+    loading: summaryLoading,
+    title,
+    hasExistingSummary,
+    edited,
+    errorMessage: summaryError,
+    generate,
+    saveEdit,
+    setText,
+    saveTitle,
+    loadExisting,
+  } = useSummary();
 
   useEffect(() => {
     if (!meetingId) {
@@ -61,6 +86,9 @@ export function MeetingCompleteView() {
     const load = async () => {
       setLoading(true);
       setLoadError(null);
+      setSummaryChecked(false);
+      setHadSummaryOnLoad(false);
+      setAutoGenerateTriggered(false);
 
       try {
         const db = await getDb();
@@ -80,12 +108,15 @@ export function MeetingCompleteView() {
           limit: 10000,
         });
 
+        const existingSummary = await loadExisting(meetingId);
+
         if (!active) {
           return;
         }
 
         setMeeting(selectedMeeting);
         setSegments(mapRowsToSegments(rows));
+        setHadSummaryOnLoad(Boolean(existingSummary));
       } catch {
         if (!active) {
           return;
@@ -94,6 +125,7 @@ export function MeetingCompleteView() {
         setLoadError('Failed to load meeting transcript from local database.');
       } finally {
         if (active) {
+          setSummaryChecked(true);
           setLoading(false);
         }
       }
@@ -104,15 +136,30 @@ export function MeetingCompleteView() {
     return () => {
       active = false;
     };
-  }, [meetingId]);
+  }, [loadExisting, meetingId]);
 
-  const title =
-    meeting?.title ??
-    `Meeting — ${new Date().toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}`;
+  useEffect(() => {
+    if (!meetingId || !state?.autoGenerate || !summaryChecked || autoGenerateTriggered || hadSummaryOnLoad || generating) {
+      return;
+    }
+
+    setAutoGenerateTriggered(true);
+    void generate(meetingId);
+  }, [autoGenerateTriggered, generate, generating, hadSummaryOnLoad, meetingId, state?.autoGenerate, summaryChecked]);
+
+  const fallbackTitle = useMemo(
+    () => `Meeting — ${new Date().toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}`,
+    [],
+  );
+
+  useEffect(() => {
+    const nextTitle = title ?? meeting?.title ?? fallbackTitle;
+    setTitleInput(nextTitle);
+  }, [fallbackTitle, meeting?.title, title]);
 
   const transcriptLines = useMemo(() => buildTranscriptLines(segments), [segments]);
 
-  const onCopy = useCallback(async () => {
+  const onCopyTranscript = useCallback(async () => {
     try {
       await navigator.clipboard.writeText(transcriptLines.join('\n'));
       setCopyState('copied');
@@ -123,23 +170,72 @@ export function MeetingCompleteView() {
     }
   }, [transcriptLines]);
 
-  const onExport = useCallback(() => {
-    const markdown = toMarkdown(title, segments);
+  const onExportTranscript = useCallback(() => {
+    const markdown = toMarkdown(titleInput || fallbackTitle, segments);
     const blob = new Blob([markdown], { type: 'text/markdown;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement('a');
-    const safeTitle = title.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+    const safeTitle = (titleInput || fallbackTitle).toLowerCase().replace(/[^a-z0-9]+/g, '-');
 
     anchor.href = url;
     anchor.download = `${safeTitle || 'meeting-transcript'}.md`;
     anchor.click();
 
     URL.revokeObjectURL(url);
-  }, [segments, title]);
+  }, [fallbackTitle, segments, titleInput]);
 
   const onRetranscribe = useCallback(() => {
     setRetranscribeMessage('Re-transcription is not yet available. Coming in a future update.');
   }, []);
+
+  const onSaveSummary = useCallback(
+    async (content: string) => {
+      if (!meetingId) {
+        return;
+      }
+
+      await saveEdit(meetingId, content);
+    },
+    [meetingId, saveEdit],
+  );
+
+  const onRegenerateSummary = useCallback(() => {
+    if (!meetingId) {
+      return;
+    }
+
+    void generate(meetingId);
+  }, [generate, meetingId]);
+
+  const onSaveTitle = useCallback(async () => {
+    if (!meetingId || !meeting) {
+      return;
+    }
+
+    const trimmed = titleInput.trim();
+    if (!trimmed || trimmed === meeting.title) {
+      return;
+    }
+
+    setTitleSaveState('saving');
+
+    try {
+      await saveTitle(meetingId, trimmed);
+      setMeeting((previous) =>
+        previous
+          ? {
+              ...previous,
+              title: trimmed,
+            }
+          : previous,
+      );
+      setTitleSaveState('saved');
+      window.setTimeout(() => setTitleSaveState('idle'), 1200);
+    } catch {
+      setTitleSaveState('error');
+      window.setTimeout(() => setTitleSaveState('idle'), 1800);
+    }
+  }, [meeting, meetingId, saveTitle, titleInput]);
 
   if (!meetingId) {
     return (
@@ -176,9 +272,7 @@ export function MeetingCompleteView() {
         <div className="max-w-md space-y-4 text-center">
           <TriangleAlert className="mx-auto text-amber-500" size={34} />
           <h1 className="text-xl font-semibold text-warm-700 dark:text-warm-50">Unable to load transcript</h1>
-          <p className="text-sm text-warm-500 dark:text-warm-300">
-            {loadError ?? 'Meeting data could not be loaded.'}
-          </p>
+          <p className="text-sm text-warm-500 dark:text-warm-300">{loadError ?? 'Meeting data could not be loaded.'}</p>
           <button
             type="button"
             onClick={() => navigate('/library')}
@@ -194,68 +288,140 @@ export function MeetingCompleteView() {
   return (
     <section className="flex h-full min-h-[calc(100vh-3rem)] flex-col rounded-xl border border-warm-200/80 bg-white/70 p-6 shadow-sm dark:border-warm-700/70 dark:bg-warm-800/40">
       <header className="flex flex-wrap items-start justify-between gap-3">
-        <div>
+        <div className="space-y-2">
           <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-2xl font-semibold text-warm-700 dark:text-warm-50">{title}</h1>
+            <input
+              value={titleInput}
+              onChange={(event) => setTitleInput(event.target.value)}
+              onBlur={() => void onSaveTitle()}
+              className="rounded-lg border border-transparent bg-transparent px-1 text-2xl font-semibold text-warm-700 outline-none ring-accent transition focus:border-warm-300 focus:ring-2 dark:text-warm-50 dark:focus:border-warm-500"
+            />
             {meeting.status === 'recovered' ? (
               <span className="rounded-full border border-amber-300/80 bg-amber-100/70 px-2 py-0.5 text-xs font-medium uppercase tracking-wide text-amber-700 dark:border-amber-500/50 dark:bg-amber-500/10 dark:text-amber-200">
                 Recovered
               </span>
             ) : null}
           </div>
-          <p className="mt-1 text-sm text-warm-500 dark:text-warm-300">
-            Meeting complete. Transcript loaded from local database.
+
+          <p className="text-sm text-warm-500 dark:text-warm-300">
+            Meeting complete. Summary and transcript are loaded from local storage.
           </p>
+
+          {titleSaveState === 'saving' ? <p className="text-xs text-warm-500 dark:text-warm-300">Saving title…</p> : null}
+          {titleSaveState === 'saved' ? <p className="text-xs text-emerald-600 dark:text-emerald-300">Title saved.</p> : null}
+          {titleSaveState === 'error' ? <p className="text-xs text-red-600 dark:text-red-300">Title save failed.</p> : null}
         </div>
       </header>
 
-      <div className="mt-5 flex-1 overflow-y-auto rounded-xl border border-warm-200/80 bg-warm-50/70 p-4 dark:border-warm-700/70 dark:bg-warm-900/30">
-        {segments.length ? (
+      <div className="mt-4 flex items-center gap-2 border-b border-warm-200 dark:border-warm-700">
+        <button
+          type="button"
+          onClick={() => setActiveTab('summary')}
+          className={`px-3 py-2 text-sm transition ${
+            activeTab === 'summary'
+              ? 'border-b-2 border-accent font-semibold text-accent'
+              : 'text-warm-500 hover:text-warm-700 dark:text-warm-300 dark:hover:text-warm-100'
+          }`}
+        >
+          Summary
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('transcript')}
+          className={`px-3 py-2 text-sm transition ${
+            activeTab === 'transcript'
+              ? 'border-b-2 border-accent font-semibold text-accent'
+              : 'text-warm-500 hover:text-warm-700 dark:text-warm-300 dark:hover:text-warm-100'
+          }`}
+        >
+          Transcript
+        </button>
+      </div>
+
+      <div className="mt-5 flex-1 overflow-y-auto">
+        {activeTab === 'summary' ? (
           <div className="space-y-3">
-            {segments.map((segment) => (
-              <article key={segment.index} className="grid grid-cols-[auto_1fr] gap-x-4">
-                <span className="font-mono text-xs text-warm-500 dark:text-warm-300">{formatElapsed(segment.elapsedMs)}</span>
-                <p className="text-sm leading-relaxed text-warm-700 dark:text-warm-100">{segment.text}</p>
-              </article>
-            ))}
+            {summaryLoading && !summaryText ? (
+              <p className="text-sm text-warm-500 dark:text-warm-300">Loading saved summary…</p>
+            ) : null}
+
+            {summaryError ? (
+              <p className="rounded-lg border border-red-300/70 bg-red-50/70 px-3 py-2 text-xs text-red-700 dark:border-red-500/40 dark:bg-red-500/10 dark:text-red-200">
+                {summaryError}
+              </p>
+            ) : null}
+
+            <SummaryPanel
+              summaryText={summaryText}
+              generating={generating}
+              edited={edited}
+              hasExistingSummary={hasExistingSummary}
+              onTextChange={setText}
+              onRegenerate={onRegenerateSummary}
+              onSave={onSaveSummary}
+              meetingId={meeting.id}
+            />
+
+            <SummaryExport summaryText={summaryText} meetingTitle={titleInput || fallbackTitle} />
           </div>
         ) : (
-          <p className="text-sm text-warm-500 dark:text-warm-300">No transcript segments were saved for this meeting.</p>
+          <div className="space-y-4">
+            <div className="rounded-xl border border-warm-200/80 bg-warm-50/70 p-4 dark:border-warm-700/70 dark:bg-warm-900/30">
+              {segments.length ? (
+                <div className="space-y-3">
+                  {segments.map((segment) => (
+                    <article key={segment.index} className="grid grid-cols-[auto_1fr] gap-x-4">
+                      <span className="font-mono text-xs text-warm-500 dark:text-warm-300">{formatElapsed(segment.elapsedMs)}</span>
+                      <p className="text-sm leading-relaxed text-warm-700 dark:text-warm-100">{segment.text}</p>
+                    </article>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-warm-500 dark:text-warm-300">No transcript segments were saved for this meeting.</p>
+              )}
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => void onCopyTranscript()}
+                disabled={!segments.length}
+                className="inline-flex items-center gap-2 rounded-lg border border-warm-300 px-3 py-1.5 text-xs font-semibold text-warm-700 transition hover:bg-warm-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-warm-600 dark:text-warm-100 dark:hover:bg-warm-800"
+              >
+                <Copy size={13} />
+                {copyState === 'copied' ? 'Copied' : 'Copy'}
+              </button>
+
+              <button
+                type="button"
+                onClick={onExportTranscript}
+                disabled={!segments.length}
+                className="inline-flex items-center gap-2 rounded-lg border border-warm-300 px-3 py-1.5 text-xs font-semibold text-warm-700 transition hover:bg-warm-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-warm-600 dark:text-warm-100 dark:hover:bg-warm-800"
+              >
+                <Download size={13} />
+                Export Markdown
+              </button>
+
+              {meeting.status === 'recovered' ? (
+                <button
+                  type="button"
+                  onClick={onRetranscribe}
+                  className="inline-flex items-center gap-2 rounded-lg border border-amber-400 px-3 py-1.5 text-xs font-semibold text-amber-700 transition hover:bg-amber-100/70 dark:border-amber-500 dark:text-amber-200 dark:hover:bg-amber-500/10"
+                >
+                  <RotateCcw size={13} />
+                  Re-transcribe
+                </button>
+              ) : null}
+
+              {copyState === 'error' ? <span className="text-xs text-red-600 dark:text-red-300">Clipboard access failed.</span> : null}
+              {retranscribeMessage ? <span className="text-xs text-amber-700 dark:text-amber-200">{retranscribeMessage}</span> : null}
+            </div>
+          </div>
         )}
       </div>
 
-      <footer className="mt-5 flex flex-wrap items-center gap-3">
-        <button
-          type="button"
-          onClick={() => void onCopy()}
-          disabled={!segments.length}
-          className="inline-flex items-center gap-2 rounded-lg border border-warm-300 px-4 py-2 text-sm font-semibold text-warm-700 transition hover:bg-warm-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-warm-600 dark:text-warm-100 dark:hover:bg-warm-800"
-        >
-          {copyState === 'copied' ? <Check size={15} /> : <Copy size={15} />}
-          {copyState === 'copied' ? 'Copied' : 'Copy'}
-        </button>
-
-        <button
-          type="button"
-          onClick={onExport}
-          disabled={!segments.length}
-          className="inline-flex items-center gap-2 rounded-lg border border-warm-300 px-4 py-2 text-sm font-semibold text-warm-700 transition hover:bg-warm-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-warm-600 dark:text-warm-100 dark:hover:bg-warm-800"
-        >
-          <Download size={15} />
-          Export Markdown
-        </button>
-
-        {meeting.status === 'recovered' ? (
-          <button
-            type="button"
-            onClick={onRetranscribe}
-            className="inline-flex items-center gap-2 rounded-lg border border-amber-400 px-4 py-2 text-sm font-semibold text-amber-700 transition hover:bg-amber-100/70 dark:border-amber-500 dark:text-amber-200 dark:hover:bg-amber-500/10"
-          >
-            <RotateCcw size={15} />
-            Re-transcribe
-          </button>
-        ) : null}
-
+      <footer className="mt-5 flex items-center justify-end">
         <button
           type="button"
           onClick={() => navigate('/record')}
@@ -264,14 +430,6 @@ export function MeetingCompleteView() {
           <Plus size={15} />
           New Recording
         </button>
-
-        {copyState === 'error' ? (
-          <span className="text-xs text-red-600 dark:text-red-300">Clipboard access failed. Try export instead.</span>
-        ) : null}
-
-        {retranscribeMessage ? (
-          <span className="text-xs text-amber-700 dark:text-amber-200">{retranscribeMessage}</span>
-        ) : null}
       </footer>
     </section>
   );
