@@ -59,3 +59,29 @@ export type DownloadEvent =
   | { event: 'extracting' }
   | { event: 'complete' }
   | { event: 'error'; data: { message: string } };
+
+export interface OllamaStatus {
+  installed: boolean;
+  running: boolean;
+  modelReady: boolean;
+  modelName: string;
+}
+
+export type OllamaSetupPhase =
+  | 'checking'
+  | 'not_installed'
+  | 'not_running'
+  | 'model_not_pulled'
+  | 'pulling'
+  | 'ready'
+  | 'error';
+
+export type OllamaPullEvent =
+  | { event: 'progress'; data: { status: string; completed: number; total: number } }
+  | { event: 'complete' }
+  | { event: 'error'; data: { message: string } };
+
+export type LlmTokenEvent =
+  | { event: 'token'; data: { text: string; done: boolean } }
+  | { event: 'error'; data: { message: string } }
+  | { event: 'titleExtracted'; data: { title: string } };
