@@ -166,24 +166,26 @@ export function useRecording() {
 
   const startRecording = useCallback(async () => {
     if (isRecording) {
-      return;
+      return true;
     }
 
     const permissionsOk = await ensurePermissions();
     if (!permissionsOk) {
-      return;
+      return false;
     }
 
     try {
       await invoke('start_recording');
       applyRecordingStarted(Date.now());
+      return true;
     } catch (error) {
       const message = String(error);
       if (message.includes('already active') || message.includes('already')) {
         applyRecordingStarted(Date.now());
-        return;
+        return true;
       }
       setPermissionHint('Recording failed to start. Check permissions and audio device availability.');
+      return false;
     }
   }, [applyRecordingStarted, ensurePermissions, isRecording]);
 

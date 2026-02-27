@@ -1,4 +1,6 @@
+import { listen } from '@tauri-apps/api/event';
 import { Pause, Play, Square } from 'lucide-react';
+import { useEffect, useState } from 'react';
 
 import { useRecording } from '../../hooks/useRecording';
 import { ElapsedTimer } from './ElapsedTimer';
@@ -15,6 +17,30 @@ export function RecordingWidget() {
     startRecording,
     stopRecording,
   } = useRecording();
+  const [isTranscribing, setIsTranscribing] = useState(false);
+
+  useEffect(() => {
+    let disposed = false;
+    const cleanups: Array<() => void> = [];
+
+    void Promise.all([
+      listen('transcribing-active', () => setIsTranscribing(true)),
+      listen('transcribing-inactive', () => setIsTranscribing(false)),
+      listen('recording-stopped', () => setIsTranscribing(false)),
+    ]).then((handlers) => {
+      if (disposed) {
+        handlers.forEach((cleanup) => cleanup());
+        return;
+      }
+
+      cleanups.push(...handlers);
+    });
+
+    return () => {
+      disposed = true;
+      cleanups.forEach((cleanup) => cleanup());
+    };
+  }, []);
 
   const onPauseToggle = async () => {
     if (!isRecording) {
@@ -33,9 +59,18 @@ export function RecordingWidget() {
   return (
     <section
       data-tauri-drag-region
-      className="flex h-[72px] w-[280px] items-center gap-3 rounded-full border border-white/15 bg-black/80 px-4 shadow-xl backdrop-blur-sm"
+      className="flex h-[72px] w-[300px] items-center gap-3 rounded-full border border-white/15 bg-black/80 px-4 shadow-xl backdrop-blur-sm"
     >
-      <ElapsedTimer elapsedMs={elapsedMs} />
+      <div className="min-w-[78px]">
+        <ElapsedTimer elapsedMs={elapsedMs} />
+        <p
+          className={`mt-0.5 text-[10px] uppercase tracking-wide text-white/60 transition-opacity duration-200 ${
+            isTranscribing ? 'opacity-100' : 'opacity-0'
+          }`}
+        >
+          Transcribing
+        </p>
+      </div>
 
       <div className="flex-1">
         <WaveformBar level={audioLevel} />
