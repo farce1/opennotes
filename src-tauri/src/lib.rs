@@ -1,11 +1,13 @@
 mod audio;
 mod commands;
+mod db;
 mod download;
+mod session;
 mod transcription;
 mod tray;
 mod widget;
 
-use commands::{RecordingStateHandle, TranscriptionStateHandle};
+use commands::{RecordingStateHandle, SessionHandle, TranscriptionStateHandle};
 use tauri::Emitter;
 use tauri::Manager;
 use tauri_plugin_global_shortcut::ShortcutState;
@@ -13,12 +15,20 @@ use tauri_plugin_sql::{Builder as SqlBuilder, Migration, MigrationKind};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let migrations = vec![Migration {
-        version: 1,
-        description: "initial_schema",
-        sql: include_str!("../migrations/001_initial.sql"),
-        kind: MigrationKind::Up,
-    }];
+    let migrations = vec![
+        Migration {
+            version: 1,
+            description: "initial_schema",
+            sql: include_str!("../migrations/001_initial.sql"),
+            kind: MigrationKind::Up,
+        },
+        Migration {
+            version: 2,
+            description: "phase4_session",
+            sql: include_str!("../migrations/002_phase4_session.sql"),
+            kind: MigrationKind::Up,
+        },
+    ];
 
     let recording_state: RecordingStateHandle =
         std::sync::Arc::new(std::sync::Mutex::new(audio::RecordingState::default()));
@@ -33,6 +43,28 @@ pub fn run() {
             std::fs::create_dir_all(data_dir.join("models")).ok();
             std::fs::create_dir_all(data_dir.join("logs")).ok();
             std::fs::create_dir_all(data_dir.join("recordings")).ok();
+
+            let db_path = data_dir.join("data.db");
+            let db_url = format!("sqlite:{}", db_path.display());
+            let pool = tauri::async_runtime::block_on(crate::db::init_pool(&db_url))
+                .expect("Failed to initialize database pool");
+
+            let session_coordinator: SessionHandle = std::sync::Arc::new(std::sync::Mutex::new(
+                crate::session::SessionCoordinator::new(),
+            ));
+
+            app.manage(pool.clone());
+            app.manage(session_coordinator);
+
+            let pool_for_recovery = pool.clone();
+            let app_handle_for_recovery = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                if let Err(err) =
+                    crate::session::recover_incomplete_sessions(&pool_for_recovery, &app_handle_for_recovery).await
+                {
+                    eprintln!("[startup] session recovery failed: {err}");
+                }
+            });
 
             #[cfg(desktop)]
             {
@@ -65,6 +97,12 @@ pub fn run() {
         .manage(transcription_state)
         .invoke_handler(tauri::generate_handler![
             commands::update_tray_icon,
+            commands::start_session,
+            commands::stop_session,
+            commands::pause_session,
+            commands::resume_session,
+            commands::get_session_state,
+            commands::get_transcript_page,
             commands::start_recording,
             commands::stop_recording,
             commands::pause_recording,

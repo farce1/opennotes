@@ -4,18 +4,27 @@ use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde::Serialize;
+use sqlx::SqlitePool;
 use tauri::ipc::Channel;
 use tauri::{AppHandle, Emitter, Manager};
 
-use crate::{audio, transcription, tray::TrayMenuHandles, widget};
+use crate::{audio, session, transcription, tray::TrayMenuHandles, widget};
 
 pub type RecordingStateHandle = Arc<Mutex<audio::RecordingState>>;
 pub type TranscriptionStateHandle = Arc<Mutex<transcription::TranscriptionState>>;
+pub type SessionHandle = session::SessionHandle;
 
 #[derive(Serialize)]
 pub struct PermissionStatus {
     pub mic: String,
     pub screen_recording: String,
+}
+
+#[derive(Serialize, sqlx::FromRow)]
+pub struct TranscriptRow {
+    pub segment_index: i64,
+    pub text: String,
+    pub start_time_ms: i64,
 }
 
 fn timestamp_string() -> String {
@@ -40,7 +49,7 @@ fn timestamp_string() -> String {
     format!("recording_{epoch}")
 }
 
-fn next_recording_output_path() -> Result<PathBuf, String> {
+pub(crate) fn next_recording_output_path() -> Result<PathBuf, String> {
     let home = std::env::var("HOME").map_err(|_| "HOME not set".to_string())?;
     let mut path = PathBuf::from(home);
     path.push(".opennotes");
@@ -52,7 +61,7 @@ fn next_recording_output_path() -> Result<PathBuf, String> {
     Ok(path)
 }
 
-fn set_tray_start_stop_label(app: &AppHandle, is_recording: bool) -> Result<(), String> {
+pub(crate) fn set_tray_start_stop_label(app: &AppHandle, is_recording: bool) -> Result<(), String> {
     if let Some(handles) = app.try_state::<TrayMenuHandles>() {
         let text = if is_recording {
             "Stop Recording"
@@ -78,6 +87,122 @@ pub fn update_tray_icon(app: AppHandle, state: String) -> Result<(), String> {
     }
 
     Ok(())
+}
+
+#[tauri::command]
+pub async fn start_session(
+    app: AppHandle,
+    pool: tauri::State<'_, SqlitePool>,
+    session_state: tauri::State<'_, SessionHandle>,
+    recording_state: tauri::State<'_, RecordingStateHandle>,
+    transcription_state: tauri::State<'_, TranscriptionStateHandle>,
+    on_segment: Channel<transcription::TranscriptEvent>,
+) -> Result<i64, String> {
+    let session_handle = session_state.inner().clone();
+    let session_handle_for_start = session_handle.clone();
+    let mut coordinator = session_handle
+        .lock()
+        .map_err(|_| "session state lock poisoned".to_string())?;
+
+    coordinator.start(
+        &app,
+        &pool,
+        session_handle_for_start,
+        recording_state.inner(),
+        transcription_state.inner(),
+        on_segment,
+    )
+}
+
+#[tauri::command]
+pub async fn stop_session(
+    app: AppHandle,
+    pool: tauri::State<'_, SqlitePool>,
+    session_state: tauri::State<'_, SessionHandle>,
+    recording_state: tauri::State<'_, RecordingStateHandle>,
+    transcription_state: tauri::State<'_, TranscriptionStateHandle>,
+) -> Result<i64, String> {
+    let session_handle = session_state.inner().clone();
+    let mut coordinator = session_handle
+        .lock()
+        .map_err(|_| "session state lock poisoned".to_string())?;
+
+    coordinator.stop(
+        &app,
+        &pool,
+        recording_state.inner(),
+        transcription_state.inner(),
+    )
+}
+
+#[tauri::command]
+pub async fn pause_session(
+    app: AppHandle,
+    pool: tauri::State<'_, SqlitePool>,
+    session_state: tauri::State<'_, SessionHandle>,
+    recording_state: tauri::State<'_, RecordingStateHandle>,
+    transcription_state: tauri::State<'_, TranscriptionStateHandle>,
+) -> Result<(), String> {
+    let session_handle = session_state.inner().clone();
+    let mut coordinator = session_handle
+        .lock()
+        .map_err(|_| "session state lock poisoned".to_string())?;
+
+    coordinator.pause(
+        &app,
+        &pool,
+        recording_state.inner(),
+        transcription_state.inner(),
+    )
+}
+
+#[tauri::command]
+pub async fn resume_session(
+    app: AppHandle,
+    pool: tauri::State<'_, SqlitePool>,
+    session_state: tauri::State<'_, SessionHandle>,
+    recording_state: tauri::State<'_, RecordingStateHandle>,
+) -> Result<(), String> {
+    let session_handle = session_state.inner().clone();
+    let mut coordinator = session_handle
+        .lock()
+        .map_err(|_| "session state lock poisoned".to_string())?;
+
+    coordinator.resume(&app, &pool, recording_state.inner())
+}
+
+#[tauri::command]
+pub async fn get_session_state(
+    session_state: tauri::State<'_, SessionHandle>,
+) -> Result<session::SessionStatePayload, String> {
+    let session_handle = session_state.inner().clone();
+    let coordinator = session_handle
+        .lock()
+        .map_err(|_| "session state lock poisoned".to_string())?;
+
+    Ok(coordinator.state_payload())
+}
+
+#[tauri::command]
+pub async fn get_transcript_page(
+    pool: tauri::State<'_, SqlitePool>,
+    meeting_id: i64,
+    offset: i64,
+    limit: i64,
+) -> Result<Vec<TranscriptRow>, String> {
+    sqlx::query_as::<_, TranscriptRow>(
+        "SELECT segment_index, text, start_time_ms
+         FROM transcripts
+         WHERE meeting_id = ?
+         ORDER BY segment_index
+         LIMIT ? OFFSET ?",
+    )
+    .bind(meeting_id)
+    .bind(limit.max(1))
+    .bind(offset.max(0))
+    .fetch_all(pool.inner())
+    .await
+    .map_err(|err| format!("failed to load transcript page: {err}"))
 }
 
 #[tauri::command]
@@ -171,7 +296,15 @@ pub async fn start_transcription(
     let mut state = transcription_state
         .lock()
         .map_err(|_| "transcription state lock poisoned".to_string())?;
-    transcription::start_transcription_worker(&mut state, audio_tx, audio_rx, on_segment)?;
+    transcription::start_transcription_worker(
+        &mut state,
+        audio_tx,
+        audio_rx,
+        on_segment,
+        None,
+        None,
+        None,
+    )?;
 
     let _ = app.emit("transcribing-active", ());
     Ok(())

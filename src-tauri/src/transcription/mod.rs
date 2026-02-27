@@ -8,6 +8,7 @@ use std::thread::{self, JoinHandle};
 use std::time::Duration;
 
 use serde::Serialize;
+use sqlx::SqlitePool;
 use tauri::ipc::Channel;
 
 pub struct TranscriptionState {
@@ -71,6 +72,9 @@ pub fn start_transcription_worker(
     audio_tx: mpsc::SyncSender<Vec<f32>>,
     audio_rx: mpsc::Receiver<Vec<f32>>,
     on_segment: Channel<TranscriptEvent>,
+    db_pool: Option<SqlitePool>,
+    meeting_id: Option<i64>,
+    on_worker_disconnected: Option<Arc<dyn Fn() + Send + Sync>>,
 ) -> Result<(), String> {
     if !model::check_model_ready() {
         return Err("transcription model is not ready; download required model files first".to_string());
@@ -108,6 +112,7 @@ pub fn start_transcription_worker(
     let worker_shutdown = Arc::new(AtomicBool::new(false));
     let shutdown_for_worker = worker_shutdown.clone();
     let shutdown_for_state = worker_shutdown.clone();
+    let shutdown_for_forwarder = worker_shutdown.clone();
 
     let worker_handle = thread::Builder::new()
         .name("transcription-worker".to_string())
@@ -116,23 +121,63 @@ pub fn start_transcription_worker(
         })
         .map_err(|err| format!("failed to spawn transcription worker: {err}"))?;
 
+    let pool_for_forwarder = db_pool.clone();
+    let meeting_for_forwarder = meeting_id;
+    let on_worker_disconnected_for_forwarder = on_worker_disconnected.clone();
+
     let forwarder_handle = thread::Builder::new()
         .name("transcription-forwarder".to_string())
         .spawn(move || {
             let mut segment_index = 0u32;
             let _ = on_segment.send(TranscriptEvent::Transcribing { active: true });
 
-            while let Ok(segment) = result_rx.recv() {
+            loop {
+                let segment = match result_rx.recv() {
+                    Ok(segment) => segment,
+                    Err(_) => {
+                        if !shutdown_for_forwarder.load(Ordering::SeqCst) {
+                            if let Some(callback) = &on_worker_disconnected_for_forwarder {
+                                callback();
+                            }
+                        }
+                        break;
+                    }
+                };
+
                 let text = segment.text.trim().to_string();
                 if text.is_empty() {
                     continue;
                 }
 
                 let _ = on_segment.send(TranscriptEvent::Segment {
-                    text,
+                    text: text.clone(),
                     elapsed_ms: segment.elapsed_ms,
                     index: segment_index,
                 });
+
+                if let (Some(pool), Some(mid)) = (&pool_for_forwarder, meeting_for_forwarder) {
+                    let pool_clone = pool.clone();
+                    let text_clone = text.clone();
+                    let index = i64::from(segment_index);
+                    let elapsed_ms = segment.elapsed_ms as i64;
+                    tauri::async_runtime::spawn(async move {
+                        if let Err(err) = sqlx::query(
+                            "INSERT INTO transcripts (meeting_id, segment_index, text, start_time_ms, end_time_ms, is_final)
+                             VALUES (?, ?, ?, ?, ?, 1)",
+                        )
+                        .bind(mid)
+                        .bind(index)
+                        .bind(text_clone)
+                        .bind(elapsed_ms)
+                        .bind(elapsed_ms + 1000)
+                        .execute(&pool_clone)
+                        .await
+                        {
+                            eprintln!("failed to checkpoint transcript segment: {err}");
+                        }
+                    });
+                }
+
                 segment_index = segment_index.saturating_add(1);
             }
 
@@ -159,13 +204,13 @@ pub fn stop_transcription_worker(state: &mut TranscriptionState) {
     state.audio_tx.take();
 
     if let Some(handle) = state.worker_handle.take() {
-        if !join_with_timeout(handle, Duration::from_secs(2)) {
+        if !join_with_timeout(handle, Duration::from_secs(3)) {
             eprintln!("timed out waiting for transcription worker to join");
         }
     }
 
     if let Some(handle) = state.forwarder_handle.take() {
-        if !join_with_timeout(handle, Duration::from_secs(2)) {
+        if !join_with_timeout(handle, Duration::from_secs(3)) {
             eprintln!("timed out waiting for transcription forwarder to join");
         }
     }
