@@ -26,9 +26,9 @@
   - **Goal:** Transform completed transcripts into structured meeting notes using a local Ollama LLM. Includes Ollama auto-setup during onboarding, streaming summary generation with four-section format (Overview, Key Points, Decisions, Action Items), tab layout with markdown rendering, inline editing, re-generation, and export (Markdown, clipboard, PDF). Transcripts never leave the machine.
   - **Requirements:** [SUMM-01, SUMM-02, SUMM-03, SUMM-04, SUMM-05, SUMM-06, SUMM-07, SUMM-08, SUMM-09, SUMM-10, SUMM-11, SUMM-12]
   - **Plans:** 3 plans
-    - [ ] 05-01-PLAN.md — Rust LLM backend (Ollama detection, model pull, streaming summary generation, DB persistence, chunking)
-    - [ ] 05-02-PLAN.md — Ollama onboarding UI (setup wizard expansion, useOllamaSetup hook, model pull progress)
-    - [ ] 05-03-PLAN.md — Frontend summary pipeline (useSummary hook, tab layout, SummaryPanel, markdown rendering, editing, export)
+    - [x] 05-01-PLAN.md — Rust LLM backend (Ollama detection, model pull, streaming summary generation, DB persistence, chunking) (completed 2026-02-27)
+    - [x] 05-02-PLAN.md — Ollama onboarding UI (setup wizard expansion, useOllamaSetup hook, model pull progress) (completed 2026-02-27)
+    - [ ] 05-03-PLAN.md — Frontend summary pipeline (useSummary hook, tab layout, SummaryPanel, markdown rendering, editing, export) (implementation complete; awaiting human checkpoint)
 - [ ] Phase 06: Library + Data Workflows
 - [ ] Phase 07: Settings Surface Expansion
 - [ ] Phase 08: Cross-Platform Hardening
@@ -41,7 +41,7 @@
 | 02 | Complete | 2/2 | 2026-02-27 |
 | 03 | Complete | 3/3 | 2026-02-27 |
 | 04 | Complete | 3/3 | 2026-02-27 |
-| 05 | Planned | 0/3 | - |
+| 05 | In Progress | 2/3 | - |
 | 06 | Pending | 0/0 | - |
 | 07 | Pending | 0/0 | - |
 | 08 | Pending | 0/0 | - |
