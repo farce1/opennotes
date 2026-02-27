@@ -3,11 +3,14 @@ import { AppLayout } from './components/layout/AppLayout';
 import { LibraryView } from './views/LibraryView';
 import { RecordView } from './views/RecordView';
 import { SettingsView } from './views/SettingsView';
+import { WidgetView } from './views/WidgetView';
 
 export function App() {
   return (
     <HashRouter>
       <Routes>
+        <Route path="/widget" element={<WidgetView />} />
+
         <Route element={<AppLayout />}>
           <Route path="/" element={<Navigate to="/record" replace />} />
           <Route path="/record" element={<RecordView />} />

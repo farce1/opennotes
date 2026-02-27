@@ -1,6 +1,7 @@
 mod audio;
 mod commands;
 mod tray;
+mod widget;
 
 use commands::RecordingStateHandle;
 use tauri::Emitter;
