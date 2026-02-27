@@ -54,3 +54,18 @@
 - [x] ORCH-16: Hard 4-hour limit with auto-stop and countdown timer in widget during last 5 minutes
 - [x] ORCH-17: Track audio sources (mic, system, both) as metadata on meeting record
 - [x] ORCH-18: Cross-window session state sync via Rust-authoritative app.emit() events
+
+## Notes/Summary Pipeline
+
+- [ ] SUMM-01: Ollama detection (installed vs. running vs. model pulled) with platform-appropriate install guidance
+- [ ] SUMM-02: Ollama model pull with streaming progress via Tauri Channel (phi4-mini default, ~2.5GB)
+- [ ] SUMM-03: Streaming summary generation via Ollama /api/generate with line-buffered JSON parsing
+- [ ] SUMM-04: Structured summary format: Overview (5-8 sentences), Key Points, Decisions Made, Action Items
+- [ ] SUMM-05: Auto-generate summary when recording stops — no extra button needed
+- [ ] SUMM-06: Tab layout in meeting view: Summary (default) and Transcript tabs
+- [ ] SUMM-07: Streaming markdown rendering with react-markdown + remark-gfm (headings, bullets, checkboxes)
+- [ ] SUMM-08: Inline editing of generated summary with debounced auto-save to DB
+- [ ] SUMM-09: Re-generate summary with confirmation dialog ("will replace your edits")
+- [ ] SUMM-10: Export summary as Markdown file (.md), clipboard copy (formatted), and PDF (@react-pdf/renderer)
+- [ ] SUMM-11: LLM-generated meeting title extracted from summary output; user-editable
+- [ ] SUMM-12: Long transcript chunking for transcripts exceeding ~24K tokens (iterative map-reduce)
