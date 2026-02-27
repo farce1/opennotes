@@ -196,6 +196,11 @@ pub async fn check_model_ready() -> Result<bool, String> {
 }
 
 #[tauri::command]
+pub async fn download_model(on_event: Channel<crate::download::DownloadEvent>) -> Result<(), String> {
+    crate::download::download_model(on_event).await
+}
+
+#[tauri::command]
 pub async fn check_audio_permissions() -> Result<PermissionStatus, String> {
     #[cfg(target_os = "macos")]
     {

@@ -1,5 +1,6 @@
 mod audio;
 mod commands;
+mod download;
 mod transcription;
 mod tray;
 mod widget;
@@ -71,6 +72,7 @@ pub fn run() {
             commands::start_transcription,
             commands::stop_transcription,
             commands::check_model_ready,
+            commands::download_model,
             commands::check_audio_permissions,
             commands::update_tray_recording_state,
         ]);
