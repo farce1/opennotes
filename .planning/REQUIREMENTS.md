@@ -57,15 +57,15 @@
 
 ## Notes/Summary Pipeline
 
-- [ ] SUMM-01: Ollama detection (installed vs. running vs. model pulled) with platform-appropriate install guidance
-- [ ] SUMM-02: Ollama model pull with streaming progress via Tauri Channel (phi4-mini default, ~2.5GB)
-- [ ] SUMM-03: Streaming summary generation via Ollama /api/generate with line-buffered JSON parsing
-- [ ] SUMM-04: Structured summary format: Overview (5-8 sentences), Key Points, Decisions Made, Action Items
-- [ ] SUMM-05: Auto-generate summary when recording stops — no extra button needed
-- [ ] SUMM-06: Tab layout in meeting view: Summary (default) and Transcript tabs
-- [ ] SUMM-07: Streaming markdown rendering with react-markdown + remark-gfm (headings, bullets, checkboxes)
-- [ ] SUMM-08: Inline editing of generated summary with debounced auto-save to DB
-- [ ] SUMM-09: Re-generate summary with confirmation dialog ("will replace your edits")
-- [ ] SUMM-10: Export summary as Markdown file (.md), clipboard copy (formatted), and PDF (@react-pdf/renderer)
-- [ ] SUMM-11: LLM-generated meeting title extracted from summary output; user-editable
-- [ ] SUMM-12: Long transcript chunking for transcripts exceeding ~24K tokens (iterative map-reduce)
+- [x] SUMM-01: Ollama detection (installed vs. running vs. model pulled) with platform-appropriate install guidance
+- [x] SUMM-02: Ollama model pull with streaming progress via Tauri Channel (phi4-mini default, ~2.5GB)
+- [x] SUMM-03: Streaming summary generation via Ollama /api/generate with line-buffered JSON parsing
+- [x] SUMM-04: Structured summary format: Overview (5-8 sentences), Key Points, Decisions Made, Action Items
+- [x] SUMM-05: Auto-generate summary when recording stops — no extra button needed
+- [x] SUMM-06: Tab layout in meeting view: Summary (default) and Transcript tabs
+- [x] SUMM-07: Streaming markdown rendering with react-markdown + remark-gfm (headings, bullets, checkboxes)
+- [x] SUMM-08: Inline editing of generated summary with debounced auto-save to DB
+- [x] SUMM-09: Re-generate summary with confirmation dialog ("will replace your edits")
+- [x] SUMM-10: Export summary as Markdown file (.md), clipboard copy (formatted), and PDF (@react-pdf/renderer)
+- [x] SUMM-11: LLM-generated meeting title extracted from summary output; user-editable
+- [x] SUMM-12: Long transcript chunking for transcripts exceeding ~24K tokens (iterative map-reduce)
