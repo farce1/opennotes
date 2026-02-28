@@ -14,6 +14,40 @@ export interface Meeting {
   audio_sources: string | null;
   created_at: string;
   updated_at: string;
+  deleted_at: string | null;
+}
+
+export type SortField = 'date' | 'duration' | 'title';
+export type SortDirection = 'asc' | 'desc';
+export type ViewMode = 'card' | 'compact';
+
+export interface LibraryFilters {
+  search: string;
+  status: Meeting['status'] | '';
+  durationRange: 'all' | 'short' | 'medium' | 'long';
+  audioSource: string;
+  dateFrom: string;
+  dateTo: string;
+}
+
+export interface DateSection {
+  label: string;
+  items: MeetingWithPreview[];
+}
+
+export interface SearchResult {
+  id: number;
+  title: string;
+  started_at: string;
+  status: Meeting['status'];
+  duration_seconds: number | null;
+  audio_sources: string | null;
+  snippet: string;
+}
+
+export interface MeetingWithPreview extends Meeting {
+  summary_preview: string | null;
+  segment_count: number;
 }
 
 export interface AppSettings {

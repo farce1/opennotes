@@ -127,6 +127,11 @@ pub fn run() {
             commands::get_summary,
             commands::save_summary,
             commands::update_meeting_title,
+            commands::soft_delete_meeting,
+            commands::restore_meeting,
+            commands::purge_old_trash,
+            commands::backup_library,
+            commands::restore_library,
             commands::check_audio_permissions,
             commands::update_tray_recording_state,
         ]);

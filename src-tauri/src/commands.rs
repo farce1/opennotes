@@ -61,6 +61,37 @@ pub(crate) fn next_recording_output_path() -> Result<PathBuf, String> {
     Ok(path)
 }
 
+fn sqlite_path_literal(path: &std::path::Path) -> String {
+    path.display().to_string().replace('\'', "''")
+}
+
+async fn fts_upsert(pool: &SqlitePool, meeting_id: i64) -> Result<(), String> {
+    sqlx::query("INSERT INTO meetings_fts(meetings_fts, rowid) VALUES ('delete', ?)")
+        .bind(meeting_id)
+        .execute(pool)
+        .await
+        .map_err(|err| format!("FTS delete failed: {err}"))?;
+
+    sqlx::query(
+        "INSERT INTO meetings_fts(rowid, title, transcript_text)
+         SELECT m.id, m.title,
+                COALESCE((
+                    SELECT GROUP_CONCAT(t.text, ' ')
+                    FROM transcripts t
+                    WHERE t.meeting_id = m.id
+                    ORDER BY t.segment_index
+                ), '')
+         FROM meetings m
+         WHERE m.id = ? AND m.deleted_at IS NULL",
+    )
+    .bind(meeting_id)
+    .execute(pool)
+    .await
+    .map_err(|err| format!("FTS insert failed: {err}"))?;
+
+    Ok(())
+}
+
 pub(crate) fn set_tray_start_stop_label(app: &AppHandle, is_recording: bool) -> Result<(), String> {
     if let Some(handles) = app.try_state::<TrayMenuHandles>() {
         let text = if is_recording {
@@ -388,6 +419,7 @@ pub async fn generate_summary(
 
     if let Some(title) = extracted_title {
         llm::update_meeting_title(pool.inner(), meeting_id, &title).await?;
+        fts_upsert(pool.inner(), meeting_id).await?;
     }
 
     Ok(())
@@ -421,7 +453,212 @@ pub async fn update_meeting_title(
     meeting_id: i64,
     title: String,
 ) -> Result<(), String> {
-    llm::update_meeting_title(pool.inner(), meeting_id, &title).await
+    llm::update_meeting_title(pool.inner(), meeting_id, &title).await?;
+    fts_upsert(pool.inner(), meeting_id).await
+}
+
+#[tauri::command]
+pub async fn soft_delete_meeting(
+    pool: tauri::State<'_, SqlitePool>,
+    meeting_id: i64,
+) -> Result<(), String> {
+    sqlx::query(
+        "UPDATE meetings
+         SET deleted_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+         WHERE id = ?",
+    )
+    .bind(meeting_id)
+    .execute(pool.inner())
+    .await
+    .map_err(|err| format!("failed to soft-delete meeting: {err}"))?;
+
+    sqlx::query("INSERT INTO meetings_fts(meetings_fts, rowid) VALUES ('delete', ?)")
+        .bind(meeting_id)
+        .execute(pool.inner())
+        .await
+        .map_err(|err| format!("FTS cleanup on delete failed: {err}"))?;
+
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn restore_meeting(
+    pool: tauri::State<'_, SqlitePool>,
+    meeting_id: i64,
+) -> Result<(), String> {
+    sqlx::query(
+        "UPDATE meetings
+         SET deleted_at = NULL, updated_at = CURRENT_TIMESTAMP
+         WHERE id = ?",
+    )
+    .bind(meeting_id)
+    .execute(pool.inner())
+    .await
+    .map_err(|err| format!("failed to restore meeting: {err}"))?;
+
+    fts_upsert(pool.inner(), meeting_id).await
+}
+
+#[tauri::command]
+pub async fn purge_old_trash(pool: tauri::State<'_, SqlitePool>) -> Result<u64, String> {
+    let result = sqlx::query(
+        "DELETE FROM meetings
+         WHERE deleted_at IS NOT NULL
+           AND deleted_at < datetime('now', '-30 days')",
+    )
+    .execute(pool.inner())
+    .await
+    .map_err(|err| format!("failed to purge old trash: {err}"))?;
+
+    Ok(result.rows_affected())
+}
+
+#[tauri::command]
+pub async fn backup_library(
+    pool: tauri::State<'_, SqlitePool>,
+    destination: String,
+) -> Result<(), String> {
+    use std::io::Write;
+
+    let home = std::env::var("HOME").map_err(|_| "HOME not set".to_string())?;
+    let data_dir = PathBuf::from(home).join(".opennotes");
+    let recordings_dir = data_dir.join("recordings");
+    let snapshot_path = data_dir.join("data.snapshot.db");
+    let escaped_snapshot = sqlite_path_literal(&snapshot_path);
+
+    sqlx::query(&format!("VACUUM INTO '{escaped_snapshot}'"))
+        .execute(pool.inner())
+        .await
+        .map_err(|err| format!("VACUUM INTO failed: {err}"))?;
+
+    let backup_result = (|| -> Result<(), String> {
+        let destination_file =
+            std::fs::File::create(&destination).map_err(|err| format!("cannot create backup file: {err}"))?;
+        let mut zip_writer = zip::ZipWriter::new(destination_file);
+        let options = zip::write::SimpleFileOptions::default()
+            .compression_method(zip::CompressionMethod::Deflated);
+
+        zip_writer
+            .start_file("data.db", options)
+            .map_err(|err| format!("failed to start data.db entry: {err}"))?;
+        let db_bytes = std::fs::read(&snapshot_path)
+            .map_err(|err| format!("failed to read db snapshot for backup: {err}"))?;
+        zip_writer
+            .write_all(&db_bytes)
+            .map_err(|err| format!("failed to write data.db backup entry: {err}"))?;
+
+        if recordings_dir.exists() {
+            for entry in std::fs::read_dir(&recordings_dir)
+                .map_err(|err| format!("failed to read recordings directory: {err}"))?
+            {
+                let entry = entry.map_err(|err| format!("failed to access recording entry: {err}"))?;
+                if !entry
+                    .file_type()
+                    .map_err(|err| format!("failed to inspect recording entry: {err}"))?
+                    .is_file()
+                {
+                    continue;
+                }
+
+                let file_name = entry.file_name().to_string_lossy().to_string();
+                zip_writer
+                    .start_file(format!("recordings/{file_name}"), options)
+                    .map_err(|err| format!("failed to start recording backup entry: {err}"))?;
+                let bytes = std::fs::read(entry.path())
+                    .map_err(|err| format!("failed to read recording file for backup: {err}"))?;
+                zip_writer
+                    .write_all(&bytes)
+                    .map_err(|err| format!("failed to write recording backup entry: {err}"))?;
+            }
+        }
+
+        zip_writer
+            .finish()
+            .map_err(|err| format!("failed to finalize backup archive: {err}"))?;
+
+        Ok(())
+    })();
+
+    let _ = std::fs::remove_file(&snapshot_path);
+    backup_result
+}
+
+#[tauri::command]
+pub async fn restore_library(
+    _pool: tauri::State<'_, SqlitePool>,
+    source: String,
+) -> Result<(), String> {
+    use std::io::{Read, Write};
+
+    let home = std::env::var("HOME").map_err(|_| "HOME not set".to_string())?;
+    let data_dir = PathBuf::from(home).join(".opennotes");
+    let recordings_dir = data_dir.join("recordings");
+    std::fs::create_dir_all(&recordings_dir)
+        .map_err(|err| format!("failed to ensure recordings directory: {err}"))?;
+
+    let source_file = std::fs::File::open(&source).map_err(|err| format!("cannot open backup file: {err}"))?;
+    let mut archive =
+        zip::ZipArchive::new(source_file).map_err(|err| format!("invalid backup archive: {err}"))?;
+
+    for index in 0..archive.len() {
+        let mut archive_file = archive
+            .by_index(index)
+            .map_err(|err| format!("failed to read backup entry: {err}"))?;
+        if archive_file.is_dir() {
+            continue;
+        }
+
+        let name = archive_file.name().to_string();
+        if name == "data.db" {
+            let destination = data_dir.join("data.db.restored");
+            let mut out =
+                std::fs::File::create(&destination).map_err(|err| format!("failed to write restored db: {err}"))?;
+            let mut buffer = Vec::new();
+            archive_file
+                .read_to_end(&mut buffer)
+                .map_err(|err| format!("failed to read backup db entry: {err}"))?;
+            out.write_all(&buffer)
+                .map_err(|err| format!("failed to persist restored db: {err}"))?;
+            continue;
+        }
+
+        if let Some(relative) = name.strip_prefix("recordings/") {
+            if relative.is_empty() {
+                continue;
+            }
+
+            let relative_path = PathBuf::from(relative);
+            if relative_path.is_absolute()
+                || relative_path.components().any(|component| {
+                    matches!(
+                        component,
+                        std::path::Component::ParentDir
+                            | std::path::Component::RootDir
+                            | std::path::Component::Prefix(_)
+                    )
+                })
+            {
+                continue;
+            }
+
+            let destination = recordings_dir.join(relative_path);
+            if let Some(parent) = destination.parent() {
+                std::fs::create_dir_all(parent)
+                    .map_err(|err| format!("failed to create restore path: {err}"))?;
+            }
+
+            let mut out = std::fs::File::create(&destination)
+                .map_err(|err| format!("failed to write restored recording: {err}"))?;
+            let mut buffer = Vec::new();
+            archive_file
+                .read_to_end(&mut buffer)
+                .map_err(|err| format!("failed to read backup recording entry: {err}"))?;
+            out.write_all(&buffer)
+                .map_err(|err| format!("failed to persist restored recording: {err}"))?;
+        }
+    }
+
+    Ok(())
 }
 
 #[tauri::command]
