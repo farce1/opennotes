@@ -2,6 +2,7 @@ import { Channel, invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { getSetting } from '../lib/settings';
 import type { SessionPhase, SessionStatePayload, TranscriptEvent } from '../types';
 
 type SegmentHandler = (event: TranscriptEvent) => void;
@@ -35,9 +36,11 @@ export function useSession() {
     };
 
     channelRef.current = channel;
+    const audioSource = await getSetting('defaultAudioSource');
 
     const nextMeetingId = await invoke<number>('start_session', {
       onSegment: channel,
+      audioSource: audioSource || undefined,
     });
 
     setMeetingId(nextMeetingId);

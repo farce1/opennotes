@@ -128,6 +128,7 @@ pub async fn start_session(
     recording_state: tauri::State<'_, RecordingStateHandle>,
     transcription_state: tauri::State<'_, TranscriptionStateHandle>,
     on_segment: Channel<transcription::TranscriptEvent>,
+    audio_source: Option<String>,
 ) -> Result<i64, String> {
     let session_handle = session_state.inner().clone();
     let session_handle_for_start = session_handle.clone();
@@ -142,6 +143,7 @@ pub async fn start_session(
         recording_state.inner(),
         transcription_state.inner(),
         on_segment,
+        audio_source,
     )
 }
 
@@ -248,7 +250,7 @@ pub async fn start_recording(
     _state: tauri::State<'_, RecordingStateHandle>,
 ) -> Result<(), String> {
     let output_path = next_recording_output_path()?;
-    audio::start_recording(&app, output_path)?;
+    audio::start_recording(&app, output_path, None)?;
     widget::show_widget(&app).map_err(|err| err.to_string())?;
     set_tray_start_stop_label(&app, true)?;
     update_tray_icon(app.clone(), "recording".to_string())?;
@@ -456,23 +458,28 @@ pub async fn update_recording_shortcut(
 }
 
 #[tauri::command]
-pub async fn check_ollama_status() -> Result<llm::detect::OllamaStatus, String> {
-    Ok(llm::detect::full_status(llm::DEFAULT_MODEL).await)
+pub async fn check_ollama_status(server_url: Option<String>) -> Result<llm::detect::OllamaStatus, String> {
+    let url = server_url.unwrap_or_else(|| llm::DEFAULT_OLLAMA_URL.to_string());
+    Ok(llm::detect::full_status(&url, llm::DEFAULT_MODEL).await)
 }
 
 #[tauri::command]
 pub async fn pull_ollama_model(
+    server_url: Option<String>,
     model: Option<String>,
     on_event: Channel<llm::OllamaPullEvent>,
 ) -> Result<(), String> {
+    let url = server_url.unwrap_or_else(|| llm::DEFAULT_OLLAMA_URL.to_string());
     let selected_model = model.unwrap_or_else(|| llm::DEFAULT_MODEL.to_string());
-    llm::pull_model(&selected_model, &on_event).await
+    llm::pull_model(&url, &selected_model, &on_event).await
 }
 
 #[tauri::command]
 pub async fn generate_summary(
     pool: tauri::State<'_, SqlitePool>,
     meeting_id: i64,
+    server_url: Option<String>,
+    model: Option<String>,
     on_token: Channel<llm::LlmTokenEvent>,
 ) -> Result<(), String> {
     let transcript_parts = sqlx::query_scalar::<_, String>(
@@ -491,7 +498,9 @@ pub async fn generate_summary(
     }
 
     let transcript = transcript_parts.join("\n");
-    let full_summary = llm::run_summary(&transcript, llm::DEFAULT_MODEL, &on_token).await?;
+    let url = server_url.unwrap_or_else(|| llm::DEFAULT_OLLAMA_URL.to_string());
+    let selected_model = model.unwrap_or_else(|| llm::DEFAULT_MODEL.to_string());
+    let full_summary = llm::run_summary(&transcript, &url, &selected_model, &on_token).await?;
     let extracted_title = llm::extract_title(&full_summary);
     let cleaned_summary = llm::strip_title_line(&full_summary).trim().to_string();
     let persisted_summary = if cleaned_summary.is_empty() {
@@ -500,7 +509,7 @@ pub async fn generate_summary(
         cleaned_summary
     };
 
-    llm::save_summary(pool.inner(), meeting_id, &persisted_summary, llm::DEFAULT_MODEL).await?;
+    llm::save_summary(pool.inner(), meeting_id, &persisted_summary, &selected_model).await?;
 
     if let Some(title) = extracted_title {
         llm::update_meeting_title(pool.inner(), meeting_id, &title).await?;

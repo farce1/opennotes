@@ -8,7 +8,7 @@ use sqlx::SqlitePool;
 use tauri::ipc::Channel;
 
 pub const DEFAULT_MODEL: &str = "phi4-mini";
-const OLLAMA_BASE_URL: &str = "http://localhost:11434";
+pub const DEFAULT_OLLAMA_URL: &str = "http://localhost:11434";
 const MAX_SINGLE_PASS_CHARS: usize = 96_000;
 const MAP_CHUNK_CHARS: usize = 80_000;
 const MAP_CHUNK_OVERLAP_CHARS: usize = 2_000;
@@ -125,10 +125,15 @@ fn parse_stream_line(
     Ok(())
 }
 
-async fn run_generate_stream(prompt: &str, model: &str, on_token: &Channel<LlmTokenEvent>) -> Result<String, String> {
+async fn run_generate_stream(
+    prompt: &str,
+    server_url: &str,
+    model: &str,
+    on_token: &Channel<LlmTokenEvent>,
+) -> Result<String, String> {
     let client = Client::new();
     let response = client
-        .post(format!("{OLLAMA_BASE_URL}/api/generate"))
+        .post(format!("{server_url}/api/generate"))
         .json(&serde_json::json!({
             "model": model,
             "prompt": prompt,
@@ -178,10 +183,14 @@ async fn run_generate_stream(prompt: &str, model: &str, on_token: &Channel<LlmTo
     Ok(accumulated)
 }
 
-async fn run_generate_non_stream(prompt: &str, model: &str) -> Result<String, String> {
+async fn run_generate_non_stream(
+    prompt: &str,
+    server_url: &str,
+    model: &str,
+) -> Result<String, String> {
     let client = Client::new();
     let response = client
-        .post(format!("{OLLAMA_BASE_URL}/api/generate"))
+        .post(format!("{server_url}/api/generate"))
         .json(&serde_json::json!({
             "model": model,
             "prompt": prompt,
@@ -212,10 +221,14 @@ async fn run_generate_non_stream(prompt: &str, model: &str) -> Result<String, St
         .ok_or_else(|| "Ollama response did not include generated text".to_string())
 }
 
-pub async fn pull_model(model: &str, on_event: &Channel<OllamaPullEvent>) -> Result<(), String> {
+pub async fn pull_model(
+    server_url: &str,
+    model: &str,
+    on_event: &Channel<OllamaPullEvent>,
+) -> Result<(), String> {
     let client = Client::new();
     let response = match client
-        .post(format!("{OLLAMA_BASE_URL}/api/pull"))
+        .post(format!("{server_url}/api/pull"))
         .json(&serde_json::json!({
             "name": model,
             "stream": true
@@ -348,15 +361,17 @@ pub fn strip_title_line(full_text: &str) -> String {
 
 pub async fn generate_summary_stream(
     transcript: &str,
+    server_url: &str,
     model: &str,
     on_token: &Channel<LlmTokenEvent>,
 ) -> Result<String, String> {
     let prompt = build_summary_prompt(transcript);
-    run_generate_stream(&prompt, model, on_token).await
+    run_generate_stream(&prompt, server_url, model, on_token).await
 }
 
 pub async fn generate_summary_chunked(
     transcript: &str,
+    server_url: &str,
     model: &str,
     on_token: &Channel<LlmTokenEvent>,
 ) -> Result<String, String> {
@@ -365,7 +380,7 @@ pub async fn generate_summary_chunked(
 
     for chunk in chunks {
         let prompt = build_summary_prompt(&chunk);
-        partial_summaries.push(run_generate_non_stream(&prompt, model).await?);
+        partial_summaries.push(run_generate_non_stream(&prompt, server_url, model).await?);
     }
 
     let stitched = partial_summaries
@@ -380,18 +395,19 @@ pub async fn generate_summary_chunked(
         stitched
     );
 
-    run_generate_stream(&synthesis_prompt, model, on_token).await
+    run_generate_stream(&synthesis_prompt, server_url, model, on_token).await
 }
 
 pub async fn run_summary(
     transcript: &str,
+    server_url: &str,
     model: &str,
     on_token: &Channel<LlmTokenEvent>,
 ) -> Result<String, String> {
     let result = if transcript.len() <= MAX_SINGLE_PASS_CHARS {
-        generate_summary_stream(transcript, model, on_token).await
+        generate_summary_stream(transcript, server_url, model, on_token).await
     } else {
-        generate_summary_chunked(transcript, model, on_token).await
+        generate_summary_chunked(transcript, server_url, model, on_token).await
     };
 
     match result {

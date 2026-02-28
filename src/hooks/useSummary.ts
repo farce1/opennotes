@@ -1,6 +1,7 @@
 import { Channel, invoke } from '@tauri-apps/api/core';
 import { useCallback, useState } from 'react';
 
+import { getSetting } from '../lib/settings';
 import type { LlmTokenEvent } from '../types';
 
 type SummaryRow = {
@@ -51,6 +52,8 @@ export function useSummary() {
     setSummaryText('');
     setEdited(false);
     setErrorMessage(null);
+    const serverUrl = await getSetting('ollamaServerUrl');
+    const model = await getSetting('ollamaModel');
 
     const channel = new Channel<LlmTokenEvent>();
     channel.onmessage = (event) => {
@@ -77,6 +80,8 @@ export function useSummary() {
     try {
       await invoke('generate_summary', {
         meetingId,
+        serverUrl: serverUrl || undefined,
+        model: model || undefined,
         onToken: channel,
       });
 

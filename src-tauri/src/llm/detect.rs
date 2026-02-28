@@ -3,8 +3,6 @@ use std::time::Duration;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 
-const OLLAMA_BASE_URL: &str = "http://localhost:11434";
-
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OllamaStatus {
@@ -25,7 +23,7 @@ struct OllamaModelTag {
     name: String,
 }
 
-pub async fn check_ollama_running() -> bool {
+pub async fn check_ollama_running(server_url: &str) -> bool {
     let client = match Client::builder()
         .timeout(Duration::from_secs(2))
         .build()
@@ -34,14 +32,14 @@ pub async fn check_ollama_running() -> bool {
         Err(_) => return false,
     };
 
-    match client.get(OLLAMA_BASE_URL).send().await {
+    match client.get(server_url).send().await {
         Ok(response) => response.status().is_success(),
         Err(_) => false,
     }
 }
 
-pub async fn check_ollama_installed() -> bool {
-    if check_ollama_running().await {
+pub async fn check_ollama_installed(server_url: &str) -> bool {
+    if check_ollama_running(server_url).await {
         return true;
     }
 
@@ -57,7 +55,7 @@ pub async fn check_ollama_installed() -> bool {
     }
 }
 
-pub async fn check_model_pulled(model: &str) -> bool {
+pub async fn check_model_pulled(server_url: &str, model: &str) -> bool {
     if model.trim().is_empty() {
         return false;
     }
@@ -71,7 +69,7 @@ pub async fn check_model_pulled(model: &str) -> bool {
     };
 
     let response = match client
-        .get(format!("{OLLAMA_BASE_URL}/api/tags"))
+        .get(format!("{server_url}/api/tags"))
         .send()
         .await
     {
@@ -95,11 +93,11 @@ pub async fn check_model_pulled(model: &str) -> bool {
     })
 }
 
-pub async fn full_status(model_name: &str) -> OllamaStatus {
-    let running = check_ollama_running().await;
-    let installed = check_ollama_installed().await;
+pub async fn full_status(server_url: &str, model_name: &str) -> OllamaStatus {
+    let running = check_ollama_running(server_url).await;
+    let installed = check_ollama_installed(server_url).await;
     let model_ready = if running {
-        check_model_pulled(model_name).await
+        check_model_pulled(server_url, model_name).await
     } else {
         false
     };

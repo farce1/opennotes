@@ -14,8 +14,29 @@ use tauri::Manager;
 use tauri_plugin_global_shortcut::ShortcutState;
 use tauri_plugin_sql::{Builder as SqlBuilder, Migration, MigrationKind};
 
+fn normalize_shortcut_for_tauri(shortcut: &str) -> String {
+    shortcut
+        .to_lowercase()
+        .replace("commandorcontrol", "cmdorcontrol")
+}
+
+fn read_stored_shortcut() -> Option<String> {
+    let home = std::env::var("HOME").ok()?;
+    let store_path =
+        std::path::PathBuf::from(home).join("Library/Application Support/com.opennotes.app/settings.json");
+    let contents = std::fs::read_to_string(store_path).ok()?;
+    let parsed: serde_json::Value = serde_json::from_str(&contents).ok()?;
+
+    parsed
+        .get("recordingShortcut")
+        .and_then(|value| value.as_str())
+        .map(normalize_shortcut_for_tauri)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    let startup_shortcut = read_stored_shortcut().unwrap_or_else(|| "cmdorcontrol+shift+r".to_string());
+
     let migrations = vec![
         Migration {
             version: 1,
@@ -144,7 +165,7 @@ pub fn run() {
     {
         builder = builder.plugin(
             tauri_plugin_global_shortcut::Builder::new()
-                .with_shortcuts(["cmdorcontrol+shift+r"])
+                .with_shortcuts([startup_shortcut.as_str()])
                 .expect("Failed to register shortcut")
                 .with_handler(|app, _shortcut, event| {
                     if event.state == ShortcutState::Pressed {

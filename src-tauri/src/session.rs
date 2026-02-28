@@ -82,6 +82,7 @@ impl SessionCoordinator {
         recording_state_handle: &RecordingStateHandle,
         transcription_state_handle: &TranscriptionStateHandle,
         on_segment: Channel<TranscriptEvent>,
+        audio_source: Option<String>,
     ) -> Result<i64, String> {
         if !matches!(self.phase, SessionPhase::Idle) {
             return Err("session is already active".to_string());
@@ -90,6 +91,7 @@ impl SessionCoordinator {
         let started_at = Utc::now();
         let output_path = next_recording_output_path()?;
         let output_path_string = output_path.to_string_lossy().to_string();
+        let selected_audio_source = normalize_audio_source(audio_source.as_deref());
 
         let title = format!(
             "Meeting — {}",
@@ -99,10 +101,11 @@ impl SessionCoordinator {
         let meeting_id = tauri::async_runtime::block_on(async {
             let result = sqlx::query(
                 "INSERT INTO meetings (title, started_at, status, audio_path, audio_sources, updated_at)
-                 VALUES (?, CURRENT_TIMESTAMP, 'recording', ?, 'unknown', CURRENT_TIMESTAMP)",
+                 VALUES (?, CURRENT_TIMESTAMP, 'recording', ?, ?, CURRENT_TIMESTAMP)",
             )
             .bind(title)
             .bind(&output_path_string)
+            .bind(&selected_audio_source)
             .execute(pool)
             .await?;
 
@@ -110,15 +113,15 @@ impl SessionCoordinator {
         })
         .map_err(|err| format!("failed to create meeting row: {err}"))?;
 
-        if let Err(err) = audio::start_recording(app, output_path.clone()) {
+        if let Err(err) = audio::start_recording(
+            app,
+            output_path.clone(),
+            Some(selected_audio_source.as_str()),
+        ) {
             let _ = delete_meeting(pool, meeting_id);
             return Err(err);
         }
-
-        let audio_sources = detect_audio_sources(recording_state_handle);
-        if let Ok(ref sources) = audio_sources {
-            let _ = update_audio_sources(pool, meeting_id, sources);
-        }
+        let _ = update_audio_sources(pool, meeting_id, &selected_audio_source);
 
         let (audio_tx, audio_rx) = {
             let mut recording_state = recording_state_handle
@@ -350,15 +353,11 @@ fn emit_state_changed(app: &AppHandle, payload: &SessionStatePayload) {
     let _ = app.emit("session-state-changed", payload.clone());
 }
 
-fn detect_audio_sources(recording_state_handle: &RecordingStateHandle) -> Result<String, String> {
-    let state = recording_state_handle
-        .lock()
-        .map_err(|_| "recording state lock poisoned".to_string())?;
-
-    if state.loopback_stream.is_some() {
-        Ok("both".to_string())
-    } else {
-        Ok("mic".to_string())
+fn normalize_audio_source(audio_source: Option<&str>) -> String {
+    match audio_source.unwrap_or("both").trim().to_lowercase().as_str() {
+        "mic" => "mic".to_string(),
+        "system" => "system".to_string(),
+        _ => "both".to_string(),
     }
 }
 

@@ -8,6 +8,7 @@ import { useModelSetup } from '../hooks/useModelSetup';
 import { useRecording } from '../hooks/useRecording';
 import { useSession } from '../hooks/useSession';
 import { useTranscript } from '../hooks/useTranscript';
+import { getSetting } from '../lib/settings';
 import type { OllamaStatus } from '../types';
 
 const FOUR_HOURS_MS = 4 * 60 * 60 * 1000;
@@ -59,6 +60,19 @@ export function RecordView() {
 
   const sessionActive = phase === 'recording' || phase === 'paused' || phase === 'stopping';
 
+  const navigateToMeetingComplete = useCallback(
+    async (completedMeetingId: number) => {
+      const autoSummary = await getSetting('autoSummary');
+      navigate('/meeting-complete', {
+        state: {
+          meetingId: completedMeetingId,
+          autoGenerate: autoSummary ?? true,
+        },
+      });
+    },
+    [navigate],
+  );
+
   const stateLabel = useMemo(() => {
     if (phase === 'stopping') {
       return 'Saving';
@@ -106,7 +120,10 @@ export function RecordView() {
     }
 
     try {
-      const ollamaStatus = await invoke<OllamaStatus>('check_ollama_status');
+      const serverUrl = await getSetting('ollamaServerUrl');
+      const ollamaStatus = await invoke<OllamaStatus>('check_ollama_status', {
+        serverUrl: serverUrl || undefined,
+      });
       if (!ollamaStatus.modelReady) {
         setRecordingError('AI notes model not ready. Open Setup to finish Ollama setup before recording.');
         return false;
@@ -139,17 +156,12 @@ export function RecordView() {
     try {
       const completedMeetingId = await stopSession();
       if (typeof completedMeetingId === 'number') {
-        navigate('/meeting-complete', {
-          state: {
-            meetingId: completedMeetingId,
-            autoGenerate: true,
-          },
-        });
+        await navigateToMeetingComplete(completedMeetingId);
       }
     } catch {
       setRecordingError('Stopping the session failed. Please retry from the widget or tray controls.');
     }
-  }, [navigate, stopSession]);
+  }, [navigateToMeetingComplete, stopSession]);
 
   useEffect(() => {
     if (!sessionActive || !startTime || phase === 'stopping') {
@@ -189,12 +201,7 @@ export function RecordView() {
         try {
           const completedMeetingId = await stopSession();
           if (typeof completedMeetingId === 'number') {
-            navigate('/meeting-complete', {
-              state: {
-                meetingId: completedMeetingId,
-                autoGenerate: true,
-              },
-            });
+            await navigateToMeetingComplete(completedMeetingId);
           }
         } catch {
           setRecordingError('Unable to stop session from shortcut.');
@@ -218,7 +225,7 @@ export function RecordView() {
         unlisten();
       }
     };
-  }, [handleStartRecording, navigate, phase, stopSession]);
+  }, [handleStartRecording, navigateToMeetingComplete, phase, stopSession]);
 
   return (
     <section className="flex h-full min-h-[calc(100vh-3rem)] items-center justify-center rounded-xl border border-warm-200/80 bg-white/60 px-6 py-10 shadow-sm dark:border-warm-700/70 dark:bg-warm-800/40">
