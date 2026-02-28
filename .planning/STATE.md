@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: in_progress
-last_updated: "2026-02-28T14:57:52Z"
+status: unknown
+last_updated: "2026-02-28T18:01:31.055Z"
 progress:
-  total_phases: 8
-  completed_phases: 6
+  total_phases: 7
+  completed_phases: 7
   total_plans: 20
-  completed_plans: 19
+  completed_plans: 20
 ---
 
 # Project State
@@ -54,6 +54,7 @@ Progress: [████████░░] 75%
 *Updated after each plan completion*
 | Phase 07 P01 | 2 min | 2 tasks | 13 files |
 | Phase 07 P02 | 2 min | 2 tasks | 3 files |
+| Phase 07 P03 | 2 min | 2 tasks | 12 files |
 
 ## Accumulated Context
 
@@ -82,6 +83,8 @@ Recent decisions affecting current work:
 - [Phase 07]: Added explicit global-shortcut capability permissions — Ensures runtime register/unregister APIs are authorized for shortcut customization
 - [Phase 07]: Unregister all shortcuts during key capture — Prevents existing global shortcut bindings from firing while user records a new combo
 - [Phase 07]: Model deletion uses plugin-fs APIs — Keeps deletion local and avoids shelling out for filesystem operations
+- [Phase 07]: Thread Ollama URL/model through command params — Ensures all summary actions honor user-configured endpoint and model
+- [Phase 07]: Bootstrap startup shortcut from persisted settings — Registers user-selected shortcut on app launch instead of reverting to hardcoded default
 
 ### Pending Todos
 

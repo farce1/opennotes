@@ -35,7 +35,7 @@
     - [x] 06-01-PLAN.md — Backend foundation (SQLite FTS5 migration, soft-delete schema, Rust commands, dependency install, Tauri plugin setup) (completed 2026-02-28)
     - [x] 06-02-PLAN.md — Library UI evolution (useLibrary hook, search/filter/sort, enriched cards, date grouping, view modes) (completed 2026-02-28)
     - [x] 06-03-PLAN.md — Selection, export, backup (multi-select, bulk actions, inline rename, export module, backup/restore settings) (completed 2026-02-28)
-- [ ] Phase 07: Settings Surface Expansion
+- [x] Phase 07: Settings Surface Expansion (completed 2026-02-28)
   - **Goal:** Expand the Settings view into a sidebar-tabbed configuration surface with sections for General (theme, recording shortcut), Recording (audio device picker, source defaults), Transcription (language selector, model management), Summary (Ollama model picker, auto-summary toggle, connection management), Data (backup/restore, storage), and About. All changes apply immediately. Includes key recorder for shortcut customization and full Ollama management panel.
 - [ ] Phase 08: Cross-Platform Hardening
 
@@ -49,5 +49,5 @@
 | 04 | Complete | 3/3 | 2026-02-27 |
 | 05 | Complete | 3/3 | 2026-02-27 |
 | 06 | Complete | 3/3 | 2026-02-28 |
-| 07 | In Progress | 2/3 | - |
+| 07 | 3/3 | Complete   | 2026-02-28 |
 | 08 | Pending | 0/0 | - |
