@@ -20,6 +20,7 @@ export interface Meeting {
 export type SortField = 'date' | 'duration' | 'title';
 export type SortDirection = 'asc' | 'desc';
 export type ViewMode = 'card' | 'compact';
+export type SettingsTab = 'general' | 'recording' | 'transcription' | 'summary' | 'data' | 'about';
 
 export interface LibraryFilters {
   search: string;
@@ -54,6 +55,12 @@ export interface AppSettings {
   theme: AppTheme;
   recordingShortcut: string;
   dataDirectory: string;
+  defaultAudioSource: 'mic' | 'system' | 'both';
+  preferredMicDevice: string | null;
+  transcriptionLanguage: string;
+  ollamaModel: string;
+  ollamaServerUrl: string;
+  autoSummary: boolean;
 }
 
 export interface TranscriptSegment {

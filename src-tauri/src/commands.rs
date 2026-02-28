@@ -371,6 +371,91 @@ pub async fn download_model(on_event: Channel<crate::download::DownloadEvent>) -
 }
 
 #[tauri::command]
+pub fn list_audio_input_devices() -> Result<Vec<String>, String> {
+    use cpal::traits::{DeviceTrait, HostTrait};
+
+    let host = cpal::default_host();
+    let devices = host
+        .input_devices()
+        .map_err(|err| format!("failed to enumerate input devices: {err}"))?;
+
+    Ok(devices.filter_map(|device| device.name().ok()).collect())
+}
+
+#[tauri::command]
+pub async fn list_ollama_models(server_url: Option<String>) -> Result<Vec<String>, String> {
+    let base = server_url.unwrap_or_else(|| "http://localhost:11434".to_string());
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(4))
+        .build()
+        .map_err(|err| err.to_string())?;
+
+    let response = client
+        .get(format!("{base}/api/tags"))
+        .send()
+        .await
+        .map_err(|err| format!("cannot reach Ollama: {err}"))?;
+
+    if !response.status().is_success() {
+        return Ok(vec![]);
+    }
+
+    #[derive(serde::Deserialize)]
+    struct TagsResponse {
+        models: Vec<ModelTag>,
+    }
+
+    #[derive(serde::Deserialize)]
+    struct ModelTag {
+        name: String,
+    }
+
+    let payload: TagsResponse = response
+        .json()
+        .await
+        .map_err(|err| format!("failed to parse model list: {err}"))?;
+
+    Ok(payload.models.into_iter().map(|model| model.name).collect())
+}
+
+#[tauri::command]
+pub async fn delete_ollama_model(server_url: Option<String>, model: String) -> Result<(), String> {
+    let base = server_url.unwrap_or_else(|| "http://localhost:11434".to_string());
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(10))
+        .build()
+        .map_err(|err| err.to_string())?;
+
+    client
+        .delete(format!("{base}/api/delete"))
+        .json(&serde_json::json!({ "name": model }))
+        .send()
+        .await
+        .map_err(|err| format!("failed to delete model: {err}"))?;
+
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn update_recording_shortcut(
+    app: AppHandle,
+    old_shortcut: String,
+    new_shortcut: String,
+) -> Result<(), String> {
+    use tauri_plugin_global_shortcut::GlobalShortcutExt;
+
+    let _ = app.global_shortcut().unregister(old_shortcut.as_str());
+
+    app.global_shortcut()
+        .on_shortcut(new_shortcut.as_str(), |app, _shortcut, event| {
+            if event.state == tauri_plugin_global_shortcut::ShortcutState::Pressed {
+                let _ = app.emit("recording-toggle", ());
+            }
+        })
+        .map_err(|err| format!("failed to register shortcut: {err}"))
+}
+
+#[tauri::command]
 pub async fn check_ollama_status() -> Result<llm::detect::OllamaStatus, String> {
     Ok(llm::detect::full_status(llm::DEFAULT_MODEL).await)
 }
