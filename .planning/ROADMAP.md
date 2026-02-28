@@ -36,6 +36,7 @@
     - [x] 06-02-PLAN.md — Library UI evolution (useLibrary hook, search/filter/sort, enriched cards, date grouping, view modes) (completed 2026-02-28)
     - [x] 06-03-PLAN.md — Selection, export, backup (multi-select, bulk actions, inline rename, export module, backup/restore settings) (completed 2026-02-28)
 - [ ] Phase 07: Settings Surface Expansion
+  - **Goal:** Expand the Settings view into a sidebar-tabbed configuration surface with sections for General (theme, recording shortcut), Recording (audio device picker, source defaults), Transcription (language selector, model management), Summary (Ollama model picker, auto-summary toggle, connection management), Data (backup/restore, storage), and About. All changes apply immediately. Includes key recorder for shortcut customization and full Ollama management panel.
 - [ ] Phase 08: Cross-Platform Hardening
 
 ## Progress
