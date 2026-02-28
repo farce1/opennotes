@@ -1,4 +1,5 @@
 import { Laptop, Moon, Settings, Sun } from 'lucide-react';
+import { DataManagement } from '../components/settings/DataManagement';
 import { useTheme } from '../hooks/useTheme';
 import { useSetting } from '../hooks/useSettings';
 import type { AppTheme } from '../types';
@@ -63,6 +64,8 @@ export function SettingsView() {
           {dataDirectory ?? '~/.opennotes'}
         </p>
       </article>
+
+      <DataManagement />
     </section>
   );
 }
