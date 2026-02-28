@@ -96,8 +96,15 @@ export function useLibrary() {
   const [showTrash, setShowTrash] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editTitle, setEditTitle] = useState('');
 
   const searchTimerRef = useRef<number | null>(null);
+
+  const deselectAll = useCallback(() => {
+    setSelectedIds(new Set());
+  }, []);
 
   const loadMeetings = useCallback(async () => {
     setLoading(true);
@@ -256,27 +263,40 @@ export function useLibrary() {
     await loadMeetings();
   }, [filters.search, loadMeetings, loadTrash, searchMeetings, showTrash]);
 
-  const setFilter = useCallback(<K extends keyof LibraryFilters>(key: K, value: LibraryFilters[K]) => {
-    setFilters((previous) => ({
-      ...previous,
-      [key]: value,
-    }));
-  }, []);
+  const setFilter = useCallback(
+    <K extends keyof LibraryFilters>(key: K, value: LibraryFilters[K]) => {
+      setFilters((previous) => ({
+        ...previous,
+        [key]: value,
+      }));
+      deselectAll();
+    },
+    [deselectAll],
+  );
 
   const clearFilters = useCallback(() => {
     setFilters((previous) => ({
       ...DEFAULT_FILTERS,
       search: previous.search,
     }));
-  }, []);
+    deselectAll();
+  }, [deselectAll]);
 
-  const setSortField = useCallback((field: SortField) => {
-    setSortFieldState(field);
-  }, []);
+  const setSortField = useCallback(
+    (field: SortField) => {
+      setSortFieldState(field);
+      deselectAll();
+    },
+    [deselectAll],
+  );
 
-  const setSortDirection = useCallback((direction: SortDirection) => {
-    setSortDirectionState(direction);
-  }, []);
+  const setSortDirection = useCallback(
+    (direction: SortDirection) => {
+      setSortDirectionState(direction);
+      deselectAll();
+    },
+    [deselectAll],
+  );
 
   const setViewMode = useCallback((mode: ViewMode) => {
     setViewModeState(mode);
@@ -288,7 +308,67 @@ export function useLibrary() {
       ...previous,
       search: '',
     }));
+    setSearchResults(null);
+    deselectAll();
+  }, [deselectAll]);
+
+  const toggleSelect = useCallback((id: number) => {
+    setSelectedIds((previous) => {
+      const next = new Set(previous);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
   }, []);
+
+  const selectAll = useCallback(() => {
+    const ids = (searchResults ?? meetings).map((item) => item.id);
+    setSelectedIds(new Set(ids));
+  }, [meetings, searchResults]);
+
+  const startRename = useCallback((meetingId: number, currentTitle: string) => {
+    setEditingId(meetingId);
+    setEditTitle(currentTitle);
+  }, []);
+
+  const cancelRename = useCallback(() => {
+    setEditingId(null);
+    setEditTitle('');
+  }, []);
+
+  const commitRename = useCallback(async () => {
+    if (editingId === null) {
+      return false;
+    }
+
+    const nextTitle = editTitle.trim();
+    if (!nextTitle) {
+      cancelRename();
+      return false;
+    }
+
+    try {
+      await invoke('update_meeting_title', {
+        meetingId: editingId,
+        title: nextTitle,
+      });
+
+      setMeetings((previous) =>
+        previous.map((meeting) => (meeting.id === editingId ? { ...meeting, title: nextTitle } : meeting)),
+      );
+      setSearchResults((previous) =>
+        previous?.map((result) => (result.id === editingId ? { ...result, title: nextTitle } : result)) ?? null,
+      );
+      cancelRename();
+      return true;
+    } catch {
+      setError('Failed to rename meeting title.');
+      return false;
+    }
+  }, [cancelRename, editTitle, editingId]);
 
   useEffect(() => {
     void invoke('purge_old_trash').catch(() => undefined);
@@ -321,24 +401,7 @@ export function useLibrary() {
     }
 
     void loadMeetings();
-  }, [
-    filters.audioSource,
-    filters.dateFrom,
-    filters.dateTo,
-    filters.durationRange,
-    filters.search,
-    filters.status,
-    loadMeetings,
-    showTrash,
-  ]);
-
-  useEffect(() => {
-    if (showTrash || filters.search.trim().length > 0) {
-      return;
-    }
-
-    void loadMeetings();
-  }, [loadMeetings, showTrash, sortDirection, sortField, filters.search]);
+  }, [filters.search, loadMeetings, showTrash]);
 
   useEffect(() => {
     let disposed = false;
@@ -370,6 +433,7 @@ export function useLibrary() {
   }, [refresh]);
 
   const sections = useMemo(() => groupByDateSection(meetings), [meetings]);
+  const isSelectionMode = selectedIds.size > 0;
 
   return {
     meetings,
@@ -382,12 +446,23 @@ export function useLibrary() {
     showTrash,
     loading,
     error,
+    selectedIds,
+    isSelectionMode,
+    editingId,
+    editTitle,
+    setEditTitle,
     setFilter,
     clearFilters,
     setSortField,
     setSortDirection,
     setViewMode,
     toggleTrash,
+    toggleSelect,
+    selectAll,
+    deselectAll,
+    startRename,
+    commitRename,
+    cancelRename,
     refresh,
   };
 }

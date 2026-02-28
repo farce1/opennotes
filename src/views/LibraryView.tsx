@@ -1,14 +1,16 @@
 import { invoke } from '@tauri-apps/api/core';
-import { BookOpen, SearchX, Trash2, Undo2 } from 'lucide-react';
+import { BookOpen, SearchX, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { useNavigate } from 'react-router';
 
+import { BulkActionBar } from '../components/library/BulkActionBar';
 import { DateSectionHeader } from '../components/library/DateSectionHeader';
 import { FilterBar } from '../components/library/FilterBar';
 import { MeetingCard } from '../components/library/MeetingCard';
 import { MeetingRow } from '../components/library/MeetingRow';
 import { formatDate, formatDuration, statusClasses } from '../components/library/meetingUtils';
 import { useLibrary } from '../hooks/useLibrary';
+import { bulkExportZip, exportMeeting, type ExportFormat } from '../lib/export';
 import { getDb } from '../lib/db';
 import type { MeetingWithPreview, SortDirection, SortField, ViewMode } from '../types';
 
@@ -31,14 +33,27 @@ export function LibraryView() {
     showTrash,
     loading,
     error,
+    selectedIds,
+    isSelectionMode,
+    editingId,
+    editTitle,
+    setEditTitle,
     setFilter,
     clearFilters,
     setSortField,
     setSortDirection,
     setViewMode,
     toggleTrash,
+    toggleSelect,
+    selectAll,
+    deselectAll,
+    startRename,
+    commitRename,
+    cancelRename,
     refresh,
   } = useLibrary();
+
+  const selectionEnabled = !showTrash && searchResults === null;
 
   const onOpenMeeting = (meetingId: number) => {
     navigate('/meeting-complete', {
@@ -54,6 +69,17 @@ export function LibraryView() {
       setActionMessage('Re-transcription started.');
     } catch (invokeError) {
       setActionMessage(String(invokeError) || 'Re-transcription is not yet available.');
+    }
+  };
+
+  const onSoftDeleteMeeting = async (meetingId: number) => {
+    try {
+      await invoke('soft_delete_meeting', { meetingId });
+      setActionMessage('Meeting moved to trash.');
+      await refresh();
+      deselectAll();
+    } catch {
+      setActionMessage('Failed to move meeting to trash.');
     }
   };
 
@@ -99,26 +125,82 @@ export function LibraryView() {
     }
   };
 
-  const renderMeeting = (meeting: MeetingWithPreview) => {
-    if (viewMode === 'compact') {
-      return (
-        <MeetingRow
-          key={meeting.id}
-          meeting={meeting}
-          onClick={onOpenMeeting}
-          onRetranscribe={showTrash ? undefined : onRetranscribe}
-        />
-      );
+  const onExportMeeting = async (meetingId: number, format: ExportFormat) => {
+    try {
+      await exportMeeting(meetingId, format);
+      setActionMessage('Export complete.');
+    } catch {
+      setActionMessage('Export failed.');
+    }
+  };
+
+  const onBulkDelete = async () => {
+    if (selectedIds.size === 0) {
+      return;
     }
 
-    return (
-      <MeetingCard
-        key={meeting.id}
-        meeting={meeting}
-        onClick={onOpenMeeting}
-        onRetranscribe={showTrash ? undefined : onRetranscribe}
-      />
-    );
+    const approved = window.confirm(`Move ${selectedIds.size} selected meetings to trash?`);
+    if (!approved) {
+      return;
+    }
+
+    try {
+      await Promise.all(
+        Array.from(selectedIds).map((meetingId) => invoke('soft_delete_meeting', { meetingId })),
+      );
+      setActionMessage(`${selectedIds.size} meetings moved to trash.`);
+      deselectAll();
+      await refresh();
+    } catch {
+      setActionMessage('Bulk delete failed.');
+    }
+  };
+
+  const onBulkExport = async (format: ExportFormat) => {
+    if (selectedIds.size === 0) {
+      return;
+    }
+
+    try {
+      await bulkExportZip(Array.from(selectedIds), format);
+      setActionMessage('Bulk export complete.');
+    } catch {
+      setActionMessage('Bulk export failed.');
+    }
+  };
+
+  const onRenameCommit = async () => {
+    const success = await commitRename();
+    if (success) {
+      setActionMessage('Meeting title updated.');
+    }
+  };
+
+  const renderMeeting = (meeting: MeetingWithPreview) => {
+    const sharedProps = {
+      meeting,
+      onClick: onOpenMeeting,
+      showTrash,
+      selected: selectionEnabled ? selectedIds.has(meeting.id) : false,
+      selectionMode: selectionEnabled ? isSelectionMode : false,
+      onSelect: selectionEnabled ? toggleSelect : () => undefined,
+      onStartRename: startRename,
+      editingId,
+      editTitle,
+      onEditTitleChange: setEditTitle,
+      onCommitRename: () => void onRenameCommit(),
+      onCancelRename: cancelRename,
+      onExport: (meetingId: number, format: ExportFormat) => void onExportMeeting(meetingId, format),
+      onSoftDelete: (meetingId: number) => void onSoftDeleteMeeting(meetingId),
+      onRestore: (meetingId: number) => void onRestoreMeeting(meetingId),
+      onRetranscribe: showTrash ? undefined : (meetingId: number) => void onRetranscribe(meetingId),
+    };
+
+    if (viewMode === 'compact') {
+      return <MeetingRow key={meeting.id} {...sharedProps} />;
+    }
+
+    return <MeetingCard key={meeting.id} {...sharedProps} />;
   };
 
   const noMeetings = !loading && meetings.length === 0 && searchResults === null;
@@ -214,15 +296,7 @@ export function LibraryView() {
           {meetings.map((meeting) => (
             <div key={meeting.id} className="space-y-2">
               {renderMeeting(meeting)}
-              <div className="flex items-center justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => void onRestoreMeeting(meeting.id)}
-                  className="inline-flex items-center gap-1 rounded-lg border border-emerald-300 bg-emerald-100/70 px-3 py-1.5 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-200/80 dark:border-emerald-500/60 dark:bg-emerald-500/20 dark:text-emerald-200"
-                >
-                  <Undo2 size={12} />
-                  Restore
-                </button>
+              <div className="flex justify-end">
                 <button
                   type="button"
                   onClick={() => void onDeletePermanently(meeting.id)}
@@ -262,6 +336,16 @@ export function LibraryView() {
           <p className="text-lg font-medium">No meetings match your search</p>
           <p className="text-sm text-warm-500 dark:text-warm-400">Try fewer keywords or clear filters.</p>
         </div>
+      ) : null}
+
+      {selectionEnabled && isSelectionMode ? (
+        <BulkActionBar
+          selectedCount={selectedIds.size}
+          onSelectAll={selectAll}
+          onDeselectAll={deselectAll}
+          onBulkDelete={() => void onBulkDelete()}
+          onBulkExport={(format) => void onBulkExport(format)}
+        />
       ) : null}
     </section>
   );
