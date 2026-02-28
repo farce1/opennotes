@@ -29,6 +29,12 @@ pub fn run() {
             sql: include_str!("../migrations/002_phase4_session.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 3,
+            description: "phase6_library",
+            sql: include_str!("../migrations/003_phase6_library.sql"),
+            kind: MigrationKind::Up,
+        },
     ];
 
     let recording_state: RecordingStateHandle =
@@ -86,6 +92,8 @@ pub fn run() {
         })
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_fs::init())
         .plugin(
             SqlBuilder::default()
                 .add_migrations("sqlite:~/.opennotes/data.db", migrations)

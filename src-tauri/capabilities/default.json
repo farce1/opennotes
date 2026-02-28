@@ -11,6 +11,8 @@
     "global-shortcut:default",
     "sql:default",
     "store:default",
-    "shell:default"
+    "shell:default",
+    "dialog:default",
+    "fs:default"
   ]
 }
