@@ -1,111 +1,44 @@
 import { invoke } from '@tauri-apps/api/core';
-import { listen } from '@tauri-apps/api/event';
-import { BookOpen, RotateCcw } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { BookOpen, SearchX, Trash2, Undo2 } from 'lucide-react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router';
 
+import { DateSectionHeader } from '../components/library/DateSectionHeader';
+import { FilterBar } from '../components/library/FilterBar';
+import { MeetingCard } from '../components/library/MeetingCard';
+import { MeetingRow } from '../components/library/MeetingRow';
+import { formatDate, formatDuration, statusClasses } from '../components/library/meetingUtils';
+import { useLibrary } from '../hooks/useLibrary';
 import { getDb } from '../lib/db';
-import type { Meeting } from '../types';
+import type { MeetingWithPreview, SortDirection, SortField, ViewMode } from '../types';
 
-function formatDate(value: string): string {
-  return new Date(value).toLocaleString(undefined, {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  });
-}
-
-function formatDuration(durationSeconds: number | null): string {
-  if (typeof durationSeconds !== 'number' || durationSeconds <= 0) {
-    return 'In progress';
-  }
-
-  const hours = Math.floor(durationSeconds / 3600);
-  const minutes = Math.floor((durationSeconds % 3600) / 60);
-  const seconds = durationSeconds % 60;
-
-  if (hours > 0) {
-    return `${hours}h ${minutes}m`;
-  }
-
-  if (minutes > 0) {
-    return `${minutes}m ${seconds}s`;
-  }
-
-  return `${seconds}s`;
-}
-
-function statusClasses(status: Meeting['status']): string {
-  if (status === 'completed') {
-    return 'border-emerald-300/80 bg-emerald-100/70 text-emerald-700 dark:border-emerald-500/50 dark:bg-emerald-500/10 dark:text-emerald-200';
-  }
-
-  if (status === 'recovered') {
-    return 'border-amber-300/80 bg-amber-100/70 text-amber-700 dark:border-amber-500/50 dark:bg-amber-500/10 dark:text-amber-200';
-  }
-
-  if (status === 'failed') {
-    return 'border-red-300/80 bg-red-100/70 text-red-700 dark:border-red-500/50 dark:bg-red-500/10 dark:text-red-200';
-  }
-
-  return 'border-warm-300/70 bg-white/70 text-warm-700 dark:border-warm-600 dark:bg-warm-800/70 dark:text-warm-100';
+function renderSearchSnippet(html: string): { __html: string } {
+  return { __html: html };
 }
 
 export function LibraryView() {
   const navigate = useNavigate();
-  const [meetings, setMeetings] = useState<Meeting[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
 
-  const loadMeetings = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-
-    try {
-      const db = await getDb();
-      const rows = await db.select<Meeting[]>(
-        'SELECT id, title, started_at, ended_at, duration_seconds, status, audio_path, audio_sources, created_at, updated_at FROM meetings ORDER BY started_at DESC',
-      );
-      setMeetings(rows);
-    } catch {
-      setError('Failed to load meetings from local database.');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    void loadMeetings();
-  }, [loadMeetings]);
-
-  useEffect(() => {
-    let disposed = false;
-    let unlisten: (() => void) | null = null;
-
-    void listen<number>('sessions-recovered', () => {
-      if (!disposed) {
-        void loadMeetings();
-      }
-    }).then((cleanup) => {
-      if (disposed) {
-        cleanup();
-        return;
-      }
-      unlisten = cleanup;
-    });
-
-    return () => {
-      disposed = true;
-      if (unlisten) {
-        unlisten();
-      }
-    };
-  }, [loadMeetings]);
-
-  const hasMeetings = useMemo(() => meetings.length > 0, [meetings.length]);
+  const {
+    meetings,
+    searchResults,
+    sections,
+    filters,
+    sortField,
+    sortDirection,
+    viewMode,
+    showTrash,
+    loading,
+    error,
+    setFilter,
+    clearFilters,
+    setSortField,
+    setSortDirection,
+    setViewMode,
+    toggleTrash,
+    refresh,
+  } = useLibrary();
 
   const onOpenMeeting = (meetingId: number) => {
     navigate('/meeting-complete', {
@@ -119,18 +52,112 @@ export function LibraryView() {
     try {
       await invoke('retranscribe_meeting', { meetingId });
       setActionMessage('Re-transcription started.');
-    } catch (err) {
-      setActionMessage(String(err) || 'Re-transcription is not yet available.');
+    } catch (invokeError) {
+      setActionMessage(String(invokeError) || 'Re-transcription is not yet available.');
     }
   };
 
+  const onRestoreMeeting = async (meetingId: number) => {
+    try {
+      await invoke('restore_meeting', { meetingId });
+      setActionMessage('Meeting restored.');
+      await refresh();
+    } catch {
+      setActionMessage('Failed to restore meeting from trash.');
+    }
+  };
+
+  const onDeletePermanently = async (meetingId: number) => {
+    const approved = window.confirm('Delete this meeting permanently? This cannot be undone.');
+    if (!approved) {
+      return;
+    }
+
+    try {
+      const db = await getDb();
+      await db.execute('DELETE FROM meetings WHERE id = $1', [meetingId]);
+      setActionMessage('Meeting permanently deleted.');
+      await refresh();
+    } catch {
+      setActionMessage('Failed to permanently delete meeting.');
+    }
+  };
+
+  const onEmptyTrash = async () => {
+    const approved = window.confirm('Permanently delete all meetings in trash? This cannot be undone.');
+    if (!approved) {
+      return;
+    }
+
+    try {
+      const db = await getDb();
+      await db.execute('DELETE FROM meetings WHERE deleted_at IS NOT NULL');
+      setActionMessage('Trash emptied.');
+      await refresh();
+    } catch {
+      setActionMessage('Failed to empty trash.');
+    }
+  };
+
+  const renderMeeting = (meeting: MeetingWithPreview) => {
+    if (viewMode === 'compact') {
+      return (
+        <MeetingRow
+          key={meeting.id}
+          meeting={meeting}
+          onClick={onOpenMeeting}
+          onRetranscribe={showTrash ? undefined : onRetranscribe}
+        />
+      );
+    }
+
+    return (
+      <MeetingCard
+        key={meeting.id}
+        meeting={meeting}
+        onClick={onOpenMeeting}
+        onRetranscribe={showTrash ? undefined : onRetranscribe}
+      />
+    );
+  };
+
+  const noMeetings = !loading && meetings.length === 0 && searchResults === null;
+  const noSearchResults = !loading && searchResults !== null && searchResults.length === 0;
+
   return (
     <section className="h-full min-h-[calc(100vh-3rem)] rounded-xl border border-warm-200/80 bg-white/60 p-6 shadow-sm dark:border-warm-700/70 dark:bg-warm-800/40">
-      <h1 className="text-2xl font-semibold text-warm-700 dark:text-warm-100">Meeting Library</h1>
+      <header className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-2xl font-semibold text-warm-700 dark:text-warm-100">{showTrash ? 'Trash' : 'Meeting Library'}</h1>
 
-      {loading ? (
-        <p className="mt-6 text-sm text-warm-500 dark:text-warm-300">Loading meetings…</p>
-      ) : null}
+        {showTrash && meetings.length > 0 ? (
+          <button
+            type="button"
+            onClick={() => void onEmptyTrash()}
+            className="inline-flex items-center gap-2 rounded-lg border border-red-300 bg-red-100/70 px-3 py-2 text-xs font-semibold text-red-700 transition hover:bg-red-200/80 dark:border-red-500/60 dark:bg-red-500/20 dark:text-red-200"
+          >
+            <Trash2 size={14} />
+            Empty Trash
+          </button>
+        ) : null}
+      </header>
+
+      <FilterBar
+        filters={filters}
+        sortField={sortField}
+        sortDirection={sortDirection}
+        viewMode={viewMode}
+        showTrash={showTrash}
+        onFilterChange={setFilter}
+        onClearFilters={clearFilters}
+        onSortChange={(field: SortField, direction: SortDirection) => {
+          setSortField(field);
+          setSortDirection(direction);
+        }}
+        onViewModeChange={(mode: ViewMode) => setViewMode(mode)}
+        onToggleTrash={toggleTrash}
+      />
+
+      {loading ? <p className="mt-6 text-sm text-warm-500 dark:text-warm-300">Loading meetings…</p> : null}
 
       {error ? (
         <p className="mt-4 rounded-lg border border-red-300/70 bg-red-50/70 px-3 py-2 text-sm text-red-700 dark:border-red-500/40 dark:bg-red-500/10 dark:text-red-200">
@@ -144,7 +171,76 @@ export function LibraryView() {
         </p>
       ) : null}
 
-      {!loading && !hasMeetings ? (
+      {searchResults !== null ? (
+        <div className="mt-6 space-y-2">
+          {searchResults.map((result) => (
+            <button
+              key={result.id}
+              type="button"
+              onClick={() => onOpenMeeting(result.id)}
+              className="w-full rounded-xl border border-warm-200/70 bg-white/70 p-4 text-left shadow-sm transition hover:border-warm-300 dark:border-warm-700/70 dark:bg-warm-900/30"
+            >
+              <div className="flex flex-wrap items-center gap-2">
+                <h2 className="text-sm font-semibold text-warm-700 dark:text-warm-100">{result.title}</h2>
+                <span className={`rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide ${statusClasses(result.status)}`}>
+                  {result.status}
+                </span>
+              </div>
+              <p className="mt-1 text-xs text-warm-500 dark:text-warm-300">
+                {formatDate(result.started_at)} • {formatDuration(result.duration_seconds)}
+              </p>
+              <p
+                className="mt-2 text-sm text-warm-600 [&_mark]:rounded [&_mark]:bg-accent-light/70 [&_mark]:px-0.5 [&_mark]:text-warm-900 dark:text-warm-200 dark:[&_mark]:bg-accent/30 dark:[&_mark]:text-warm-50"
+                dangerouslySetInnerHTML={renderSearchSnippet(result.snippet)}
+              />
+            </button>
+          ))}
+        </div>
+      ) : null}
+
+      {searchResults === null && !showTrash ? (
+        <div className="mt-6 space-y-4">
+          {sections.map((section) => (
+            <section key={section.label}>
+              <DateSectionHeader label={section.label} count={section.items.length} />
+              <div className="space-y-2">{section.items.map((meeting) => renderMeeting(meeting))}</div>
+            </section>
+          ))}
+        </div>
+      ) : null}
+
+      {searchResults === null && showTrash ? (
+        <div className="mt-6 space-y-2">
+          {meetings.map((meeting) => (
+            <div key={meeting.id} className="space-y-2">
+              {renderMeeting(meeting)}
+              <div className="flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => void onRestoreMeeting(meeting.id)}
+                  className="inline-flex items-center gap-1 rounded-lg border border-emerald-300 bg-emerald-100/70 px-3 py-1.5 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-200/80 dark:border-emerald-500/60 dark:bg-emerald-500/20 dark:text-emerald-200"
+                >
+                  <Undo2 size={12} />
+                  Restore
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void onDeletePermanently(meeting.id)}
+                  className="inline-flex items-center gap-1 rounded-lg border border-red-300 bg-red-100/70 px-3 py-1.5 text-xs font-semibold text-red-700 transition hover:bg-red-200/80 dark:border-red-500/60 dark:bg-red-500/20 dark:text-red-200"
+                >
+                  <Trash2 size={12} />
+                  Delete Permanently
+                </button>
+              </div>
+            </div>
+          ))}
+          {meetings.length > 0 ? (
+            <p className="pt-2 text-xs text-warm-500 dark:text-warm-300">Trash is auto-purged after 30 days.</p>
+          ) : null}
+        </div>
+      ) : null}
+
+      {noMeetings && !showTrash ? (
         <div className="mt-12 flex flex-col items-center justify-center gap-3 text-center text-warm-400 dark:text-warm-300">
           <BookOpen size={52} strokeWidth={1.8} />
           <p className="text-lg font-medium">No meetings yet</p>
@@ -152,64 +248,19 @@ export function LibraryView() {
         </div>
       ) : null}
 
-      {hasMeetings ? (
-        <div className="mt-6 space-y-3">
-          {meetings.map((meeting) => (
-            <article
-              key={meeting.id}
-              className="rounded-xl border border-warm-200/70 bg-white/70 p-4 shadow-sm transition hover:border-warm-300 dark:border-warm-700/70 dark:bg-warm-900/30"
-            >
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <button
-                    type="button"
-                    onClick={() => onOpenMeeting(meeting.id)}
-                    className="text-left text-base font-semibold text-warm-700 transition hover:text-accent dark:text-warm-100"
-                  >
-                    {meeting.title}
-                  </button>
-                  <p className="mt-1 text-xs text-warm-500 dark:text-warm-300">
-                    {formatDate(meeting.started_at)} • {formatDuration(meeting.duration_seconds)}
-                  </p>
-                </div>
+      {noMeetings && showTrash ? (
+        <div className="mt-12 flex flex-col items-center justify-center gap-3 text-center text-warm-400 dark:text-warm-300">
+          <Trash2 size={52} strokeWidth={1.8} />
+          <p className="text-lg font-medium">Trash is empty</p>
+          <p className="text-sm text-warm-500 dark:text-warm-400">Soft-deleted meetings will appear here.</p>
+        </div>
+      ) : null}
 
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className={`rounded-full border px-2 py-0.5 text-[11px] font-medium uppercase tracking-wide ${statusClasses(meeting.status)}`}>
-                    {meeting.status}
-                  </span>
-
-                  {meeting.status === 'recovered' ? (
-                    <span className="rounded-full border border-amber-300/80 bg-amber-100/70 px-2 py-0.5 text-[11px] font-medium uppercase tracking-wide text-amber-700 dark:border-amber-500/50 dark:bg-amber-500/10 dark:text-amber-200">
-                      Recovered
-                    </span>
-                  ) : null}
-                </div>
-              </div>
-
-              <div className="mt-3 flex flex-wrap items-center gap-2">
-                {(meeting.status === 'completed' || meeting.status === 'recovered') && (
-                  <button
-                    type="button"
-                    onClick={() => onOpenMeeting(meeting.id)}
-                    className="rounded-lg border border-warm-300 px-3 py-1.5 text-xs font-medium text-warm-700 transition hover:bg-warm-100 dark:border-warm-600 dark:text-warm-100 dark:hover:bg-warm-800"
-                  >
-                    View Transcript
-                  </button>
-                )}
-
-                {meeting.status === 'recovered' ? (
-                  <button
-                    type="button"
-                    onClick={() => void onRetranscribe(meeting.id)}
-                    className="inline-flex items-center gap-1 rounded-lg border border-amber-400 px-3 py-1.5 text-xs font-medium text-amber-700 transition hover:bg-amber-100/70 dark:border-amber-500 dark:text-amber-200 dark:hover:bg-amber-500/10"
-                  >
-                    <RotateCcw size={12} />
-                    Re-transcribe
-                  </button>
-                ) : null}
-              </div>
-            </article>
-          ))}
+      {noSearchResults ? (
+        <div className="mt-12 flex flex-col items-center justify-center gap-3 text-center text-warm-400 dark:text-warm-300">
+          <SearchX size={52} strokeWidth={1.8} />
+          <p className="text-lg font-medium">No meetings match your search</p>
+          <p className="text-sm text-warm-500 dark:text-warm-400">Try fewer keywords or clear filters.</p>
         </div>
       ) : null}
     </section>
