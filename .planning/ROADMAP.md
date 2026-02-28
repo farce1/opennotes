@@ -47,6 +47,6 @@
 | 03 | Complete | 3/3 | 2026-02-27 |
 | 04 | Complete | 3/3 | 2026-02-27 |
 | 05 | Complete | 3/3 | 2026-02-27 |
-| 06 | Planned | 0/3 | - |
+| 06 | 1/3 | In Progress|  |
 | 07 | Pending | 0/0 | - |
 | 08 | Pending | 0/0 | - |
