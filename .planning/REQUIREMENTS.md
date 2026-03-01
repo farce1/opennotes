@@ -69,3 +69,19 @@
 - [x] SUMM-10: Export summary as Markdown file (.md), clipboard copy (formatted), and PDF (@react-pdf/renderer)
 - [x] SUMM-11: LLM-generated meeting title extracted from summary output; user-editable
 - [x] SUMM-12: Long transcript chunking for transcripts exceeding ~24K tokens (iterative map-reduce)
+
+## Cross-Platform Hardening
+
+- [x] XPLAT-01: App data paths resolve through Tauri path APIs (no hardcoded HOME/.opennotes assumptions)
+- [x] XPLAT-02: macOS-only permissions plugin is target-gated for non-macOS builds
+- [x] XPLAT-03: Frontend SQLite/model paths resolve from app-local data directory
+- [x] XPLAT-04: Windows system audio capture uses WASAPI loopback via cpal
+- [x] XPLAT-05: Linux system audio capture uses monitor-source loopback path (PipeWire/PulseAudio compatible)
+- [x] XPLAT-06: Ollama install detection supports macOS, Windows, and Linux binary locations
+- [x] XPLAT-07: Windows bundles produce NSIS installer artifacts
+- [x] XPLAT-08: Linux bundles produce AppImage artifacts
+- [x] XPLAT-09: Release CI builds macOS/Linux/Windows artifacts on version tags
+- [x] XPLAT-10: Updater artifacts and runtime plugin wiring are configured
+- [x] XPLAT-11: Recording permission flow is platform-aware (macOS native API, Windows/Linux non-mac path)
+- [x] XPLAT-12: Shortcut display uses Cmd on macOS and Ctrl on Windows/Linux
+- [x] XPLAT-13: Permission guidance/deep-link UX is platform-appropriate
