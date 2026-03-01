@@ -1,13 +1,8 @@
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { sendNotification } from '@tauri-apps/plugin-notification';
+import { platform } from '@tauri-apps/plugin-os';
 import { open } from '@tauri-apps/plugin-shell';
-import {
-  checkMicrophonePermission,
-  checkScreenRecordingPermission,
-  requestMicrophonePermission,
-  requestScreenRecordingPermission,
-} from 'tauri-plugin-macos-permissions-api';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import type { SessionStatePayload } from '../types';
@@ -118,9 +113,16 @@ export function useRecording() {
 
   const openSystemSettings = useCallback(async () => {
     try {
-      await open('x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture');
+      const os = platform();
+      if (os === 'macos') {
+        await open('x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture');
+      } else if (os === 'windows') {
+        await open('ms-settings:privacy-microphone');
+      } else {
+        setPermissionHint('Linux does not expose a universal settings deep link. Check system audio settings manually.');
+      }
     } catch {
-      setPermissionHint('Unable to open System Settings. Please open Privacy > Screen Recording manually.');
+      setPermissionHint('Unable to open settings automatically. Please configure audio permissions manually.');
     }
   }, []);
 
@@ -129,46 +131,62 @@ export function useRecording() {
     setPermissionHint(null);
 
     try {
-      let micGranted = await checkMicrophonePermission();
-      if (!micGranted) {
-        await requestMicrophonePermission();
-        micGranted = await checkMicrophonePermission();
-      }
+      const os = platform();
+      if (os === 'macos') {
+        const macPerms = await import('tauri-plugin-macos-permissions-api');
 
-      if (!micGranted) {
-        setPermissionStatus((previous) => ({ ...previous, mic: 'denied' }));
-        setPermissionHint('Microphone access is required before recording can start.');
-        return false;
-      }
+        let micGranted = await macPerms.checkMicrophonePermission();
+        if (!micGranted) {
+          await macPerms.requestMicrophonePermission();
+          micGranted = await macPerms.checkMicrophonePermission();
+        }
 
-      let screenGranted = await checkScreenRecordingPermission();
-      if (!screenGranted) {
-        const proceed = window.confirm(
-          'openNotes needs Screen Recording access to capture meeting audio from Zoom/Meet and other apps. Continue to System Settings setup?'
-        );
-
-        if (!proceed) {
-          setPermissionStatus({ mic: 'granted', screenRecording: 'denied' });
-          setPermissionHint('Screen Recording is still disabled. Recording was not started.');
+        if (!micGranted) {
+          setPermissionStatus((previous) => ({ ...previous, mic: 'denied' }));
+          setPermissionHint('Microphone access is required before recording can start.');
           return false;
         }
 
-        await requestScreenRecordingPermission();
-        screenGranted = await checkScreenRecordingPermission();
-
+        let screenGranted = await macPerms.checkScreenRecordingPermission();
         if (!screenGranted) {
-          setPermissionStatus({ mic: 'granted', screenRecording: 'denied' });
-          setPermissionHint(
-            'Enable Screen Recording in System Settings > Privacy > Screen Recording, then restart openNotes.'
+          const proceed = window.confirm(
+            'openNotes needs Screen Recording access to capture meeting audio from Zoom/Meet and other apps. Continue to System Settings setup?'
           );
-          return false;
+
+          if (!proceed) {
+            setPermissionStatus({ mic: 'granted', screenRecording: 'denied' });
+            setPermissionHint('Screen Recording is still disabled. Recording was not started.');
+            return false;
+          }
+
+          await macPerms.requestScreenRecordingPermission();
+          screenGranted = await macPerms.checkScreenRecordingPermission();
+
+          if (!screenGranted) {
+            setPermissionStatus({ mic: 'granted', screenRecording: 'denied' });
+            setPermissionHint(
+              'Enable Screen Recording in System Settings > Privacy > Screen Recording, then restart openNotes.'
+            );
+            return false;
+          }
         }
+
+        setPermissionStatus({ mic: 'granted', screenRecording: 'granted' });
+        return true;
       }
 
-      setPermissionStatus({ mic: 'granted', screenRecording: 'granted' });
+      const status = await invoke<PermissionPayload>('check_audio_permissions');
+      setPermissionStatus(formatPermissionStatus(status));
       return true;
     } catch {
-      setPermissionHint('Permission check failed. Try again and verify macOS privacy settings.');
+      const os = platform();
+      if (os === 'macos') {
+        setPermissionHint('Permission check failed. Try again and verify macOS privacy settings.');
+      } else if (os === 'windows') {
+        setPermissionHint('Permission check failed. Verify Windows microphone privacy settings and retry.');
+      } else {
+        setPermissionHint('Permission check failed. Verify Linux audio device access and retry.');
+      }
       return false;
     } finally {
       setPermissionLoading(false);
