@@ -1,10 +1,11 @@
 import { Channel, invoke } from '@tauri-apps/api/core';
-import { homeDir, join } from '@tauri-apps/api/path';
+import { join } from '@tauri-apps/api/path';
 import { readDir, remove } from '@tauri-apps/plugin-fs';
 import { FileText } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { useSetting } from '../../hooks/useSettings';
+import { getDataDirectory } from '../../lib/constants';
 import type { DownloadEvent } from '../../types';
 
 type DownloadProgress = {
@@ -49,8 +50,8 @@ export function TranscriptionSection() {
     setErrorMessage(null);
 
     try {
-      const home = await homeDir();
-      const modelsPath = await join(home, '.opennotes', 'models');
+      const dataDir = await getDataDirectory();
+      const modelsPath = await join(dataDir, 'models');
       const entries = await readDir(modelsPath);
 
       for (const entry of entries) {

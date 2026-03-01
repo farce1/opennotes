@@ -1,10 +1,33 @@
 import { Database } from 'lucide-react';
+import { useEffect, useState } from 'react';
 
 import { useSetting } from '../../hooks/useSettings';
+import { getDataDirectory } from '../../lib/constants';
 import { DataManagement } from './DataManagement';
 
 export function DataSection() {
   const [dataDirectory] = useSetting('dataDirectory');
+  const [resolvedDataDirectory, setResolvedDataDirectory] = useState<string>('');
+
+  useEffect(() => {
+    let cancelled = false;
+
+    void getDataDirectory()
+      .then((value) => {
+        if (!cancelled) {
+          setResolvedDataDirectory(value);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setResolvedDataDirectory('');
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   return (
     <section className="space-y-4">
@@ -21,7 +44,7 @@ export function DataSection() {
           Storage Path
         </h3>
         <p className="mt-3 rounded-lg border border-warm-200/80 bg-white px-3 py-2 text-sm text-warm-700 dark:border-warm-600 dark:bg-warm-700/70 dark:text-warm-100">
-          {dataDirectory ?? '~/.opennotes'}
+          {dataDirectory || resolvedDataDirectory || 'Resolving storage path…'}
         </p>
       </article>
 

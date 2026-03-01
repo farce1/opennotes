@@ -1,3 +1,5 @@
+import { appLocalDataDir, join } from '@tauri-apps/api/path';
+
 import type { AppSettings } from '../types';
 
 export const APP_NAME = 'openNotes';
@@ -5,7 +7,7 @@ export const APP_NAME = 'openNotes';
 export const DEFAULT_SETTINGS: AppSettings = {
   theme: 'system',
   recordingShortcut: 'CommandOrControl+Shift+R',
-  dataDirectory: '~/.opennotes',
+  dataDirectory: '',
   defaultAudioSource: 'both',
   preferredMicDevice: null,
   transcriptionLanguage: 'en',
@@ -14,4 +16,18 @@ export const DEFAULT_SETTINGS: AppSettings = {
   autoSummary: true,
 };
 
-export const DB_PATH = 'sqlite:~/.opennotes/data.db';
+let cachedDataDir: string | null = null;
+
+export async function getDataDirectory(): Promise<string> {
+  if (!cachedDataDir) {
+    cachedDataDir = await appLocalDataDir();
+  }
+
+  return cachedDataDir;
+}
+
+export async function getDbPath(): Promise<string> {
+  const dataDir = await getDataDirectory();
+  const dbFile = await join(dataDir, 'data.db');
+  return `sqlite:${dbFile}`;
+}
