@@ -189,6 +189,7 @@ pub fn run() {
         )
         .plugin(tauri_plugin_window_state::Builder::default().build())
         .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(recording_state)
         .manage(transcription_state)
         .invoke_handler(tauri::generate_handler![
