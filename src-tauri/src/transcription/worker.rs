@@ -16,6 +16,7 @@ pub struct WorkerConfig {
     pub asr_tokens: String,
     pub recording_start_ms: u64,
     pub result_tx: mpsc::Sender<SegmentResult>,
+    pub language: String,
 }
 
 fn process_completed_segments(
@@ -44,6 +45,8 @@ pub fn run_worker(
     config: WorkerConfig,
     shutdown: Arc<AtomicBool>,
 ) {
+    eprintln!("[transcription] worker started, language={}", config.language);
+
     let mut resampler = match AudioResampler::new(48_000, 16_000, 1_536) {
         Ok(resampler) => resampler,
         Err(err) => {
@@ -78,6 +81,8 @@ pub fn run_worker(
         encoder: config.asr_encoder.clone(),
         joiner: config.asr_joiner.clone(),
         tokens: config.asr_tokens.clone(),
+        // NOTE: Parakeet TDT is English-only; language is currently tracked in WorkerConfig
+        // for future model support and observability, not consumed by TransducerConfig.
         model_type: "nemo_transducer".to_string(),
         num_threads: 2,
         sample_rate: 16_000,

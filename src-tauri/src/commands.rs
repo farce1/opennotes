@@ -357,6 +357,7 @@ pub async fn start_transcription(
         None,
         None,
         None,
+        None,
     )?;
 
     let _ = app.emit("transcribing-active", ());

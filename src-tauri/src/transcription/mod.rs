@@ -77,6 +77,7 @@ pub fn start_transcription_worker(
     db_pool: Option<SqlitePool>,
     meeting_id: Option<i64>,
     on_worker_disconnected: Option<Arc<dyn Fn() + Send + Sync>>,
+    language: Option<String>,
 ) -> Result<(), String> {
     if !model::check_model_ready(data_dir.as_path()) {
         return Err("transcription model is not ready; download required model files first".to_string());
@@ -99,6 +100,7 @@ pub fn start_transcription_worker(
         asr_tokens: parakeet_dir.join("tokens.txt").to_string_lossy().to_string(),
         recording_start_ms: 0,
         result_tx,
+        language: language.unwrap_or_else(|| "en".to_string()),
     };
 
     let worker_shutdown = Arc::new(AtomicBool::new(false));

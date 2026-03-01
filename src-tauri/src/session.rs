@@ -85,7 +85,7 @@ impl SessionCoordinator {
         on_segment: Channel<TranscriptEvent>,
         audio_source: Option<String>,
         preferred_mic_device: Option<String>,
-        _transcription_language: Option<String>,
+        transcription_language: Option<String>,
     ) -> Result<i64, String> {
         if !matches!(self.phase, SessionPhase::Idle) {
             return Err("session is already active".to_string());
@@ -165,6 +165,7 @@ impl SessionCoordinator {
                 Some(pool.clone()),
                 Some(meeting_id),
                 Some(degraded_callback),
+                transcription_language,
             )
         };
 
