@@ -1,6 +1,7 @@
 import { BookOpen, Circle, Settings } from 'lucide-react';
 import { NavLink } from 'react-router';
 import clsx from 'clsx';
+import { useUpdate } from '../../contexts/UpdateContext';
 
 const navItems = [
   { to: '/record', label: 'Record', icon: Circle },
@@ -9,6 +10,8 @@ const navItems = [
 ];
 
 export function Sidebar() {
+  const { updateAvailable } = useUpdate();
+
   return (
     <aside className="h-screen w-14 bg-warm-50 dark:bg-warm-900 border-r border-warm-200/80 dark:border-warm-800/80 flex items-center justify-center">
       <nav className="flex flex-col items-center gap-3" aria-label="Primary">
@@ -27,7 +30,12 @@ export function Sidebar() {
             aria-label={label}
             title={label}
           >
-            <Icon size={21} strokeWidth={2.2} />
+            <span className="relative">
+              <Icon size={21} strokeWidth={2.2} />
+              {to === '/settings' && updateAvailable ? (
+                <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-accent" />
+              ) : null}
+            </span>
           </NavLink>
         ))}
       </nav>
