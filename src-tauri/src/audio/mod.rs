@@ -57,6 +57,7 @@ pub fn start_recording(
     app: &AppHandle,
     output_path: PathBuf,
     audio_source: Option<&str>,
+    preferred_device_name: Option<&str>,
 ) -> Result<(), String> {
     #[derive(Clone, Copy)]
     enum SourceMode {
@@ -92,7 +93,8 @@ pub fn start_recording(
     let mut mic_stream = None;
     let mut mic_sample_rate = 48_000;
     if capture_mic {
-        let mic_capture = capture::build_mic_stream(mic_tx.clone(), app.clone())?;
+        let mic_capture =
+            capture::build_mic_stream(mic_tx.clone(), app.clone(), preferred_device_name)?;
         mic_sample_rate = mic_capture.sample_rate;
         mic_stream = Some(mic_capture.stream);
     }

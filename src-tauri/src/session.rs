@@ -84,6 +84,8 @@ impl SessionCoordinator {
         transcription_state_handle: &TranscriptionStateHandle,
         on_segment: Channel<TranscriptEvent>,
         audio_source: Option<String>,
+        preferred_mic_device: Option<String>,
+        _transcription_language: Option<String>,
     ) -> Result<i64, String> {
         if !matches!(self.phase, SessionPhase::Idle) {
             return Err("session is already active".to_string());
@@ -118,6 +120,7 @@ impl SessionCoordinator {
             app,
             output_path.clone(),
             Some(selected_audio_source.as_str()),
+            preferred_mic_device.as_deref(),
         ) {
             let _ = delete_meeting(pool, meeting_id);
             return Err(err);

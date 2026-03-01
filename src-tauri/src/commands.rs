@@ -135,6 +135,8 @@ pub async fn start_session(
     transcription_state: tauri::State<'_, TranscriptionStateHandle>,
     on_segment: Channel<transcription::TranscriptEvent>,
     audio_source: Option<String>,
+    preferred_mic_device: Option<String>,
+    transcription_language: Option<String>,
 ) -> Result<i64, String> {
     let session_handle = session_state.inner().clone();
     let session_handle_for_start = session_handle.clone();
@@ -151,6 +153,8 @@ pub async fn start_session(
         transcription_state.inner(),
         on_segment,
         audio_source,
+        preferred_mic_device,
+        transcription_language,
     )
 }
 
@@ -258,7 +262,7 @@ pub async fn start_recording(
     _state: tauri::State<'_, RecordingStateHandle>,
 ) -> Result<(), String> {
     let output_path = next_recording_output_path(data_dir.inner().0.as_path())?;
-    audio::start_recording(&app, output_path, None)?;
+    audio::start_recording(&app, output_path, None, None)?;
     widget::show_widget(&app).map_err(|err| err.to_string())?;
     set_tray_start_stop_label(&app, true)?;
     update_tray_icon(app.clone(), "recording".to_string())?;

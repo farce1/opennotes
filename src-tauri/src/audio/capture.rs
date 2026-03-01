@@ -117,11 +117,42 @@ fn select_loopback_config(device: &cpal::Device) -> Result<(StreamConfig, Sample
     Ok((fallback.config(), fallback.sample_format()))
 }
 
-pub fn build_mic_stream(tx: mpsc::SyncSender<Vec<f32>>, app: AppHandle) -> Result<BuiltStream, String> {
+pub fn build_mic_stream(
+    tx: mpsc::SyncSender<Vec<f32>>,
+    app: AppHandle,
+    preferred_device_name: Option<&str>,
+) -> Result<BuiltStream, String> {
     let host = cpal::default_host();
-    let device = host
-        .default_input_device()
-        .ok_or_else(|| "no default microphone input device found".to_string())?;
+    let (device, used_fallback) = if let Some(name) = preferred_device_name {
+        let found = host.input_devices().ok().and_then(|mut devices| {
+            devices.find(|device| {
+                device
+                    .name()
+                    .ok()
+                    .map(|device_name| device_name.trim().eq_ignore_ascii_case(name.trim()))
+                    .unwrap_or(false)
+            })
+        });
+
+        match found {
+            Some(device) => (device, false),
+            None => {
+                let fallback = host
+                    .default_input_device()
+                    .ok_or_else(|| "no default microphone input device found".to_string())?;
+                (fallback, true)
+            }
+        }
+    } else {
+        let default_device = host
+            .default_input_device()
+            .ok_or_else(|| "no default microphone input device found".to_string())?;
+        (default_device, false)
+    };
+
+    if used_fallback {
+        let _ = app.emit("preferred-mic-unavailable", ());
+    }
 
     let (config, sample_format) = select_mic_config(&device)?;
     let sample_rate = config.sample_rate;
