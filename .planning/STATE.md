@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: in_progress
-last_updated: "2026-03-01T15:54:00Z"
+last_updated: "2026-03-01T16:21:00Z"
 progress:
   total_phases: 8
   completed_phases: 7
   total_plans: 24
-  completed_plans: 22
+  completed_plans: 23
 ---
 
 # Project State
@@ -18,23 +18,23 @@ progress:
 See: .planning/PROJECT.md (updated 2026-02-26)
 
 **Core value:** One-click meeting recording that produces structured, actionable meeting notes -- entirely local, entirely free.
-**Current focus:** Executing Phase 08 (Cross-Platform Hardening), with runtime platform audio/detection support now in place.
+**Current focus:** Executing Phase 08 (Cross-Platform Hardening), with packaging/release infrastructure complete and final UX adaptation remaining.
 
 ## Current Position
 
 Phase: 8 of 8 (Cross-Platform Hardening)
-Plan: 2 of 4 in current phase
-Status: 08-02 complete; proceeding to packaging, CI/CD, and updater wiring
-Last activity: 2026-03-01 -- Completed 08-02 Windows/Linux loopback capture and Ollama detection support
+Plan: 3 of 4 in current phase
+Status: 08-03 complete; proceeding to frontend platform UX adaptation
+Last activity: 2026-03-01 -- Completed 08-03 packaging configs, updater wiring, and release pipeline setup
 
-Progress: [█████████░] 92%
+Progress: [██████████] 96%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 22
-- Average duration: ~19.0 min/plan
-- Total execution time: ~418 minutes
+- Total plans completed: 23
+- Average duration: ~19.3 min/plan
+- Total execution time: ~445 minutes
 
 **By Phase:**
 
@@ -49,12 +49,12 @@ Progress: [█████████░] 92%
 | 07 | 3 | 6 min | 2 min |
 
 **Recent Trend:**
-- Last 3 plans: 07-03, 08-01, 08-02
-- Trend: Cross-platform hardening is progressing in dependency order (paths → runtime audio/detection).
+- Last 3 plans: 08-01, 08-02, 08-03
+- Trend: Cross-platform hardening progressed from runtime parity into distribution/release hardening.
 *Updated after each plan completion*
-| Phase 07 P03 | 2 min | 2 tasks | 12 files |
 | Phase 08 P01 | 34 min | 2 tasks | 11 files |
 | Phase 08 P02 | 16 min | 2 tasks | 2 files |
+| Phase 08 P03 | 27 min | 2 tasks | 11 files |
 
 ## Accumulated Context
 
@@ -89,6 +89,8 @@ Recent decisions affecting current work:
 - [Phase 08]: Legacy macOS `~/.opennotes` data migrates once to the Tauri app-local path with a migration marker.
 - [Phase 08]: Windows capture uses WASAPI loopback on default output device; Linux capture targets monitor sources.
 - [Phase 08]: Ollama install checks now evaluate platform-native install paths plus PATH fallback probes.
+- [Phase 08]: Tauri bundle targets are now platform-overridden (`dmg`/`nsis`/`appimage`) to prevent cross-target build failures.
+- [Phase 08]: Release automation runs on version tags with signed artifacts and updater metadata generation.
 
 ### Pending Todos
 
@@ -103,5 +105,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-03-01
-Stopped at: Completed 08-02 and prepared Wave 2 packaging/UX tasks
+Stopped at: Completed 08-03 and prepared 08-04 frontend adaptation
 Resume file: None
