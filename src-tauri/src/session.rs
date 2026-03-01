@@ -1,7 +1,7 @@
 use chrono::{DateTime, Local, Utc};
 use serde::Serialize;
 use sqlx::SqlitePool;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use tauri::ipc::Channel;
 use tauri::{AppHandle, Emitter};
@@ -78,6 +78,7 @@ impl SessionCoordinator {
         &mut self,
         app: &AppHandle,
         pool: &SqlitePool,
+        data_dir: &Path,
         session_handle: SessionHandle,
         recording_state_handle: &RecordingStateHandle,
         transcription_state_handle: &TranscriptionStateHandle,
@@ -89,7 +90,7 @@ impl SessionCoordinator {
         }
 
         let started_at = Utc::now();
-        let output_path = next_recording_output_path()?;
+        let output_path = next_recording_output_path(data_dir)?;
         let output_path_string = output_path.to_string_lossy().to_string();
         let selected_audio_source = normalize_audio_source(audio_source.as_deref());
 
@@ -157,6 +158,7 @@ impl SessionCoordinator {
                 audio_tx,
                 audio_rx,
                 on_segment,
+                data_dir.to_path_buf(),
                 Some(pool.clone()),
                 Some(meeting_id),
                 Some(degraded_callback),

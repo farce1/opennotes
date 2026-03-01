@@ -101,12 +101,15 @@ async fn download_to_file(
     Ok(downloaded)
 }
 
-pub async fn download_model(on_event: Channel<DownloadEvent>) -> Result<(), String> {
-    let models_dir = model::models_dir();
+pub async fn download_model(on_event: Channel<DownloadEvent>, models_dir: PathBuf) -> Result<(), String> {
     std::fs::create_dir_all(&models_dir)
         .map_err(|_| format!("Failed to create models directory: {}", models_dir.display()))?;
 
-    if model::check_model_ready() {
+    let data_dir = models_dir
+        .parent()
+        .ok_or_else(|| "invalid models directory path".to_string())?;
+
+    if model::check_model_ready(data_dir) {
         let _ = on_event.send(DownloadEvent::Complete);
         return Ok(());
     }
@@ -118,7 +121,7 @@ pub async fn download_model(on_event: Channel<DownloadEvent>) -> Result<(), Stri
     let total_bytes = vad_total.saturating_add(parakeet_total);
 
     let vad_tmp = models_dir.join("silero_vad.onnx.tmp");
-    let vad_final = model::vad_model_path();
+    let vad_final = model::vad_model_path(data_dir);
     cleanup_tmp(&vad_tmp);
 
     let vad_downloaded = match download_to_file(&client, VAD_URL, &vad_tmp, total_bytes, 0, &on_event).await {
@@ -178,7 +181,7 @@ pub async fn download_model(on_event: Channel<DownloadEvent>) -> Result<(), Stri
 
     cleanup_tmp(&parakeet_tmp);
 
-    let extracted_dir: PathBuf = model::parakeet_model_dir();
+    let extracted_dir: PathBuf = model::parakeet_model_dir(data_dir);
     if !extracted_dir.exists() {
         send_error(
             &on_event,
@@ -190,7 +193,7 @@ pub async fn download_model(on_event: Channel<DownloadEvent>) -> Result<(), Stri
         ));
     }
 
-    if !model::check_model_ready() {
+    if !model::check_model_ready(data_dir) {
         send_error(
             &on_event,
             "Model files are incomplete after download. Please retry.",

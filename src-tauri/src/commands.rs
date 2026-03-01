@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -8,7 +8,7 @@ use sqlx::SqlitePool;
 use tauri::ipc::Channel;
 use tauri::{AppHandle, Emitter, Manager};
 
-use crate::{audio, llm, session, transcription, tray::TrayMenuHandles, widget};
+use crate::{audio, llm, session, transcription, tray::TrayMenuHandles, widget, DataDir};
 
 pub type RecordingStateHandle = Arc<Mutex<audio::RecordingState>>;
 pub type TranscriptionStateHandle = Arc<Mutex<transcription::TranscriptionState>>;
@@ -49,10 +49,8 @@ fn timestamp_string() -> String {
     format!("recording_{epoch}")
 }
 
-pub(crate) fn next_recording_output_path() -> Result<PathBuf, String> {
-    let home = std::env::var("HOME").map_err(|_| "HOME not set".to_string())?;
-    let mut path = PathBuf::from(home);
-    path.push(".opennotes");
+pub(crate) fn next_recording_output_path(data_dir: &Path) -> Result<PathBuf, String> {
+    let mut path = data_dir.to_path_buf();
     path.push("recordings");
 
     std::fs::create_dir_all(&path).map_err(|err| format!("failed to ensure recordings dir: {err}"))?;
@@ -124,6 +122,7 @@ pub fn update_tray_icon(app: AppHandle, state: String) -> Result<(), String> {
 pub async fn start_session(
     app: AppHandle,
     pool: tauri::State<'_, SqlitePool>,
+    data_dir: tauri::State<'_, DataDir>,
     session_state: tauri::State<'_, SessionHandle>,
     recording_state: tauri::State<'_, RecordingStateHandle>,
     transcription_state: tauri::State<'_, TranscriptionStateHandle>,
@@ -139,6 +138,7 @@ pub async fn start_session(
     coordinator.start(
         &app,
         &pool,
+        data_dir.inner().0.as_path(),
         session_handle_for_start,
         recording_state.inner(),
         transcription_state.inner(),
@@ -247,9 +247,10 @@ pub async fn retranscribe_meeting(meeting_id: i64) -> Result<(), String> {
 #[tauri::command]
 pub async fn start_recording(
     app: AppHandle,
+    data_dir: tauri::State<'_, DataDir>,
     _state: tauri::State<'_, RecordingStateHandle>,
 ) -> Result<(), String> {
-    let output_path = next_recording_output_path()?;
+    let output_path = next_recording_output_path(data_dir.inner().0.as_path())?;
     audio::start_recording(&app, output_path, None)?;
     widget::show_widget(&app).map_err(|err| err.to_string())?;
     set_tray_start_stop_label(&app, true)?;
@@ -297,6 +298,7 @@ pub async fn resume_recording(
 #[tauri::command]
 pub async fn start_transcription(
     app: AppHandle,
+    data_dir: tauri::State<'_, DataDir>,
     recording_state: tauri::State<'_, RecordingStateHandle>,
     transcription_state: tauri::State<'_, TranscriptionStateHandle>,
     on_segment: Channel<transcription::TranscriptEvent>,
@@ -340,6 +342,7 @@ pub async fn start_transcription(
         audio_tx,
         audio_rx,
         on_segment,
+        data_dir.inner().0.clone(),
         None,
         None,
         None,
@@ -363,13 +366,16 @@ pub async fn stop_transcription(
 }
 
 #[tauri::command]
-pub async fn check_model_ready() -> Result<bool, String> {
-    Ok(transcription::model::check_model_ready())
+pub async fn check_model_ready(data_dir: tauri::State<'_, DataDir>) -> Result<bool, String> {
+    Ok(transcription::model::check_model_ready(data_dir.inner().0.as_path()))
 }
 
 #[tauri::command]
-pub async fn download_model(on_event: Channel<crate::download::DownloadEvent>) -> Result<(), String> {
-    crate::download::download_model(on_event).await
+pub async fn download_model(
+    data_dir: tauri::State<'_, DataDir>,
+    on_event: Channel<crate::download::DownloadEvent>,
+) -> Result<(), String> {
+    crate::download::download_model(on_event, data_dir.inner().0.join("models")).await
 }
 
 #[tauri::command]
@@ -610,14 +616,14 @@ pub async fn purge_old_trash(pool: tauri::State<'_, SqlitePool>) -> Result<u64, 
 #[tauri::command]
 pub async fn backup_library(
     pool: tauri::State<'_, SqlitePool>,
+    data_dir: tauri::State<'_, DataDir>,
     destination: String,
 ) -> Result<(), String> {
     use std::io::Write;
 
-    let home = std::env::var("HOME").map_err(|_| "HOME not set".to_string())?;
-    let data_dir = PathBuf::from(home).join(".opennotes");
-    let recordings_dir = data_dir.join("recordings");
-    let snapshot_path = data_dir.join("data.snapshot.db");
+    let base_data_dir = data_dir.inner().0.clone();
+    let recordings_dir = base_data_dir.join("recordings");
+    let snapshot_path = base_data_dir.join("data.snapshot.db");
     let escaped_snapshot = sqlite_path_literal(&snapshot_path);
 
     sqlx::query(&format!("VACUUM INTO '{escaped_snapshot}'"))
@@ -680,13 +686,13 @@ pub async fn backup_library(
 #[tauri::command]
 pub async fn restore_library(
     _pool: tauri::State<'_, SqlitePool>,
+    data_dir: tauri::State<'_, DataDir>,
     source: String,
 ) -> Result<(), String> {
     use std::io::{Read, Write};
 
-    let home = std::env::var("HOME").map_err(|_| "HOME not set".to_string())?;
-    let data_dir = PathBuf::from(home).join(".opennotes");
-    let recordings_dir = data_dir.join("recordings");
+    let base_data_dir = data_dir.inner().0.clone();
+    let recordings_dir = base_data_dir.join("recordings");
     std::fs::create_dir_all(&recordings_dir)
         .map_err(|err| format!("failed to ensure recordings directory: {err}"))?;
 
@@ -704,7 +710,7 @@ pub async fn restore_library(
 
         let name = archive_file.name().to_string();
         if name == "data.db" {
-            let destination = data_dir.join("data.db.restored");
+            let destination = base_data_dir.join("data.db.restored");
             let mut out =
                 std::fs::File::create(&destination).map_err(|err| format!("failed to write restored db: {err}"))?;
             let mut buffer = Vec::new();

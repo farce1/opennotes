@@ -8,11 +8,17 @@ mod transcription;
 mod tray;
 mod widget;
 
+use std::path::{Path, PathBuf};
+
 use commands::{RecordingStateHandle, SessionHandle, TranscriptionStateHandle};
 use tauri::Emitter;
 use tauri::Manager;
-use tauri_plugin_global_shortcut::ShortcutState;
 use tauri_plugin_sql::{Builder as SqlBuilder, Migration, MigrationKind};
+#[cfg(desktop)]
+use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
+
+#[derive(Clone)]
+pub struct DataDir(pub PathBuf);
 
 fn normalize_shortcut_for_tauri(shortcut: &str) -> String {
     shortcut
@@ -20,10 +26,8 @@ fn normalize_shortcut_for_tauri(shortcut: &str) -> String {
         .replace("commandorcontrol", "cmdorcontrol")
 }
 
-fn read_stored_shortcut() -> Option<String> {
-    let home = std::env::var("HOME").ok()?;
-    let store_path =
-        std::path::PathBuf::from(home).join("Library/Application Support/com.opennotes.app/settings.json");
+fn read_shortcut_from_settings(data_dir: &Path) -> Option<String> {
+    let store_path = data_dir.join("settings.json");
     let contents = std::fs::read_to_string(store_path).ok()?;
     let parsed: serde_json::Value = serde_json::from_str(&contents).ok()?;
 
@@ -33,10 +37,57 @@ fn read_stored_shortcut() -> Option<String> {
         .map(normalize_shortcut_for_tauri)
 }
 
+fn copy_dir_recursive(source: &Path, destination: &Path) -> std::io::Result<()> {
+    std::fs::create_dir_all(destination)?;
+    for entry in std::fs::read_dir(source)? {
+        let entry = entry?;
+        let source_path = entry.path();
+        let destination_path = destination.join(entry.file_name());
+
+        if source_path.is_dir() {
+            copy_dir_recursive(&source_path, &destination_path)?;
+        } else {
+            if let Some(parent) = destination_path.parent() {
+                std::fs::create_dir_all(parent)?;
+            }
+            std::fs::copy(&source_path, &destination_path)?;
+        }
+    }
+    Ok(())
+}
+
+#[cfg(target_os = "macos")]
+fn migrate_legacy_data_dir(data_dir: &Path) {
+    let Ok(home) = std::env::var("HOME") else {
+        return;
+    };
+
+    let legacy_dir = PathBuf::from(home).join(".opennotes");
+    let migrated_marker = data_dir.join(".migrated");
+    if !legacy_dir.exists() || migrated_marker.exists() {
+        return;
+    }
+
+    if let Err(err) = std::fs::create_dir_all(data_dir) {
+        eprintln!("[startup] failed to prepare data dir for migration: {err}");
+        return;
+    }
+
+    if let Err(err) = copy_dir_recursive(&legacy_dir, data_dir) {
+        eprintln!("[startup] failed to migrate legacy data from {}: {err}", legacy_dir.display());
+        return;
+    }
+
+    if let Err(err) = std::fs::write(migrated_marker, "migrated") {
+        eprintln!("[startup] failed to write migration marker: {err}");
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+fn migrate_legacy_data_dir(_data_dir: &Path) {}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let startup_shortcut = read_stored_shortcut().unwrap_or_else(|| "cmdorcontrol+shift+r".to_string());
-
     let migrations = vec![
         Migration {
             version: 1,
@@ -65,8 +116,12 @@ pub fn run() {
 
     let mut builder = tauri::Builder::default()
         .setup(|app| {
-            let home = std::env::var("HOME").expect("HOME not set");
-            let data_dir = std::path::PathBuf::from(&home).join(".opennotes");
+            let data_dir = app
+                .path()
+                .app_local_data_dir()
+                .expect("failed to resolve app local data dir");
+
+            migrate_legacy_data_dir(data_dir.as_path());
             std::fs::create_dir_all(&data_dir).expect("Failed to create data directory");
             std::fs::create_dir_all(data_dir.join("models")).ok();
             std::fs::create_dir_all(data_dir.join("logs")).ok();
@@ -74,6 +129,7 @@ pub fn run() {
 
             let db_path = data_dir.join("data.db");
             let db_url = format!("sqlite:{}", db_path.display());
+
             let pool = tauri::async_runtime::block_on(crate::db::init_pool(&db_url))
                 .expect("Failed to initialize database pool");
 
@@ -81,6 +137,7 @@ pub fn run() {
                 crate::session::SessionCoordinator::new(),
             ));
 
+            app.manage(DataDir(data_dir.clone()));
             app.manage(pool.clone());
             app.manage(session_coordinator);
 
@@ -96,6 +153,16 @@ pub fn run() {
 
             #[cfg(desktop)]
             {
+                let startup_shortcut = read_shortcut_from_settings(data_dir.as_path())
+                    .unwrap_or_else(|| "cmdorcontrol+shift+r".to_string());
+                app.global_shortcut()
+                    .on_shortcut(startup_shortcut.as_str(), |app, _shortcut, event| {
+                        if event.state == ShortcutState::Pressed {
+                            let _ = app.emit("recording-toggle", ());
+                        }
+                    })
+                    .expect("failed to register startup shortcut");
+
                 crate::tray::create_tray(app)?;
 
                 if let Some(window) = app.get_webview_window("main") {
@@ -117,10 +184,9 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .plugin(
             SqlBuilder::default()
-                .add_migrations("sqlite:~/.opennotes/data.db", migrations)
+                .add_migrations("sqlite:data.db", migrations)
                 .build(),
         )
-        .plugin(tauri_plugin_macos_permissions::init())
         .plugin(tauri_plugin_window_state::Builder::default().build())
         .plugin(tauri_plugin_notification::init())
         .manage(recording_state)
@@ -163,17 +229,12 @@ pub fn run() {
 
     #[cfg(desktop)]
     {
-        builder = builder.plugin(
-            tauri_plugin_global_shortcut::Builder::new()
-                .with_shortcuts([startup_shortcut.as_str()])
-                .expect("Failed to register shortcut")
-                .with_handler(|app, _shortcut, event| {
-                    if event.state == ShortcutState::Pressed {
-                        let _ = app.emit("recording-toggle", ());
-                    }
-                })
-                .build(),
-        );
+        builder = builder.plugin(tauri_plugin_global_shortcut::Builder::new().build());
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        builder = builder.plugin(tauri_plugin_macos_permissions::init());
     }
 
     builder

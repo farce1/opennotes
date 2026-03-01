@@ -6,6 +6,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{mpsc, Arc};
 use std::thread::{self, JoinHandle};
 use std::time::Duration;
+use std::path::PathBuf;
 
 use serde::Serialize;
 use sqlx::SqlitePool;
@@ -72,11 +73,12 @@ pub fn start_transcription_worker(
     audio_tx: mpsc::SyncSender<Vec<f32>>,
     audio_rx: mpsc::Receiver<Vec<f32>>,
     on_segment: Channel<TranscriptEvent>,
+    data_dir: PathBuf,
     db_pool: Option<SqlitePool>,
     meeting_id: Option<i64>,
     on_worker_disconnected: Option<Arc<dyn Fn() + Send + Sync>>,
 ) -> Result<(), String> {
-    if !model::check_model_ready() {
+    if !model::check_model_ready(data_dir.as_path()) {
         return Err("transcription model is not ready; download required model files first".to_string());
     }
 
@@ -86,25 +88,15 @@ pub fn start_transcription_worker(
 
     let (command_tx, command_rx) = mpsc::channel::<WorkerCommand>();
     let (result_tx, result_rx) = mpsc::channel::<SegmentResult>();
+    let parakeet_dir = model::parakeet_model_dir(data_dir.as_path());
+    let vad_model = model::vad_model_path(data_dir.as_path());
 
     let config = worker::WorkerConfig {
-        vad_model: model::vad_model_path().to_string_lossy().to_string(),
-        asr_encoder: model::parakeet_model_dir()
-            .join("encoder.int8.onnx")
-            .to_string_lossy()
-            .to_string(),
-        asr_decoder: model::parakeet_model_dir()
-            .join("decoder.int8.onnx")
-            .to_string_lossy()
-            .to_string(),
-        asr_joiner: model::parakeet_model_dir()
-            .join("joiner.int8.onnx")
-            .to_string_lossy()
-            .to_string(),
-        asr_tokens: model::parakeet_model_dir()
-            .join("tokens.txt")
-            .to_string_lossy()
-            .to_string(),
+        vad_model: vad_model.to_string_lossy().to_string(),
+        asr_encoder: parakeet_dir.join("encoder.int8.onnx").to_string_lossy().to_string(),
+        asr_decoder: parakeet_dir.join("decoder.int8.onnx").to_string_lossy().to_string(),
+        asr_joiner: parakeet_dir.join("joiner.int8.onnx").to_string_lossy().to_string(),
+        asr_tokens: parakeet_dir.join("tokens.txt").to_string_lossy().to_string(),
         recording_start_ms: 0,
         result_tx,
     };
