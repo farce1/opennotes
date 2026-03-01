@@ -151,6 +151,29 @@ pub fn run() {
                 }
             });
 
+            let pool_for_fts = pool.clone();
+            tauri::async_runtime::spawn(async move {
+                let missing_ids = sqlx::query_scalar::<_, i64>(
+                    "SELECT m.id
+                     FROM meetings m
+                     WHERE m.deleted_at IS NULL
+                       AND NOT EXISTS (SELECT 1 FROM meetings_fts WHERE rowid = m.id)",
+                )
+                .fetch_all(&pool_for_fts)
+                .await
+                .unwrap_or_default();
+
+                for id in &missing_ids {
+                    if let Err(err) = crate::commands::fts_upsert(&pool_for_fts, *id).await {
+                        eprintln!("[fts] backfill failed for meeting {id}: {err}");
+                    }
+                }
+
+                if !missing_ids.is_empty() {
+                    eprintln!("[fts] backfilled {} meetings", missing_ids.len());
+                }
+            });
+
             #[cfg(desktop)]
             {
                 let startup_shortcut = read_shortcut_from_settings(data_dir.as_path())

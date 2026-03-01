@@ -63,7 +63,7 @@ fn sqlite_path_literal(path: &std::path::Path) -> String {
     path.display().to_string().replace('\'', "''")
 }
 
-async fn fts_upsert(pool: &SqlitePool, meeting_id: i64) -> Result<(), String> {
+pub(crate) async fn fts_upsert(pool: &SqlitePool, meeting_id: i64) -> Result<(), String> {
     sqlx::query("INSERT INTO meetings_fts(meetings_fts, rowid) VALUES ('delete', ?)")
         .bind(meeting_id)
         .execute(pool)
@@ -78,6 +78,13 @@ async fn fts_upsert(pool: &SqlitePool, meeting_id: i64) -> Result<(), String> {
                     FROM transcripts t
                     WHERE t.meeting_id = m.id
                     ORDER BY t.segment_index
+                ), '')
+                || ' '
+                || COALESCE((
+                    SELECT s.content
+                    FROM summaries s
+                    WHERE s.meeting_id = m.id
+                    LIMIT 1
                 ), '')
          FROM meetings m
          WHERE m.id = ? AND m.deleted_at IS NULL",
@@ -519,7 +526,10 @@ pub async fn generate_summary(
 
     if let Some(title) = extracted_title {
         llm::update_meeting_title(pool.inner(), meeting_id, &title).await?;
-        fts_upsert(pool.inner(), meeting_id).await?;
+    }
+
+    if let Err(err) = fts_upsert(pool.inner(), meeting_id).await {
+        eprintln!("[fts] upsert after summary generation failed: {err}");
     }
 
     Ok(())
@@ -539,12 +549,18 @@ pub async fn save_summary(
     meeting_id: i64,
     content: String,
 ) -> Result<i64, String> {
-    if let Some(existing) = llm::get_summary(pool.inner(), meeting_id).await? {
+    let id = if let Some(existing) = llm::get_summary(pool.inner(), meeting_id).await? {
         llm::update_summary_content(pool.inner(), meeting_id, &content).await?;
-        Ok(existing.id)
+        existing.id
     } else {
-        llm::save_summary(pool.inner(), meeting_id, &content, llm::DEFAULT_MODEL).await
+        llm::save_summary(pool.inner(), meeting_id, &content, llm::DEFAULT_MODEL).await?
+    };
+
+    if let Err(err) = fts_upsert(pool.inner(), meeting_id).await {
+        eprintln!("[fts] upsert after manual summary save failed: {err}");
     }
+
+    Ok(id)
 }
 
 #[tauri::command]

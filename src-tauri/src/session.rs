@@ -255,6 +255,13 @@ impl SessionCoordinator {
         })
         .map_err(|err| format!("failed to finalize meeting row: {err}"))?;
 
+        std::thread::sleep(std::time::Duration::from_millis(300));
+        tauri::async_runtime::block_on(async {
+            if let Err(err) = crate::commands::fts_upsert(pool, active_session.meeting_id).await {
+                eprintln!("[fts] upsert after session stop failed: {err}");
+            }
+        });
+
         self.phase = SessionPhase::Idle;
         self.active = None;
 
