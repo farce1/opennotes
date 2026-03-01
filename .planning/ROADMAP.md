@@ -37,7 +37,7 @@
     - [x] 06-03-PLAN.md — Selection, export, backup (multi-select, bulk actions, inline rename, export module, backup/restore settings) (completed 2026-02-28)
 - [x] Phase 07: Settings Surface Expansion (completed 2026-02-28)
   - **Goal:** Expand the Settings view into a sidebar-tabbed configuration surface with sections for General (theme, recording shortcut), Recording (audio device picker, source defaults), Transcription (language selector, model management), Summary (Ollama model picker, auto-summary toggle, connection management), Data (backup/restore, storage), and About. All changes apply immediately. Includes key recorder for shortcut customization and full Ollama management panel.
-- [ ] Phase 08: Cross-Platform Hardening
+- [x] Phase 08: Cross-Platform Hardening (completed 2026-03-01)
   - **Goal:** Port openNotes from macOS-only to full Windows 10+ and Linux support. Migrate all path resolution to Tauri PathResolver, implement Windows WASAPI loopback and Linux PipeWire/PulseAudio monitor-source capture, gate macOS-only plugins behind conditional compilation, add platform-specific Ollama detection, create GitHub Actions multi-platform CI/CD pipeline with NSIS/AppImage/DMG packaging, and adapt frontend UX for platform-appropriate permissions and keyboard shortcuts.
   - **Requirements:** [XPLAT-01, XPLAT-02, XPLAT-03, XPLAT-04, XPLAT-05, XPLAT-06, XPLAT-07, XPLAT-08, XPLAT-09, XPLAT-10, XPLAT-11, XPLAT-12, XPLAT-13]
   - **Plans:** 4 plans
@@ -57,4 +57,4 @@
 | 05 | Complete | 3/3 | 2026-02-27 |
 | 06 | Complete | 3/3 | 2026-02-28 |
 | 07 | Complete | 3/3 | 2026-02-28 |
-| 08 | 3/4 | In Progress|  |
+| 08 | 4/4 | Complete   | 2026-03-01 |
