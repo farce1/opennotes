@@ -57,4 +57,4 @@
 | 05 | Complete | 3/3 | 2026-02-27 |
 | 06 | Complete | 3/3 | 2026-02-28 |
 | 07 | Complete | 3/3 | 2026-02-28 |
-| 08 | In Progress | 0/4 | - |
+| 08 | 1/4 | In Progress|  |

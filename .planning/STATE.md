@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: in_progress
-last_updated: "2026-02-28T18:05:31Z"
+last_updated: "2026-03-01T15:37:44Z"
 progress:
   total_phases: 8
   completed_phases: 7
-  total_plans: 20
-  completed_plans: 20
+  total_plans: 24
+  completed_plans: 21
 ---
 
 # Project State
@@ -18,23 +18,23 @@ progress:
 See: .planning/PROJECT.md (updated 2026-02-26)
 
 **Core value:** One-click meeting recording that produces structured, actionable meeting notes -- entirely local, entirely free.
-**Current focus:** Phase 07 completed and verified; ready to plan and execute Phase 08 (Cross-Platform Hardening).
+**Current focus:** Executing Phase 08 (Cross-Platform Hardening), with cross-platform path migration complete.
 
 ## Current Position
 
 Phase: 8 of 8 (Cross-Platform Hardening)
-Plan: 0 of 0 in current phase
-Status: Phase 07 complete and verified
-Last activity: 2026-02-28 -- Completed Phase 07 execution (3/3 plans), passed verification, and marked roadmap complete
+Plan: 1 of 4 in current phase
+Status: 08-01 complete; proceeding to platform audio and detection work
+Last activity: 2026-03-01 -- Completed 08-01 path migration and plugin gating with passing Rust/TypeScript checks
 
-Progress: [█████████░] 88%
+Progress: [█████████░] 91%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 20
-- Average duration: ~18.6 min/plan
-- Total execution time: ~368 minutes
+- Total plans completed: 21
+- Average duration: ~19.1 min/plan
+- Total execution time: ~402 minutes
 
 **By Phase:**
 
@@ -49,12 +49,12 @@ Progress: [█████████░] 88%
 | 07 | 3 | 6 min | 2 min |
 
 **Recent Trend:**
-- Last 3 plans: 07-01, 07-02, 07-03
-- Trend: Settings surface completed end-to-end, including backend behavior wiring and human-verification checkpoints.
+- Last 3 plans: 07-02, 07-03, 08-01
+- Trend: Transitioned from settings completion into cross-platform hardening foundation work.
 *Updated after each plan completion*
-| Phase 07 P01 | 2 min | 2 tasks | 13 files |
 | Phase 07 P02 | 2 min | 2 tasks | 3 files |
 | Phase 07 P03 | 2 min | 2 tasks | 12 files |
+| Phase 08 P01 | 34 min | 2 tasks | 11 files |
 
 ## Accumulated Context
 
@@ -85,6 +85,8 @@ Recent decisions affecting current work:
 - [Phase 07]: Model deletion uses plugin-fs APIs — Keeps deletion local and avoids shelling out for filesystem operations
 - [Phase 07]: Thread Ollama URL/model through command params — Ensures all summary actions honor user-configured endpoint and model
 - [Phase 07]: Bootstrap startup shortcut from persisted settings — Registers user-selected shortcut on app launch instead of reverting to hardcoded default
+- [Phase 08]: Data paths are now derived from `app_local_data_dir()` and threaded via managed `DataDir` state.
+- [Phase 08]: Legacy macOS `~/.opennotes` data migrates once to the Tauri app-local path with a migration marker.
 
 ### Pending Todos
 
@@ -98,6 +100,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-02-28
-Stopped at: Completed Phase 07 execution and verification
+Last session: 2026-03-01
+Stopped at: Completed 08-01 and prepared 08-02 implementation
 Resume file: None
