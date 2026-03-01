@@ -49,9 +49,9 @@
   - **Goal:** Close integration gaps and tech debt from milestone audit: fix FTS sync on session completion, resolve shortcut double-registration, wire or remove dead settings knobs (preferredMicDevice, transcriptionLanguage), and add in-app update check UI.
   - **Gap Closure:** Closes gaps from v1.0 audit (FTS-SESSION-SYNC, SHORTCUT-DOUBLE-REG, UPDATER-NO-UI, dead knobs)
   - **Plans:** 3 plans
-    - [ ] 09-01-PLAN.md — FTS sync on session stop + startup backfill, shortcut double-registration fix
-    - [ ] 09-02-PLAN.md — Wire preferredMicDevice and transcriptionLanguage through backend and frontend
-    - [ ] 09-03-PLAN.md — In-app update check UI, sidebar badge, toast notification system
+    - [x] 09-01-PLAN.md — FTS sync on session stop + startup backfill, shortcut double-registration fix (completed 2026-03-01)
+    - [x] 09-02-PLAN.md — Wire preferredMicDevice and transcriptionLanguage through backend and frontend (completed 2026-03-01)
+    - [x] 09-03-PLAN.md — In-app update check UI, sidebar badge, toast notification system (completed 2026-03-01)
 
 ## Progress
 
@@ -65,4 +65,4 @@
 | 06 | Complete | 3/3 | 2026-02-28 |
 | 07 | Complete | 3/3 | 2026-02-28 |
 | 08 | Complete | 4/4 | 2026-03-01 |
-| 09 | Planned | Complete    | 2026-03-01 |
+| 09 | Complete | 3/3 | 2026-03-01 |

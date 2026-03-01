@@ -2,8 +2,8 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: unknown
-last_updated: "2026-03-01T19:40:11.194Z"
+status: completed
+last_updated: "2026-03-01T19:42:00Z"
 progress:
   total_phases: 9
   completed_phases: 9
@@ -18,23 +18,23 @@ progress:
 See: .planning/PROJECT.md (updated 2026-02-26)
 
 **Core value:** One-click meeting recording that produces structured, actionable meeting notes -- entirely local, entirely free.
-**Current focus:** Phase 09 (Polish & Tech Debt Cleanup) — closing audit gaps before milestone completion.
+**Current focus:** Phase 09 complete and verified; milestone implementation is ready for milestone closure.
 
 ## Current Position
 
 Phase: 9 of 9 (Polish & Tech Debt Cleanup)
-Plan: 0 of 0 in current phase
-Status: Phase 09 added from milestone audit gap closure
-Last activity: 2026-03-01 -- Milestone audit completed (tech_debt status), gap closure phase 09 created
+Plan: 3 of 3 in current phase
+Status: Phase 09 complete and verified
+Last activity: 2026-03-01 -- Executed all Phase 09 plans, verified goal achievement, and marked roadmap/state complete
 
-Progress: [█████████░] 89%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 24
-- Average duration: ~19.2 min/plan
-- Total execution time: ~460 minutes
+- Total plans completed: 27
+- Average duration: ~17.1 min/plan
+- Total execution time: ~463 minutes
 
 **By Phase:**
 
@@ -47,15 +47,16 @@ Progress: [█████████░] 89%
 | 05 | 3 | 171 min | 57 min |
 | 06 | 3 | 52 min | 17.3 min |
 | 07 | 3 | 6 min | 2 min |
+| 08 | 4 | 92 min | 23 min |
+| 09 | 3 | 3 min | 1 min |
 
 **Recent Trend:**
-- Last 3 plans: 08-02, 08-03, 08-04
-- Trend: Phase 08 progressed end-to-end from runtime parity through distribution and UX adaptation.
+- Last 3 plans: 09-01, 09-03, 09-02
+- Trend: Phase 09 closed milestone audit gaps with focused integration and UX reliability fixes.
 *Updated after each plan completion*
-| Phase 08 P01 | 34 min | 2 tasks | 11 files |
-| Phase 08 P02 | 16 min | 2 tasks | 2 files |
-| Phase 08 P03 | 27 min | 2 tasks | 11 files |
-| Phase 08 P04 | 15 min | 2 tasks | 4 files |
+| Phase 09 P01 | 1 min | 2 tasks | 4 files |
+| Phase 09 P03 | 1 min | 2 tasks | 11 files |
+| Phase 09 P02 | 1 min | 2 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -94,6 +95,9 @@ Recent decisions affecting current work:
 - [Phase 08]: Release automation runs on version tags with signed artifacts and updater metadata generation.
 - [Phase 08]: macOS permission APIs are dynamically imported so Windows/Linux builds avoid macOS-only module coupling.
 - [Phase 08]: Shortcut labels are normalized through shared platform utilities (`Cmd` on macOS, `Ctrl` elsewhere).
+- [Phase 09]: FTS rows are now synchronized at session stop, summary save/generation, and startup backfill for self-healing search consistency.
+- [Phase 09]: Shortcut mutation is Rust-authoritative only (`update_recording_shortcut`) to eliminate JS/Rust double-registration drift.
+- [Phase 09]: Recording-start settings now thread preferred mic and transcription language through session/audio/worker startup boundaries.
 
 ### Pending Todos
 
@@ -108,5 +112,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-03-01
-Stopped at: Completed all 08 plans; phase ready for verification/completion
+Stopped at: Completed and verified Phase 09 (3/3 plans)
 Resume file: None
