@@ -45,7 +45,7 @@
     - [x] 08-02-PLAN.md — Windows/Linux audio capture backends and Ollama detection (completed 2026-03-01)
     - [x] 08-03-PLAN.md — Platform build configuration, CI/CD, and auto-updater (completed 2026-03-01)
     - [x] 08-04-PLAN.md — Frontend platform UX adaptation (permissions, shortcuts, guidance) (completed 2026-03-01)
-- [ ] Phase 09: Polish & Tech Debt Cleanup
+- [x] Phase 09: Polish & Tech Debt Cleanup (completed 2026-03-01)
   - **Goal:** Close integration gaps and tech debt from milestone audit: fix FTS sync on session completion, resolve shortcut double-registration, wire or remove dead settings knobs (preferredMicDevice, transcriptionLanguage), and add in-app update check UI.
   - **Gap Closure:** Closes gaps from v1.0 audit (FTS-SESSION-SYNC, SHORTCUT-DOUBLE-REG, UPDATER-NO-UI, dead knobs)
   - **Plans:** 3 plans
@@ -65,4 +65,4 @@
 | 06 | Complete | 3/3 | 2026-02-28 |
 | 07 | Complete | 3/3 | 2026-02-28 |
 | 08 | Complete | 4/4 | 2026-03-01 |
-| 09 | Planned | 0/3 | - |
+| 09 | Planned | Complete    | 2026-03-01 |
