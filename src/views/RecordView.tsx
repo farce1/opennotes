@@ -8,6 +8,7 @@ import { useModelSetup } from '../hooks/useModelSetup';
 import { useRecording } from '../hooks/useRecording';
 import { useSession } from '../hooks/useSession';
 import { useTranscript } from '../hooks/useTranscript';
+import { formatShortcutDisplay, isMacOS } from '../lib/platform';
 import { getSetting } from '../lib/settings';
 import type { OllamaStatus } from '../types';
 
@@ -31,6 +32,15 @@ export function RecordView() {
   const transcriptContainerRef = useRef<HTMLDivElement | null>(null);
   const autoStopTriggeredRef = useRef(false);
   const [recordingError, setRecordingError] = useState<string | null>(null);
+  const macOS = useMemo(() => isMacOS(), []);
+  const shortcutHint = useMemo(
+    () => formatShortcutDisplay('CommandOrControl+Shift+R', { macSymbols: false }),
+    [],
+  );
+  const systemAudioLabel = useMemo(
+    () => (macOS ? 'System audio (Screen Recording)' : 'System audio'),
+    [macOS],
+  );
 
   const {
     isRecording,
@@ -240,7 +250,7 @@ export function RecordView() {
           <p className="mt-1 text-sm text-warm-500 dark:text-warm-300">
             {sessionActive
               ? `Elapsed: ${formatElapsed(elapsedMs)} — session and transcription are coordinated automatically.`
-              : 'Press Cmd+Shift+R, use the tray menu, or start recording here.'}
+              : `Press ${shortcutHint}, use the tray menu, or start recording here.`}
           </p>
         </div>
 
@@ -262,7 +272,7 @@ export function RecordView() {
           </div>
 
           <div className="flex items-center justify-between">
-            <span className="font-medium text-warm-700 dark:text-warm-100">System audio (Screen Recording)</span>
+            <span className="font-medium text-warm-700 dark:text-warm-100">{systemAudioLabel}</span>
             {permissionStatus.screenRecording === 'granted' ? (
               <span className="inline-flex items-center gap-1 text-emerald-600">
                 <CheckCircle2 size={15} /> Granted
@@ -302,7 +312,7 @@ export function RecordView() {
               Refresh Permissions
             </button>
 
-            {permissionStatus.screenRecording !== 'granted' ? (
+            {macOS && permissionStatus.screenRecording !== 'granted' ? (
               <button
                 type="button"
                 onClick={() => void openSystemSettings()}

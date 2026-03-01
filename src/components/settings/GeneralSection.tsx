@@ -8,6 +8,7 @@ import type { KeyboardEvent } from 'react';
 import { useSetting } from '../../hooks/useSettings';
 import { useTheme } from '../../hooks/useTheme';
 import { DEFAULT_SETTINGS } from '../../lib/constants';
+import { formatShortcutDisplay } from '../../lib/platform';
 import { getSettingsStore } from '../../lib/settings';
 import type { AppTheme } from '../../types';
 
@@ -57,28 +58,7 @@ export function GeneralSection() {
 
   const shortcutValue = recordingShortcut ?? DEFAULT_SETTINGS.recordingShortcut;
 
-  const platformIsMac = useMemo(
-    () => /mac|iphone|ipad|ipod/i.test(window.navigator.platform),
-    [],
-  );
-
-  const displayShortcut = useMemo(() => {
-    return shortcutValue
-      .split('+')
-      .map((part) => {
-        if (part === 'CommandOrControl') {
-          return platformIsMac ? '⌘' : 'Ctrl';
-        }
-        if (part === 'Alt') {
-          return platformIsMac ? '⌥' : 'Alt';
-        }
-        if (part === 'Shift') {
-          return platformIsMac ? '⇧' : 'Shift';
-        }
-        return part.length === 1 ? part.toUpperCase() : part;
-      })
-      .join(platformIsMac ? ' ' : ' + ');
-  }, [platformIsMac, shortcutValue]);
+  const displayShortcut = useMemo(() => formatShortcutDisplay(shortcutValue), [shortcutValue]);
 
   const reRegisterShortcut = useCallback(async (shortcut: string) => {
     await register(shortcut, (event) => {
