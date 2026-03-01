@@ -1,6 +1,8 @@
-use std::process::Command;
 use std::sync::mpsc;
 use std::time::{Duration, Instant};
+
+#[cfg(target_os = "macos")]
+use std::process::Command;
 
 use cpal::traits::{DeviceTrait, HostTrait};
 use cpal::{BufferSize, SampleFormat, Stream, StreamConfig};
@@ -89,9 +91,29 @@ fn select_loopback_config(device: &cpal::Device) -> Result<(StreamConfig, Sample
         }
     }
 
+    if let Ok(configs) = device.supported_input_configs() {
+        for cfg in configs {
+            if cfg.sample_format() == SampleFormat::F32
+                && cfg.channels() >= 1
+                && cfg.min_sample_rate() <= 48_000
+                && cfg.max_sample_rate() >= 48_000
+            {
+                return Ok((
+                    StreamConfig {
+                        channels: cfg.channels(),
+                        sample_rate: 48_000,
+                        buffer_size: BufferSize::Default,
+                    },
+                    SampleFormat::F32,
+                ));
+            }
+        }
+    }
+
     let fallback = device
         .default_output_config()
-        .map_err(|err| format!("failed to get default output config for loopback: {err}"))?;
+        .or_else(|_| device.default_input_config())
+        .map_err(|err| format!("failed to get default config for loopback: {err}"))?;
     Ok((fallback.config(), fallback.sample_format()))
 }
 
@@ -259,7 +281,143 @@ pub fn build_loopback_stream(tx: mpsc::SyncSender<Vec<f32>>) -> Option<BuiltStre
     Some(BuiltStream { stream, sample_rate })
 }
 
-#[cfg(not(target_os = "macos"))]
+#[cfg(target_os = "windows")]
+pub fn build_loopback_stream(tx: mpsc::SyncSender<Vec<f32>>) -> Option<BuiltStream> {
+    let host = cpal::host_from_id(cpal::HostId::Wasapi).ok()?;
+    let device = host.default_output_device()?;
+    let (config, sample_format) = select_loopback_config(&device).ok()?;
+    let sample_rate = config.sample_rate;
+    let channels = config.channels;
+
+    let err_fn = |err| eprintln!("loopback stream error: {err}");
+
+    let stream = match sample_format {
+        SampleFormat::F32 => {
+            let tx = tx.clone();
+            device
+                .build_input_stream(
+                    &config,
+                    move |data: &[f32], _| {
+                        let mono = downmix_to_mono(data, channels);
+                        let _ = tx.try_send(mono);
+                    },
+                    err_fn,
+                    None,
+                )
+                .ok()?
+        }
+        SampleFormat::I16 => {
+            let tx = tx.clone();
+            device
+                .build_input_stream(
+                    &config,
+                    move |data: &[i16], _| {
+                        let mono = downmix_to_mono(&normalize_i16(data), channels);
+                        let _ = tx.try_send(mono);
+                    },
+                    err_fn,
+                    None,
+                )
+                .ok()?
+        }
+        SampleFormat::U16 => {
+            let tx = tx.clone();
+            device
+                .build_input_stream(
+                    &config,
+                    move |data: &[u16], _| {
+                        let mono = downmix_to_mono(&normalize_u16(data), channels);
+                        let _ = tx.try_send(mono);
+                    },
+                    err_fn,
+                    None,
+                )
+                .ok()?
+        }
+        _ => {
+            eprintln!(
+                "unsupported loopback sample format {:?}; expected f32/i16/u16",
+                sample_format
+            );
+            return None;
+        }
+    };
+
+    Some(BuiltStream { stream, sample_rate })
+}
+
+#[cfg(target_os = "linux")]
+pub fn build_loopback_stream(tx: mpsc::SyncSender<Vec<f32>>) -> Option<BuiltStream> {
+    let host = cpal::default_host();
+    let device = host.input_devices().ok()?.find(|device| {
+        device
+            .name()
+            .map(|name| name.to_lowercase().contains("monitor"))
+            .unwrap_or(false)
+    })?;
+
+    let (config, sample_format) = select_loopback_config(&device).ok()?;
+    let sample_rate = config.sample_rate;
+    let channels = config.channels;
+
+    let err_fn = |err| eprintln!("loopback stream error: {err}");
+
+    let stream = match sample_format {
+        SampleFormat::F32 => {
+            let tx = tx.clone();
+            device
+                .build_input_stream(
+                    &config,
+                    move |data: &[f32], _| {
+                        let mono = downmix_to_mono(data, channels);
+                        let _ = tx.try_send(mono);
+                    },
+                    err_fn,
+                    None,
+                )
+                .ok()?
+        }
+        SampleFormat::I16 => {
+            let tx = tx.clone();
+            device
+                .build_input_stream(
+                    &config,
+                    move |data: &[i16], _| {
+                        let mono = downmix_to_mono(&normalize_i16(data), channels);
+                        let _ = tx.try_send(mono);
+                    },
+                    err_fn,
+                    None,
+                )
+                .ok()?
+        }
+        SampleFormat::U16 => {
+            let tx = tx.clone();
+            device
+                .build_input_stream(
+                    &config,
+                    move |data: &[u16], _| {
+                        let mono = downmix_to_mono(&normalize_u16(data), channels);
+                        let _ = tx.try_send(mono);
+                    },
+                    err_fn,
+                    None,
+                )
+                .ok()?
+        }
+        _ => {
+            eprintln!(
+                "unsupported loopback sample format {:?}; expected f32/i16/u16",
+                sample_format
+            );
+            return None;
+        }
+    };
+
+    Some(BuiltStream { stream, sample_rate })
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
 pub fn build_loopback_stream(_tx: mpsc::SyncSender<Vec<f32>>) -> Option<BuiltStream> {
     None
 }
@@ -287,9 +445,4 @@ pub fn macos_version() -> (u32, u32) {
         .unwrap_or(0);
 
     (major, minor)
-}
-
-#[cfg(not(target_os = "macos"))]
-pub fn macos_version() -> (u32, u32) {
-    (0, 0)
 }
