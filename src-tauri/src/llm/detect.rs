@@ -43,13 +43,47 @@ pub async fn check_ollama_installed(server_url: &str) -> bool {
         return true;
     }
 
+    check_ollama_binary_exists()
+}
+
+fn check_ollama_binary_exists() -> bool {
     #[cfg(target_os = "macos")]
     {
         std::path::Path::new("/usr/local/bin/ollama").exists()
             || std::path::Path::new("/opt/homebrew/bin/ollama").exists()
     }
 
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(target_os = "windows")]
+    {
+        if let Ok(local_app_data) = std::env::var("LOCALAPPDATA") {
+            let path = std::path::PathBuf::from(local_app_data)
+                .join("Programs")
+                .join("Ollama")
+                .join("ollama.exe");
+            if path.exists() {
+                return true;
+            }
+        }
+
+        std::process::Command::new("where")
+            .arg("ollama")
+            .output()
+            .map(|output| output.status.success())
+            .unwrap_or(false)
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        std::path::Path::new("/usr/local/bin/ollama").exists()
+            || std::path::Path::new("/usr/bin/ollama").exists()
+            || std::process::Command::new("which")
+                .arg("ollama")
+                .output()
+                .map(|output| output.status.success())
+                .unwrap_or(false)
+    }
+
+    #[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
     {
         false
     }
