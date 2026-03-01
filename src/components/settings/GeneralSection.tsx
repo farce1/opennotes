@@ -1,6 +1,4 @@
 import { invoke } from '@tauri-apps/api/core';
-import { emit } from '@tauri-apps/api/event';
-import { register, unregisterAll } from '@tauri-apps/plugin-global-shortcut';
 import { Laptop, Moon, RotateCcw, SlidersHorizontal, Sun } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { KeyboardEvent } from 'react';
@@ -60,32 +58,13 @@ export function GeneralSection() {
 
   const displayShortcut = useMemo(() => formatShortcutDisplay(shortcutValue), [shortcutValue]);
 
-  const reRegisterShortcut = useCallback(async (shortcut: string) => {
-    await register(shortcut, (event) => {
-      if (event.state === 'Pressed') {
-        void emit('recording-toggle');
-      }
-    });
+  const cancelCapture = useCallback(() => {
+    setCapturing(false);
   }, []);
 
-  const cancelCapture = useCallback(async () => {
-    setCapturing(false);
-    try {
-      await reRegisterShortcut(shortcutValue);
-    } catch {
-      setShortcutError('Unable to restore previous shortcut.');
-    }
-  }, [reRegisterShortcut, shortcutValue]);
-
-  const startCapture = useCallback(async () => {
+  const startCapture = useCallback(() => {
     setShortcutError(null);
-
-    try {
-      await unregisterAll();
-      setCapturing(true);
-    } catch {
-      setShortcutError('Unable to enter shortcut capture mode.');
-    }
+    setCapturing(true);
   }, []);
 
   const handleShortcutKeyDown = useCallback(
@@ -98,7 +77,7 @@ export function GeneralSection() {
       event.stopPropagation();
 
       if (event.key === 'Escape') {
-        await cancelCapture();
+        cancelCapture();
         return;
       }
 
@@ -119,13 +98,16 @@ export function GeneralSection() {
       } catch {
         setShortcutError('Unable to update shortcut. Previous shortcut restored.');
         try {
-          await reRegisterShortcut(shortcutValue);
+          await invoke('update_recording_shortcut', {
+            oldShortcut: nextShortcut,
+            newShortcut: shortcutValue,
+          });
         } catch {
-          setShortcutError('Unable to update shortcut or restore previous shortcut.');
+          setShortcutError('Unable to update or restore shortcut. Restart the app.');
         }
       }
     },
-    [cancelCapture, capturing, reRegisterShortcut, shortcutValue, updateShortcut],
+    [cancelCapture, capturing, shortcutValue, updateShortcut],
   );
 
   const handleShortcutBlur = useCallback(() => {
