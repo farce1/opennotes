@@ -1,87 +1,90 @@
-# Requirements
+# Requirements: openNotes
 
-## Foundation
+**Defined:** 2026-03-02
+**Core Value:** One-click meeting recording that produces structured, actionable meeting notes — entirely local, entirely free.
 
-- [x] FOUN-01
-- [x] FOUN-02
-- [x] FOUN-03
-- [x] FOUN-04
-- [x] FOUN-05
-- [x] FOUN-06
-- [x] FOUN-07
+## v1.1 Requirements
 
-## Audio Capture
+Requirements for v1.1 Hardening & Quality release. Each maps to roadmap phases.
 
-- [x] CAPT-01: Microphone + system audio capture via cpal (loopback on macOS 14.6+)
-- [x] CAPT-02: Opus/OGG encoding at 48kHz stereo ~1MB/min
-- [x] CAPT-03: Floating always-on-top recording widget (draggable, position memory, timer, waveform, controls)
-- [x] CAPT-04: One-click recording from tray icon or global shortcut
-- [x] CAPT-05: JIT macOS permissions with pre-explanation and denied guidance
-- [x] CAPT-06: Recording lifecycle (pause/resume/stop, 2-hour soft warning)
+### LLM Model Selection & Quality
 
-## Transcription Engine
+- [ ] **LLM-01**: User can select any installed Ollama model and it is used for summary generation end-to-end (no hardcoded phi4-mini)
+- [ ] **LLM-02**: Model names are normalised (`:latest` stripped) before storage so the `summaries.llm_model` audit trail is consistent
+- [ ] **LLM-03**: Context window (`num_ctx`) adapts to the selected model instead of hardcoding 32768
+- [ ] **LLM-04**: User sees actionable error messages when Ollama fails (OOM, model too large, connection refused)
+- [ ] **LLM-05**: Model dropdown is disabled during active summary generation to prevent settings race
+- [ ] **LLM-06**: Settings dropdown shows recommendation labels (e.g., "Recommended" badge on phi4-mini)
+- [ ] **LLM-07**: phi4-mini benchmarked on 15/45/90-min transcripts with documented quality findings
+- [ ] **LLM-08**: `build_summary_prompt()` tuned based on benchmark results for better long-meeting output
 
-- [x] TRANS-01: Silero VAD segments speech from mic audio (16 kHz, 512-sample windows)
-- [x] TRANS-02: Parakeet TDT transcribes completed speech segments offline on dedicated worker thread
-- [x] TRANS-03: Transcript segments stream to React frontend via Tauri Channel (text, elapsed_ms, index)
-- [x] TRANS-04: First-run model download (~640 MB Parakeet + ~2 MB Silero VAD) with streaming progress
-- [x] TRANS-05: Atomic model file placement with .tmp cleanup on failure, retry support
-- [x] TRANS-06: 48 kHz to 16 kHz resampling via rubato (1536 in -> 512 out, 3:1 ratio)
-- [x] TRANS-07: Blocking setup wizard — user cannot record until model is downloaded
-- [x] TRANS-08: Live transcript in main window with fade-in animation, elapsed timestamps, locked-to-bottom
-- [x] TRANS-09: Pause flushes VAD buffer — no speech lost at pause boundary
-- [x] TRANS-10: Widget shows "Transcribing" label when ASR is active
-- [x] TRANS-11: Meeting complete view with full scrollable transcript, auto-generated title, copy/export
-- [x] TRANS-12: Recording blocked without ready model — clear message directs to setup
+### Frontend Performance
 
-## Recording Orchestration
+- [ ] **PERF-01**: `@react-pdf/renderer` loaded via dynamic import, removed from initial bundle (~450KB savings)
+- [ ] **PERF-02**: `jszip` loaded via dynamic import, removed from initial bundle
+- [ ] **PERF-03**: `vite.config.ts` updated with `manualChunks` for React and markdown vendor cache stability
+- [ ] **PERF-04**: `rollup-plugin-visualizer` added as dev dependency for bundle analysis
+- [ ] **PERF-05**: Bundle audit completed with before/after measurements documenting improvements
+- [ ] **PERF-06**: First PDF export shows loading indicator during WASM init delay
 
-- [x] ORCH-01: Single unified start_session() command atomically starts audio + transcription as one unit
-- [x] ORCH-02: SessionCoordinator as Tauri managed state owns both subsystem lifecycles
-- [x] ORCH-03: Backend sqlx SqlitePool for Rust-side DB writes (segment checkpoints, meeting rows)
-- [x] ORCH-04: DB migration adds audio_path, audio_sources columns and updates status constraint to include 'recovered'/'paused'
-- [x] ORCH-05: Meeting DB record created immediately on session start with status='recording'
-- [x] ORCH-06: Per-segment checkpoint writes to SQLite from transcription forwarder thread
-- [x] ORCH-07: Unified stop_session() with graceful 3s timeout and "Saving..." UI state
-- [x] ORCH-08: Unified pause_session()/resume_session() propagate across all subsystems atomically
-- [x] ORCH-09: Frontend hooks refactored to call session commands instead of separate recording/transcription commands
-- [x] ORCH-10: Widget stop button calls stop_session (not bare stop_recording)
-- [x] ORCH-11: MeetingCompleteView becomes display-only (loads transcript from DB, no bulk insert)
-- [x] ORCH-12: Transcript ring buffer in React state (last ~50 segments), scroll-back loads from DB
-- [x] ORCH-13: If transcription crashes mid-recording, audio continues with warning badge on widget
-- [x] ORCH-14: Crash recovery on app relaunch — detect incomplete sessions, set status='recovered'
-- [x] ORCH-15: Re-transcribe button on recovered meetings (not automatic)
-- [x] ORCH-16: Hard 4-hour limit with auto-stop and countdown timer in widget during last 5 minutes
-- [x] ORCH-17: Track audio sources (mic, system, both) as metadata on meeting record
-- [x] ORCH-18: Cross-window session state sync via Rust-authoritative app.emit() events
+### Dependency Risk
 
-## Notes/Summary Pipeline
+- [ ] **DEPS-01**: `sherpa-rs` pinned to exact version (`= "0.6.8"`) in `Cargo.toml`
+- [ ] **DEPS-02**: Upgrade path documented (sherpa-onnx native Rust API as v1.2 migration path)
+- [ ] **DEPS-03**: GitHub Actions CI caches `sherpa-rs-sys` binary downloads to speed up builds
 
-- [x] SUMM-01: Ollama detection (installed vs. running vs. model pulled) with platform-appropriate install guidance
-- [x] SUMM-02: Ollama model pull with streaming progress via Tauri Channel (phi4-mini default, ~2.5GB)
-- [x] SUMM-03: Streaming summary generation via Ollama /api/generate with line-buffered JSON parsing
-- [x] SUMM-04: Structured summary format: Overview (5-8 sentences), Key Points, Decisions Made, Action Items
-- [x] SUMM-05: Auto-generate summary when recording stops — no extra button needed
-- [x] SUMM-06: Tab layout in meeting view: Summary (default) and Transcript tabs
-- [x] SUMM-07: Streaming markdown rendering with react-markdown + remark-gfm (headings, bullets, checkboxes)
-- [x] SUMM-08: Inline editing of generated summary with debounced auto-save to DB
-- [x] SUMM-09: Re-generate summary with confirmation dialog ("will replace your edits")
-- [x] SUMM-10: Export summary as Markdown file (.md), clipboard copy (formatted), and PDF (@react-pdf/renderer)
-- [x] SUMM-11: LLM-generated meeting title extracted from summary output; user-editable
-- [x] SUMM-12: Long transcript chunking for transcripts exceeding ~24K tokens (iterative map-reduce)
+## v1.2 Requirements
 
-## Cross-Platform Hardening
+Deferred to future release. Tracked but not in current roadmap.
 
-- [x] XPLAT-01: App data paths resolve through Tauri path APIs (no hardcoded HOME/.opennotes assumptions)
-- [x] XPLAT-02: macOS-only permissions plugin is target-gated for non-macOS builds
-- [x] XPLAT-03: Frontend SQLite/model paths resolve from app-local data directory
-- [x] XPLAT-04: Windows system audio capture uses WASAPI loopback via cpal
-- [x] XPLAT-05: Linux system audio capture uses monitor-source loopback path (PipeWire/PulseAudio compatible)
-- [x] XPLAT-06: Ollama install detection supports macOS, Windows, and Linux binary locations
-- [x] XPLAT-07: Windows bundles produce NSIS installer artifacts
-- [x] XPLAT-08: Linux bundles produce AppImage artifacts
-- [x] XPLAT-09: Release CI builds macOS/Linux/Windows artifacts on version tags
-- [x] XPLAT-10: Updater artifacts and runtime plugin wiring are configured
-- [x] XPLAT-11: Recording permission flow is platform-aware (macOS native API, Windows/Linux non-mac path)
-- [x] XPLAT-12: Shortcut display uses Cmd on macOS and Ctrl on Windows/Linux
-- [x] XPLAT-13: Permission guidance/deep-link UX is platform-appropriate
+### LLM Enhancements
+
+- **LLM-09**: In-app model comparison (dual summarization side-by-side)
+- **LLM-10**: User can customise prompt templates with validation and reset-to-default
+- **LLM-11**: `num_ctx` slider exposed as user setting for power users
+
+### Dependency Migration
+
+- **DEPS-04**: Migrate from sherpa-rs to sherpa-onnx native Rust API (when published to crates.io)
+
+## Out of Scope
+
+| Feature | Reason |
+|---------|--------|
+| Custom model backends (llama.cpp, LM Studio, vLLM) | Ollama abstraction is sufficient; complexity not justified for v1.1 |
+| Quantization-aware hardware recommendations | Requires hardware detection infrastructure; defer to v2+ |
+| Model fine-tuning or custom training | Core constraint: use pre-trained models only |
+| sherpa-rs → sherpa-onnx migration | Native Rust crate not yet on crates.io; evaluate in v1.2 |
+
+## Traceability
+
+Which phases cover which requirements. Updated during roadmap creation.
+
+| Requirement | Phase | Status |
+|-------------|-------|--------|
+| LLM-01 | — | Pending |
+| LLM-02 | — | Pending |
+| LLM-03 | — | Pending |
+| LLM-04 | — | Pending |
+| LLM-05 | — | Pending |
+| LLM-06 | — | Pending |
+| LLM-07 | — | Pending |
+| LLM-08 | — | Pending |
+| PERF-01 | — | Pending |
+| PERF-02 | — | Pending |
+| PERF-03 | — | Pending |
+| PERF-04 | — | Pending |
+| PERF-05 | — | Pending |
+| PERF-06 | — | Pending |
+| DEPS-01 | — | Pending |
+| DEPS-02 | — | Pending |
+| DEPS-03 | — | Pending |
+
+**Coverage:**
+- v1.1 requirements: 17 total
+- Mapped to phases: 0
+- Unmapped: 17 (pending roadmap creation)
+
+---
+*Requirements defined: 2026-03-02*
+*Last updated: 2026-03-02 after initial definition*
