@@ -59,11 +59,11 @@ Plans:
   3. User selects a small model (e.g., 1B) and summary generation completes without hanging or a cryptic 500 error — a message like "This model ran out of memory" appears in the UI.
   4. The model dropdown is visually disabled while a summary is being generated; attempting to change it has no effect.
   5. The Settings model dropdown shows a "Recommended" label alongside phi4-mini.
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 11-01: Wire user-selected model through check_ollama_status and useOllamaSetup
-- [ ] 11-02: Model name normalisation, num_ctx dynamic strategy, OOM error messages, dropdown lock and recommendation label
+- [ ] 11-01: Backend model wiring — normalise names, dynamic num_ctx, error classification, model-aware status checks, enriched model listing
+- [ ] 11-02: Frontend UX — SummaryGenerationContext, enriched dropdown with sizes and Recommended badge, dropdown lock, SummaryError component, Generated-with label
 
 ### Phase 12: Frontend Bundle Optimization
 **Goal**: The initial JavaScript bundle no longer includes the PDF renderer or zip library, making cold launch measurably faster, and a bundle analysis report exists documenting before/after size.
@@ -108,6 +108,6 @@ Plans:
 | 08. Cross-Platform Hardening | v1.0 | 4/4 | Complete | 2026-03-01 |
 | 09. Polish & Tech Debt Cleanup | v1.0 | 3/3 | Complete | 2026-03-01 |
 | 10. Dependency Risk Closure | v1.1 | 1/1 | Complete | 2026-03-02 |
-| 11. LLM Model Selection End-to-End | v1.1 | 0/2 | Not started | - |
+| 11. LLM Model Selection End-to-End | v1.1 | 0/2 | Planned | - |
 | 12. Frontend Bundle Optimization | v1.1 | 0/2 | Not started | - |
 | 13. LLM Quality Tuning | v1.1 | 0/1 | Not started | - |
