@@ -1,7 +1,8 @@
 import { Channel, invoke } from '@tauri-apps/api/core';
-import { RotateCw, Sparkles, Trash2 } from 'lucide-react';
+import { Loader2, RotateCw, Sparkles, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
+import { useSummaryGeneration } from '../../contexts/SummaryGenerationContext';
 import { useSetting } from '../../hooks/useSettings';
 import { DEFAULT_SETTINGS } from '../../lib/constants';
 import type { OllamaModelInfo, OllamaPullEvent, OllamaStatus } from '../../types';
@@ -12,7 +13,14 @@ type PullProgress = {
   total: number;
 };
 
+function formatModelLabel(model: OllamaModelInfo): string {
+  const size = model.parameterSize ? ` · ${model.parameterSize}` : '';
+  const rec = model.name === 'phi4-mini' || model.name === 'phi4-mini:latest' ? ' · Recommended' : '';
+  return `${model.name}${size}${rec}`;
+}
+
 export function SummarySection() {
+  const { generating: globalGenerating } = useSummaryGeneration();
   const [ollamaModel, updateOllamaModel] = useSetting('ollamaModel');
   const [autoSummary, updateAutoSummary] = useSetting('autoSummary');
   const [ollamaServerUrl, updateOllamaServerUrl] = useSetting('ollamaServerUrl');
@@ -199,11 +207,12 @@ export function SummarySection() {
           <select
             value={currentModel}
             onChange={(event) => void updateOllamaModel(event.target.value)}
-            className="w-full rounded-lg border border-warm-200 bg-white px-3 py-2 text-sm text-warm-700 dark:border-warm-600 dark:bg-warm-700/70 dark:text-warm-100"
+            disabled={globalGenerating}
+            className={`w-full rounded-lg border border-warm-200 bg-white px-3 py-2 text-sm text-warm-700 dark:border-warm-600 dark:bg-warm-700/70 dark:text-warm-100 ${globalGenerating ? 'cursor-not-allowed opacity-60' : ''}`}
           >
             {modelOptions.map((model) => (
               <option key={model.name} value={model.name}>
-                {model.name}
+                {formatModelLabel(model)}
               </option>
             ))}
           </select>
@@ -216,6 +225,7 @@ export function SummarySection() {
           >
             <RotateCw size={15} className={loading ? 'animate-spin' : ''} />
           </button>
+          {globalGenerating ? <Loader2 size={15} className="animate-spin text-warm-500" /> : null}
         </div>
         {!models.length ? (
           <p className="mt-2 text-xs text-warm-500 dark:text-warm-300">

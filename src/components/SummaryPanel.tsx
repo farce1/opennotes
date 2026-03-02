@@ -8,6 +8,7 @@ type SummaryPanelProps = {
   generating: boolean;
   edited: boolean;
   hasExistingSummary: boolean;
+  generatedWithModel?: string | null;
   onTextChange: (text: string) => void;
   onRegenerate: () => void;
   onSave: (text: string) => Promise<void> | void;
@@ -19,6 +20,7 @@ export function SummaryPanel({
   generating,
   edited,
   hasExistingSummary,
+  generatedWithModel,
   onTextChange,
   onRegenerate,
   onSave,
@@ -86,6 +88,9 @@ export function SummaryPanel({
         <div>
           <h2 className="text-base font-semibold text-warm-700 dark:text-warm-100">Meeting Summary</h2>
           <p className="text-xs text-warm-500 dark:text-warm-300">Meeting #{meetingId}</p>
+          {generatedWithModel ? (
+            <p className="text-xs text-warm-400 dark:text-warm-500">Generated with {generatedWithModel}</p>
+          ) : null}
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
