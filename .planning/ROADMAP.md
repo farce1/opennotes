@@ -29,7 +29,7 @@ Full details: `.planning/milestones/v1.0-ROADMAP.md`
 **Milestone Goal:** Address all three v1.0 known concerns — sherpa-rs dependency risk, LLM model selection gaps, frontend bundle performance, and prompt quality on long meetings.
 
 - [x] **Phase 10: Dependency Risk Closure** — Pin sherpa-rs, document upgrade path, cache CI binaries (completed 2026-03-02)
-- [ ] **Phase 11: LLM Model Selection End-to-End** — Fix hardcoded phi4-mini, normalise model names, improve error messages, UI labels
+- [x] **Phase 11: LLM Model Selection End-to-End** — Fix hardcoded phi4-mini, normalise model names, improve error messages, UI labels (completed 2026-03-02)
 - [ ] **Phase 12: Frontend Bundle Optimization** — Lazy-load export stack, vendor chunking, bundle audit
 - [ ] **Phase 13: LLM Quality Tuning** — Benchmark phi4-mini on real meetings, tune prompt for long-meeting output
 
@@ -62,8 +62,8 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 11-01: Backend model wiring — normalise names, dynamic num_ctx, error classification, model-aware status checks, enriched model listing
-- [ ] 11-02: Frontend UX — SummaryGenerationContext, enriched dropdown with sizes and Recommended badge, dropdown lock, SummaryError component, Generated-with label
+- [x] 11-01: Backend model wiring — normalise names, dynamic num_ctx, error classification, model-aware status checks, enriched model listing (completed 2026-03-02)
+- [x] 11-02: Frontend UX — SummaryGenerationContext, enriched dropdown with sizes and Recommended badge, dropdown lock, SummaryError component, Generated-with label (completed 2026-03-02)
 
 ### Phase 12: Frontend Bundle Optimization
 **Goal**: The initial JavaScript bundle no longer includes the PDF renderer or zip library, making cold launch measurably faster, and a bundle analysis report exists documenting before/after size.
@@ -108,6 +108,6 @@ Plans:
 | 08. Cross-Platform Hardening | v1.0 | 4/4 | Complete | 2026-03-01 |
 | 09. Polish & Tech Debt Cleanup | v1.0 | 3/3 | Complete | 2026-03-01 |
 | 10. Dependency Risk Closure | v1.1 | 1/1 | Complete | 2026-03-02 |
-| 11. LLM Model Selection End-to-End | v1.1 | 2/2 | In Progress | - |
+| 11. LLM Model Selection End-to-End | v1.1 | 2/2 | Complete | 2026-03-02 |
 | 12. Frontend Bundle Optimization | v1.1 | 0/2 | Not started | - |
 | 13. LLM Quality Tuning | v1.1 | 0/1 | Not started | - |

@@ -2,11 +2,11 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Hardening & Quality
-status: ready_to_verify
-last_updated: "2026-03-02T18:03:00Z"
+status: ready_to_plan
+last_updated: "2026-03-02T18:06:00Z"
 progress:
   total_phases: 4
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 6
   completed_plans: 3
 ---
@@ -18,14 +18,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-02)
 
 **Core value:** One-click meeting recording that produces structured, actionable meeting notes — entirely local, entirely free.
-**Current focus:** v1.1 Hardening & Quality — Phase 11 planning/execution.
+**Current focus:** v1.1 Hardening & Quality — Phase 12 planning/execution.
 
 ## Current Position
 
-Phase: 11 of 13 (LLM Model Selection End-to-End)
-Plan: 2 of 2 in current phase
-Status: Phase 11 implementation complete; verification pending
-Last activity: 2026-03-02 — Completed Phase 11 Plan 02 (error UX, generation lock context, model provenance label)
+Phase: 12 of 13 (Frontend Bundle Optimization)
+Plan: 0 of 2 in current phase
+Status: Phase 11 complete and verified; ready to execute Phase 12
+Last activity: 2026-03-02 — Completed Phase 11 verification and closure (plans 11-01, 11-02; requirements LLM-01..06 closed)
 
 Progress: [█████░░░░░] 50%
 
@@ -45,11 +45,12 @@ Progress: [█████░░░░░] 50%
 
 **Recent Trend:**
 - Last 5 plans: 10-01, 11-01, 11-02
-- Trend: Phase 11 build work is complete; verification should focus on runtime behavior of error classification and dropdown locking.
+- Trend: Model-selection correctness and UX hardening are complete; next work shifts to bundle performance optimization.
 
 *Updated after each plan completion*
 | Phase 10 P01 | 1 min | 3 tasks | 3 files |
 | Phase 11 P01 | 2 min | 3 tasks | 5 files |
+| Phase 11 P02 | 2 min | 3 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -76,10 +77,10 @@ None.
 
 - [Research]: sherpa-rs CI binary cache path needs empirical confirmation with `cargo build -v` in actual CI environment before setting GitHub Actions cache key
 - [Research]: phi4-mini failure mode profile on long meetings is predicted but not yet measured — actual benchmark results may reveal unexpected chunking synthesis issues
-- [Phase 11]: Validate `/api/show` context-length parsing against non-llama model families during verification.
+- [Phase 12]: Bundle-size baseline and dynamic-import impact must be measured with visualizer output before closing performance requirements.
 
 ## Session Continuity
 
 Last session: 2026-03-02
-Stopped at: Completed 11-02-PLAN.md
+Stopped at: Completed Phase 11 verification and closure
 Resume file: None
