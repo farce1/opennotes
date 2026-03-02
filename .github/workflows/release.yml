@@ -44,6 +44,20 @@ jobs:
         with:
           targets: ${{ matrix.rust-targets }}
 
+      - name: Cache sherpa-rs-sys binaries
+        id: sherpa-cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/sherpa-rs
+            ~/Library/Caches/sherpa-rs
+            $LOCALAPPDATA/sherpa-rs
+          key: sherpa-rs-0.6.8-${{ runner.os }}-${{ runner.arch }}
+
+      - name: Warn on sherpa-rs cache miss
+        if: steps.sherpa-cache.outputs.cache-hit != 'true'
+        run: echo "::warning::sherpa-rs binary cache miss — build will download from network (slower)"
+
       - name: Cache Rust dependencies
         uses: swatinem/rust-cache@v2
         with:
