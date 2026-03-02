@@ -6,12 +6,15 @@ use serde::Serialize;
 use serde_json::Value;
 use sqlx::SqlitePool;
 use tauri::ipc::Channel;
+use std::time::Duration;
 
 pub const DEFAULT_MODEL: &str = "phi4-mini";
 pub const DEFAULT_OLLAMA_URL: &str = "http://localhost:11434";
 const MAX_SINGLE_PASS_CHARS: usize = 96_000;
 const MAP_CHUNK_CHARS: usize = 80_000;
 const MAP_CHUNK_OVERLAP_CHARS: usize = 2_000;
+const CHARS_PER_TOKEN_ESTIMATE: f64 = 3.5;
+const PROMPT_OVERHEAD_TOKENS: u64 = 500;
 
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase", tag = "event", content = "data")]
@@ -19,6 +22,8 @@ pub enum LlmTokenEvent {
     Token { text: String, done: bool },
     Error { message: String },
     TitleExtracted { title: String },
+    ContextTruncated { minutes_covered: u32 },
+    OllamaError { kind: String, raw: String },
 }
 
 #[derive(Clone, Serialize)]
@@ -55,6 +60,94 @@ fn send_token_error(on_event: &Channel<LlmTokenEvent>, message: &str) {
     let _ = on_event.send(LlmTokenEvent::Error {
         message: message.to_string(),
     });
+}
+
+pub fn normalize_model_name(model: &str) -> String {
+    model.strip_suffix(":latest").unwrap_or(model).to_string()
+}
+
+pub async fn query_model_context_length(server_url: &str, model: &str) -> u64 {
+    let client = match Client::builder().timeout(Duration::from_secs(5)).build() {
+        Ok(client) => client,
+        Err(_) => return 4096,
+    };
+
+    let response = match client
+        .post(format!("{server_url}/api/show"))
+        .json(&serde_json::json!({ "name": model }))
+        .send()
+        .await
+    {
+        Ok(response) => response,
+        Err(_) => return 4096,
+    };
+
+    if !response.status().is_success() {
+        return 4096;
+    }
+
+    let payload = match response.json::<Value>().await {
+        Ok(payload) => payload,
+        Err(_) => return 4096,
+    };
+
+    let Some(model_info) = payload.get("model_info").and_then(Value::as_object) else {
+        return 4096;
+    };
+
+    model_info
+        .iter()
+        .find_map(|(key, value)| {
+            if !key.ends_with(".context_length") {
+                return None;
+            }
+
+            value.as_u64().or_else(|| {
+                value
+                    .as_str()
+                    .and_then(|raw| raw.parse::<u64>().ok())
+            })
+        })
+        .unwrap_or(4096)
+}
+
+fn estimate_tokens(text: &str) -> u64 {
+    (text.len() as f64 / CHARS_PER_TOKEN_ESTIMATE).ceil() as u64 + PROMPT_OVERHEAD_TOKENS
+}
+
+fn choose_num_ctx(model_context_length: u64, transcript: &str) -> u64 {
+    estimate_tokens(transcript)
+        .min(model_context_length)
+        .max(512)
+}
+
+fn classify_ollama_error(err_str: &str) -> (String, String) {
+    let lowered = err_str.to_lowercase();
+    let kind = if lowered.contains("system memory")
+        || lowered.contains("out of memory")
+        || lowered.contains("oom")
+    {
+        "outOfMemory"
+    } else if lowered.contains("connection refused") || lowered.contains("failed to connect") {
+        "connectionRefused"
+    } else {
+        "generation"
+    };
+
+    (kind.to_string(), err_str.to_string())
+}
+
+fn truncate_to_char_boundary(text: &str, max_bytes: usize) -> &str {
+    if text.len() <= max_bytes {
+        return text;
+    }
+
+    let mut end = max_bytes.min(text.len());
+    while end > 0 && !text.is_char_boundary(end) {
+        end -= 1;
+    }
+
+    &text[..end]
 }
 
 fn chunk_transcript(text: &str) -> Vec<String> {
@@ -129,6 +222,7 @@ async fn run_generate_stream(
     prompt: &str,
     server_url: &str,
     model: &str,
+    num_ctx: u64,
     on_token: &Channel<LlmTokenEvent>,
 ) -> Result<String, String> {
     let client = Client::new();
@@ -139,17 +233,28 @@ async fn run_generate_stream(
             "prompt": prompt,
             "stream": true,
             "options": {
-                "num_ctx": 32768
+                "num_ctx": num_ctx
             }
         }))
         .send()
         .await
-        .map_err(|err| format!("failed to connect to Ollama: {err}"))?;
+        .map_err(|err| {
+            let message = format!("failed to connect to Ollama: {err}");
+            let (kind, raw) = classify_ollama_error(&message);
+            let _ = on_token.send(LlmTokenEvent::OllamaError { kind, raw: raw.clone() });
+            raw
+        })?;
 
     if !response.status().is_success() {
         let status = response.status();
         let body = response.text().await.unwrap_or_default();
-        return Err(format!("Ollama generate failed: {status} {body}"));
+        let message = format!("Ollama generate failed: {status} {body}");
+        let (kind, raw) = classify_ollama_error(&message);
+        let _ = on_token.send(LlmTokenEvent::OllamaError {
+            kind,
+            raw: raw.clone(),
+        });
+        return Err(raw);
     }
 
     let mut stream = response.bytes_stream();
@@ -187,6 +292,7 @@ async fn run_generate_non_stream(
     prompt: &str,
     server_url: &str,
     model: &str,
+    num_ctx: u64,
 ) -> Result<String, String> {
     let client = Client::new();
     let response = client
@@ -196,17 +302,23 @@ async fn run_generate_non_stream(
             "prompt": prompt,
             "stream": false,
             "options": {
-                "num_ctx": 32768
+                "num_ctx": num_ctx
             }
         }))
         .send()
         .await
-        .map_err(|err| format!("failed to connect to Ollama: {err}"))?;
+        .map_err(|err| {
+            let message = format!("failed to connect to Ollama: {err}");
+            let (_, raw) = classify_ollama_error(&message);
+            raw
+        })?;
 
     if !response.status().is_success() {
         let status = response.status();
         let body = response.text().await.unwrap_or_default();
-        return Err(format!("Ollama generate failed: {status} {body}"));
+        let message = format!("Ollama generate failed: {status} {body}");
+        let (_, raw) = classify_ollama_error(&message);
+        return Err(raw);
     }
 
     let payload: Value = response
@@ -365,8 +477,21 @@ pub async fn generate_summary_stream(
     model: &str,
     on_token: &Channel<LlmTokenEvent>,
 ) -> Result<String, String> {
-    let prompt = build_summary_prompt(transcript);
-    run_generate_stream(&prompt, server_url, model, on_token).await
+    let model_context_length = query_model_context_length(server_url, model).await;
+    let mut transcript_for_prompt = transcript;
+
+    if estimate_tokens(transcript) > model_context_length {
+        let available_tokens = model_context_length
+            .saturating_sub(PROMPT_OVERHEAD_TOKENS)
+            .max(1);
+        let max_chars = ((available_tokens as f64) * CHARS_PER_TOKEN_ESTIMATE) as usize;
+        transcript_for_prompt = truncate_to_char_boundary(transcript, max_chars.max(1));
+        let _ = on_token.send(LlmTokenEvent::ContextTruncated { minutes_covered: 0 });
+    }
+
+    let prompt = build_summary_prompt(transcript_for_prompt);
+    let num_ctx = choose_num_ctx(model_context_length, transcript_for_prompt);
+    run_generate_stream(&prompt, server_url, model, num_ctx, on_token).await
 }
 
 pub async fn generate_summary_chunked(
@@ -376,11 +501,13 @@ pub async fn generate_summary_chunked(
     on_token: &Channel<LlmTokenEvent>,
 ) -> Result<String, String> {
     let chunks = chunk_transcript(transcript);
+    let model_context_length = query_model_context_length(server_url, model).await;
     let mut partial_summaries = Vec::with_capacity(chunks.len());
 
     for chunk in chunks {
         let prompt = build_summary_prompt(&chunk);
-        partial_summaries.push(run_generate_non_stream(&prompt, server_url, model).await?);
+        let num_ctx = choose_num_ctx(model_context_length, &chunk);
+        partial_summaries.push(run_generate_non_stream(&prompt, server_url, model, num_ctx).await?);
     }
 
     let stitched = partial_summaries
@@ -395,7 +522,8 @@ pub async fn generate_summary_chunked(
         stitched
     );
 
-    run_generate_stream(&synthesis_prompt, server_url, model, on_token).await
+    let synthesis_num_ctx = choose_num_ctx(model_context_length, &stitched);
+    run_generate_stream(&synthesis_prompt, server_url, model, synthesis_num_ctx, on_token).await
 }
 
 pub async fn run_summary(
@@ -425,6 +553,8 @@ pub async fn save_summary(
     content: &str,
     model: &str,
 ) -> Result<i64, String> {
+    let normalized_model = normalize_model_name(model);
+
     sqlx::query("DELETE FROM summaries WHERE meeting_id = ?")
         .bind(meeting_id)
         .execute(pool)
@@ -437,7 +567,7 @@ pub async fn save_summary(
     )
     .bind(meeting_id)
     .bind(content)
-    .bind(model)
+    .bind(normalized_model)
     .execute(pool)
     .await
     .map_err(|err| format!("failed to save summary: {err}"))?;
