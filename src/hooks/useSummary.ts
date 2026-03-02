@@ -1,6 +1,7 @@
 import { Channel, invoke } from '@tauri-apps/api/core';
 import { useCallback, useState } from 'react';
 
+import { useSummaryGeneration } from '../contexts/SummaryGenerationContext';
 import { getSetting } from '../lib/settings';
 import type { LlmTokenEvent } from '../types';
 
@@ -15,6 +16,7 @@ type SummaryRow = {
 };
 
 export function useSummary() {
+  const { setGenerating: setGlobalGenerating } = useSummaryGeneration();
   const [summaryText, setSummaryText] = useState('');
   const [generating, setGenerating] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -22,6 +24,7 @@ export function useSummary() {
   const [hasExistingSummary, setHasExistingSummary] = useState(false);
   const [edited, setEdited] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [llmModel, setLlmModel] = useState<string | null>(null);
 
   const loadExisting = useCallback(async (meetingId: number) => {
     setLoading(true);
@@ -33,9 +36,11 @@ export function useSummary() {
         setSummaryText(existing.content);
         setHasExistingSummary(true);
         setEdited(false);
+        setLlmModel(existing.llmModel ?? null);
       } else {
         setSummaryText('');
         setHasExistingSummary(false);
+        setLlmModel(null);
       }
 
       return existing;
@@ -49,6 +54,7 @@ export function useSummary() {
 
   const generate = useCallback(async (meetingId: number) => {
     setGenerating(true);
+    setGlobalGenerating(true);
     setSummaryText('');
     setEdited(false);
     setErrorMessage(null);
@@ -61,6 +67,7 @@ export function useSummary() {
         setSummaryText((previous) => previous + event.data.text);
         if (event.data.done) {
           setGenerating(false);
+          setGlobalGenerating(false);
           setHasExistingSummary(true);
         }
         return;
@@ -68,8 +75,20 @@ export function useSummary() {
 
       if (event.event === 'error') {
         setGenerating(false);
-        setErrorMessage(event.data.message || 'Summary generation failed.');
+        setGlobalGenerating(false);
+        setErrorMessage((previous) => previous ?? event.data.message ?? 'Summary generation failed.');
         return;
+      }
+
+      if (event.event === 'ollamaError') {
+        setGenerating(false);
+        setGlobalGenerating(false);
+        setErrorMessage(JSON.stringify({ kind: event.data.kind, raw: event.data.raw }));
+        return;
+      }
+
+      if (event.event === 'contextTruncated') {
+        setErrorMessage(JSON.stringify({ kind: 'contextTruncated', raw: 'Summary based on partial transcript (model context limit).' }));
       }
 
       if (event.event === 'titleExtracted') {
@@ -89,13 +108,15 @@ export function useSummary() {
       if (savedSummary) {
         setSummaryText(savedSummary.content);
         setHasExistingSummary(true);
+        setLlmModel(savedSummary.llmModel ?? null);
       }
     } catch {
-      setErrorMessage('Summary generation failed. Check Ollama status and try again.');
+      setErrorMessage((previous) => previous ?? 'Summary generation failed. Check Ollama status and try again.');
     } finally {
       setGenerating(false);
+      setGlobalGenerating(false);
     }
-  }, []);
+  }, [setGlobalGenerating]);
 
   const saveEdit = useCallback(async (meetingId: number, content: string) => {
     setErrorMessage(null);
@@ -125,6 +146,7 @@ export function useSummary() {
     hasExistingSummary,
     edited,
     errorMessage,
+    llmModel,
     generate,
     saveEdit,
     setText,
