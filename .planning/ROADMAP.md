@@ -1,68 +1,113 @@
-# Roadmap
+# Roadmap: openNotes
 
-## Phase Plan
+## Milestones
 
-- [x] Phase 01: App Shell & Storage Foundation (completed 2026-02-26)
-- [x] Phase 02: Audio Capture Foundation (completed 2026-02-27)
-  - **Goal:** Capture system audio and microphone input on macOS, encode to Opus/OGG, display floating recording widget with live feedback
-  - **Plans:** 2 plans
-    - [x] 02-01-PLAN.md — Audio capture backend (cpal, libopusenc, Tauri commands) (completed 2026-02-27)
-    - [x] 02-02-PLAN.md — Floating widget UI and recording UX integration (completed 2026-02-27)
-- [x] Phase 03: Transcription Engine Integration (completed 2026-02-27)
-  - **Goal:** End-to-end audio-to-text pipeline: Silero VAD segments speech, Parakeet TDT transcribes offline, results stream to React frontend via Tauri Channel. Includes first-run model download flow (~640 MB).
-  - **Requirements:** [TRANS-01, TRANS-02, TRANS-03, TRANS-04, TRANS-05, TRANS-06, TRANS-07, TRANS-08, TRANS-09, TRANS-10, TRANS-11, TRANS-12]
-  - **Plans:** 3 plans
-    - [x] 03-01-PLAN.md — Rust transcription backend (sherpa-rs VAD+ASR, resampler, worker thread, Tauri Channel) (completed 2026-02-27)
-    - [x] 03-02-PLAN.md — Model download system (streaming HTTP, progress events, atomic placement) (completed 2026-02-27)
-    - [x] 03-03-PLAN.md — Frontend (setup wizard, live transcript, widget label, meeting complete view) (completed 2026-02-27)
-- [x] Phase 04: Recording Orchestration (completed 2026-02-27)
-  - **Goal:** Unify recording + transcription into a coordinated session manager with crash recovery, per-segment DB checkpointing, 4-hour limit with countdown, and production-ready error handling.
-  - **Requirements:** [ORCH-01, ORCH-02, ORCH-03, ORCH-04, ORCH-05, ORCH-06, ORCH-07, ORCH-08, ORCH-09, ORCH-10, ORCH-11, ORCH-12, ORCH-13, ORCH-14, ORCH-15, ORCH-16, ORCH-17, ORCH-18]
-  - **Plans:** 3 plans
-    - [x] 04-01-PLAN.md — Rust SessionCoordinator backend (sqlx pool, migration, session commands, segment checkpointing) (completed 2026-02-27)
-    - [x] 04-02-PLAN.md — Frontend refactor (useSession hook, ring buffer, MeetingCompleteView from DB, widget session commands) (completed 2026-02-27)
-    - [x] 04-03-PLAN.md — Crash recovery UX, Library view, 4-hour auto-stop with countdown timer (completed 2026-02-27)
-- [x] Phase 05: Notes/Summary Pipeline (completed 2026-02-27)
-  - **Goal:** Transform completed transcripts into structured meeting notes using a local Ollama LLM. Includes Ollama auto-setup during onboarding, streaming summary generation with four-section format (Overview, Key Points, Decisions, Action Items), tab layout with markdown rendering, inline editing, re-generation, and export (Markdown, clipboard, PDF). Transcripts never leave the machine.
-  - **Requirements:** [SUMM-01, SUMM-02, SUMM-03, SUMM-04, SUMM-05, SUMM-06, SUMM-07, SUMM-08, SUMM-09, SUMM-10, SUMM-11, SUMM-12]
-  - **Plans:** 3 plans
-    - [x] 05-01-PLAN.md — Rust LLM backend (Ollama detection, model pull, streaming summary generation, DB persistence, chunking) (completed 2026-02-27)
-    - [x] 05-02-PLAN.md — Ollama onboarding UI (setup wizard expansion, useOllamaSetup hook, model pull progress) (completed 2026-02-27)
-    - [x] 05-03-PLAN.md — Frontend summary pipeline (useSummary hook, tab layout, SummaryPanel, markdown rendering, editing, export) (completed 2026-02-27)
-- [x] Phase 06: Library + Data Workflows (completed 2026-02-28)
-  - **Goal:** Evolve the meeting library from a basic chronological list into a productive workspace with full-text search (FTS5 snippets), inline filter chips, date-section grouping, sort controls, card/compact view toggle, enriched meeting cards, multi-select with bulk operations, inline title rename, soft-delete with trash/restore, per-meeting export (MD/TXT/JSON/PDF), bulk ZIP export, and full library backup/restore in Settings.
-  - **Plans:** 3 plans
-    - [x] 06-01-PLAN.md — Backend foundation (SQLite FTS5 migration, soft-delete schema, Rust commands, dependency install, Tauri plugin setup) (completed 2026-02-28)
-    - [x] 06-02-PLAN.md — Library UI evolution (useLibrary hook, search/filter/sort, enriched cards, date grouping, view modes) (completed 2026-02-28)
-    - [x] 06-03-PLAN.md — Selection, export, backup (multi-select, bulk actions, inline rename, export module, backup/restore settings) (completed 2026-02-28)
-- [x] Phase 07: Settings Surface Expansion (completed 2026-02-28)
-  - **Goal:** Expand the Settings view into a sidebar-tabbed configuration surface with sections for General (theme, recording shortcut), Recording (audio device picker, source defaults), Transcription (language selector, model management), Summary (Ollama model picker, auto-summary toggle, connection management), Data (backup/restore, storage), and About. All changes apply immediately. Includes key recorder for shortcut customization and full Ollama management panel.
-- [x] Phase 08: Cross-Platform Hardening (completed 2026-03-01)
-  - **Goal:** Port openNotes from macOS-only to full Windows 10+ and Linux support. Migrate all path resolution to Tauri PathResolver, implement Windows WASAPI loopback and Linux PipeWire/PulseAudio monitor-source capture, gate macOS-only plugins behind conditional compilation, add platform-specific Ollama detection, create GitHub Actions multi-platform CI/CD pipeline with NSIS/AppImage/DMG packaging, and adapt frontend UX for platform-appropriate permissions and keyboard shortcuts.
-  - **Requirements:** [XPLAT-01, XPLAT-02, XPLAT-03, XPLAT-04, XPLAT-05, XPLAT-06, XPLAT-07, XPLAT-08, XPLAT-09, XPLAT-10, XPLAT-11, XPLAT-12, XPLAT-13]
-  - **Plans:** 4 plans
-    - [x] 08-01-PLAN.md — Cross-platform path resolution and macOS plugin gating (completed 2026-03-01)
-    - [x] 08-02-PLAN.md — Windows/Linux audio capture backends and Ollama detection (completed 2026-03-01)
-    - [x] 08-03-PLAN.md — Platform build configuration, CI/CD, and auto-updater (completed 2026-03-01)
-    - [x] 08-04-PLAN.md — Frontend platform UX adaptation (permissions, shortcuts, guidance) (completed 2026-03-01)
-- [x] Phase 09: Polish & Tech Debt Cleanup (completed 2026-03-01)
-  - **Goal:** Close integration gaps and tech debt from milestone audit: fix FTS sync on session completion, resolve shortcut double-registration, wire or remove dead settings knobs (preferredMicDevice, transcriptionLanguage), and add in-app update check UI.
-  - **Gap Closure:** Closes gaps from v1.0 audit (FTS-SESSION-SYNC, SHORTCUT-DOUBLE-REG, UPDATER-NO-UI, dead knobs)
-  - **Plans:** 3 plans
-    - [x] 09-01-PLAN.md — FTS sync on session stop + startup backfill, shortcut double-registration fix (completed 2026-03-01)
-    - [x] 09-02-PLAN.md — Wire preferredMicDevice and transcriptionLanguage through backend and frontend (completed 2026-03-01)
-    - [x] 09-03-PLAN.md — In-app update check UI, sidebar badge, toast notification system (completed 2026-03-01)
+- ✅ **v1.0 MVP** — Phases 01-09 (shipped 2026-03-01)
+- 🚧 **v1.1 Hardening & Quality** — Phases 10-13 (in progress)
+
+## Phases
+
+<details>
+<summary>✅ v1.0 MVP (Phases 01-09) — SHIPPED 2026-03-01</summary>
+
+- [x] Phase 01: App Shell & Storage Foundation — completed 2026-02-26
+- [x] Phase 02: Audio Capture Foundation (2/2 plans) — completed 2026-02-27
+- [x] Phase 03: Transcription Engine Integration (3/3 plans) — completed 2026-02-27
+- [x] Phase 04: Recording Orchestration (3/3 plans) — completed 2026-02-27
+- [x] Phase 05: Notes/Summary Pipeline (3/3 plans) — completed 2026-02-27
+- [x] Phase 06: Library + Data Workflows (3/3 plans) — completed 2026-02-28
+- [x] Phase 07: Settings Surface Expansion (3/3 plans) — completed 2026-02-28
+- [x] Phase 08: Cross-Platform Hardening (4/4 plans) — completed 2026-03-01
+- [x] Phase 09: Polish & Tech Debt Cleanup (3/3 plans) — completed 2026-03-01
+
+Full details: `.planning/milestones/v1.0-ROADMAP.md`
+
+</details>
+
+### 🚧 v1.1 Hardening & Quality (In Progress)
+
+**Milestone Goal:** Address all three v1.0 known concerns — sherpa-rs dependency risk, LLM model selection gaps, frontend bundle performance, and prompt quality on long meetings.
+
+- [ ] **Phase 10: Dependency Risk Closure** — Pin sherpa-rs, document upgrade path, cache CI binaries
+- [ ] **Phase 11: LLM Model Selection End-to-End** — Fix hardcoded phi4-mini, normalise model names, improve error messages, UI labels
+- [ ] **Phase 12: Frontend Bundle Optimization** — Lazy-load export stack, vendor chunking, bundle audit
+- [ ] **Phase 13: LLM Quality Tuning** — Benchmark phi4-mini on real meetings, tune prompt for long-meeting output
+
+## Phase Details
+
+### Phase 10: Dependency Risk Closure
+**Goal**: The sherpa-rs dependency is frozen at a known-good version, CI builds reliably on all three platforms, and a documented escape hatch exists for the future.
+**Depends on**: Nothing (first v1.1 phase)
+**Requirements**: DEPS-01, DEPS-02, DEPS-03
+**Success Criteria** (what must be TRUE):
+  1. `cargo build` on macOS, Windows, and Linux succeeds against the pinned `sherpa-rs = "=0.6.8"` version with no floating caret.
+  2. GitHub Actions CI completes without downloading sherpa-rs-sys binaries on cache-hit runs.
+  3. A developer reading `Cargo.toml` finds an inline comment describing the v1.2 migration path to sherpa-onnx native Rust API.
+  4. The DEPS-02 upgrade-path document exists at `.planning/research/` and covers both the chobits-sherpa-rs fork and the direct FFI fallback options.
+**Plans**: TBD
+
+Plans:
+- [ ] 10-01: Pin sherpa-rs, add CI binary cache, write upgrade path document
+
+### Phase 11: LLM Model Selection End-to-End
+**Goal**: The model selector the user chose in Settings is actually used everywhere — summary generation, Ollama status checks, and the setup wizard — with consistent model names in the database and clear error messages when things go wrong.
+**Depends on**: Phase 10
+**Requirements**: LLM-01, LLM-02, LLM-03, LLM-04, LLM-05, LLM-06
+**Success Criteria** (what must be TRUE):
+  1. User selects a non-default model in Settings and all subsequent summaries are generated with that model (no phi4-mini in logs or `summaries.llm_model` column).
+  2. `summaries.llm_model` records `phi4-mini` not `phi4-mini:latest` regardless of which Ollama version or platform the user runs.
+  3. User selects a small model (e.g., 1B) and summary generation completes without hanging or a cryptic 500 error — a message like "This model ran out of memory" appears in the UI.
+  4. The model dropdown is visually disabled while a summary is being generated; attempting to change it has no effect.
+  5. The Settings model dropdown shows a "Recommended" label alongside phi4-mini.
+**Plans**: TBD
+
+Plans:
+- [ ] 11-01: Wire user-selected model through check_ollama_status and useOllamaSetup
+- [ ] 11-02: Model name normalisation, num_ctx dynamic strategy, OOM error messages, dropdown lock and recommendation label
+
+### Phase 12: Frontend Bundle Optimization
+**Goal**: The initial JavaScript bundle no longer includes the PDF renderer or zip library, making cold launch measurably faster, and a bundle analysis report exists documenting before/after size.
+**Depends on**: Phase 10
+**Requirements**: PERF-01, PERF-02, PERF-03, PERF-04, PERF-05, PERF-06
+**Success Criteria** (what must be TRUE):
+  1. Opening the app does not load `@react-pdf/renderer` or `jszip` — both appear only in lazily-fetched chunks visible in the network tab on first PDF export or ZIP download.
+  2. The initial bundle main chunk is at least 40% smaller than the v1.0 baseline measurement, confirmed by `rollup-plugin-visualizer` treemap.
+  3. `vite build` produces stable vendor chunk filenames for React and markdown libraries across rebuilds (no hash churn on unrelated changes).
+  4. First PDF export after app launch shows a loading indicator ("Generating PDF...") for the duration of WASM initialization before the download begins.
+  5. A bundle audit note exists (in a SUMMARY or CONTEXT file) with before/after chunk sizes as baseline for future regressions.
+**Plans**: TBD
+
+Plans:
+- [ ] 12-01: Dynamic imports for @react-pdf/renderer and jszip in export.ts
+- [ ] 12-02: vite.config.ts manualChunks, rollup-plugin-visualizer setup, bundle audit
+
+### Phase 13: LLM Quality Tuning
+**Goal**: phi4-mini's summarization quality on meetings of varying length is understood and measured, and the default prompt produces reliably complete structured output on long meetings.
+**Depends on**: Phase 11
+**Requirements**: LLM-07, LLM-08
+**Success Criteria** (what must be TRUE):
+  1. Benchmark results for 15-min, 45-min, and 90-min transcripts exist with documented quality findings (completeness of action items, decision capture accuracy, hallucination observations).
+  2. `build_summary_prompt()` in `llm/mod.rs` is updated based on benchmark findings — the specific changes and rationale are documented.
+  3. A 90-minute meeting transcript produces a summary with a non-empty Action Items section and no obviously truncated output.
+**Plans**: TBD
+
+Plans:
+- [ ] 13-01: Benchmark phi4-mini on 15/45/90-min transcripts, tune build_summary_prompt()
 
 ## Progress
 
-| Phase | Status | Plans | Completed |
-|-------|--------|-------|-----------|
-| 01 | Complete | 3/3 | 2026-02-26 |
-| 02 | Complete | 2/2 | 2026-02-27 |
-| 03 | Complete | 3/3 | 2026-02-27 |
-| 04 | Complete | 3/3 | 2026-02-27 |
-| 05 | Complete | 3/3 | 2026-02-27 |
-| 06 | Complete | 3/3 | 2026-02-28 |
-| 07 | Complete | 3/3 | 2026-02-28 |
-| 08 | Complete | 4/4 | 2026-03-01 |
-| 09 | Complete | 3/3 | 2026-03-01 |
+| Phase | Milestone | Plans Complete | Status | Completed |
+|-------|-----------|----------------|--------|-----------|
+| 01. App Shell & Storage Foundation | v1.0 | 3/3 | Complete | 2026-02-26 |
+| 02. Audio Capture Foundation | v1.0 | 2/2 | Complete | 2026-02-27 |
+| 03. Transcription Engine Integration | v1.0 | 3/3 | Complete | 2026-02-27 |
+| 04. Recording Orchestration | v1.0 | 3/3 | Complete | 2026-02-27 |
+| 05. Notes/Summary Pipeline | v1.0 | 3/3 | Complete | 2026-02-27 |
+| 06. Library + Data Workflows | v1.0 | 3/3 | Complete | 2026-02-28 |
+| 07. Settings Surface Expansion | v1.0 | 3/3 | Complete | 2026-02-28 |
+| 08. Cross-Platform Hardening | v1.0 | 4/4 | Complete | 2026-03-01 |
+| 09. Polish & Tech Debt Cleanup | v1.0 | 3/3 | Complete | 2026-03-01 |
+| 10. Dependency Risk Closure | v1.1 | 0/1 | Not started | - |
+| 11. LLM Model Selection End-to-End | v1.1 | 0/2 | Not started | - |
+| 12. Frontend Bundle Optimization | v1.1 | 0/2 | Not started | - |
+| 13. LLM Quality Tuning | v1.1 | 0/1 | Not started | - |

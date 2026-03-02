@@ -62,29 +62,29 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| LLM-01 | — | Pending |
-| LLM-02 | — | Pending |
-| LLM-03 | — | Pending |
-| LLM-04 | — | Pending |
-| LLM-05 | — | Pending |
-| LLM-06 | — | Pending |
-| LLM-07 | — | Pending |
-| LLM-08 | — | Pending |
-| PERF-01 | — | Pending |
-| PERF-02 | — | Pending |
-| PERF-03 | — | Pending |
-| PERF-04 | — | Pending |
-| PERF-05 | — | Pending |
-| PERF-06 | — | Pending |
-| DEPS-01 | — | Pending |
-| DEPS-02 | — | Pending |
-| DEPS-03 | — | Pending |
+| LLM-01 | Phase 11 | Pending |
+| LLM-02 | Phase 11 | Pending |
+| LLM-03 | Phase 11 | Pending |
+| LLM-04 | Phase 11 | Pending |
+| LLM-05 | Phase 11 | Pending |
+| LLM-06 | Phase 11 | Pending |
+| LLM-07 | Phase 13 | Pending |
+| LLM-08 | Phase 13 | Pending |
+| PERF-01 | Phase 12 | Pending |
+| PERF-02 | Phase 12 | Pending |
+| PERF-03 | Phase 12 | Pending |
+| PERF-04 | Phase 12 | Pending |
+| PERF-05 | Phase 12 | Pending |
+| PERF-06 | Phase 12 | Pending |
+| DEPS-01 | Phase 10 | Pending |
+| DEPS-02 | Phase 10 | Pending |
+| DEPS-03 | Phase 10 | Pending |
 
 **Coverage:**
 - v1.1 requirements: 17 total
-- Mapped to phases: 0
-- Unmapped: 17 (pending roadmap creation)
+- Mapped to phases: 17
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-03-02*
-*Last updated: 2026-03-02 after initial definition*
+*Last updated: 2026-03-02 after roadmap creation (phases 10-13)*
