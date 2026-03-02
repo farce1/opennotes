@@ -1,632 +1,443 @@
 # Architecture Research
 
-**Domain:** Local-first AI meeting transcription and summarization desktop app
-**Researched:** 2026-02-26
-**Confidence:** MEDIUM-HIGH
+**Domain:** Local-first AI meeting transcription and summarization desktop app — v1.1 Hardening integration
+**Researched:** 2026-03-02
+**Confidence:** HIGH (based on direct codebase reading; research supplements with verified external sources)
 
-## Standard Architecture
+---
 
-### System Overview
+## Context: What v1.1 Changes
 
-```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                         React/TS Frontend (WebView)                     │
-│  ┌─────────────┐  ┌──────────────┐  ┌───────────┐  ┌──────────────┐   │
-│  │ Recording UI │  │ Transcript   │  │ Notes     │  │ Settings     │   │
-│  │ Controls     │  │ Live View    │  │ Library   │  │ Panel        │   │
-│  └──────┬───────┘  └──────┬───────┘  └─────┬─────┘  └──────┬───────┘  │
-│         │                 │                 │               │          │
-├─────────┴─────────────────┴─────────────────┴───────────────┴──────────┤
-│                    Tauri IPC Bridge (Commands + Channels + Events)      │
-├────────────────────────────────────────────────────────────────────────┤
-│                         Rust Backend (src-tauri)                       │
-│                                                                        │
-│  ┌──────────────────┐    ┌──────────────────┐    ┌──────────────────┐  │
-│  │  Audio Pipeline   │    │  ASR Engine       │    │  LLM Service     │  │
-│  │                   │    │                   │    │                  │  │
-│  │  cpal + platform  │───>│  sherpa-onnx      │    │  Ollama HTTP /   │  │
-│  │  APIs (SCK,       │    │  (Parakeet TDT)   │    │  Cloud API       │  │
-│  │  WASAPI, Pulse)   │    │                   │    │                  │  │
-│  └──────────────────┘    └────────┬──────────┘    └────────┬─────────┘  │
-│         │                         │                        │           │
-│         │    ringbuf (SPSC)       │   Tauri Channel        │           │
-│         └─────────────────────────┘                        │           │
-│                                                            │           │
-│  ┌──────────────────┐    ┌──────────────────┐              │           │
-│  │  Storage Layer    │    │  Model Manager    │              │           │
-│  │  rusqlite + FTS5  │    │  Download, HW     │<─────────────┘           │
-│  │  ~/.opennotes/    │    │  detect, select   │                         │
-│  └──────────────────┘    └──────────────────┘                         │
-│                                                                        │
-│  ┌──────────────────┐    ┌──────────────────┐                         │
-│  │  System Tray      │    │  App Lifecycle    │                         │
-│  │  + Global Hotkey  │    │  + Config Mgmt    │                         │
-│  └──────────────────┘    └──────────────────┘                         │
-└────────────────────────────────────────────────────────────────────────┘
-```
+This is not a greenfield architecture document. The v1.0 architecture is fully shipped and working.
+v1.1 adds three targeted concerns:
 
-### Component Responsibilities
+1. **LLM model selection** — users pick any Ollama model; `check_ollama_status` is model-aware
+2. **Frontend code-splitting** — lazy-load heavy imports (`@react-pdf/renderer`, `jszip`) to cut startup time
+3. **sherpa-rs dependency health** — evaluate crate health, pin version, document upgrade path
 
-| Component | Responsibility | Typical Implementation |
-|-----------|----------------|------------------------|
-| **Audio Pipeline** | Capture mic + system audio, resample to 16kHz 16-bit mono PCM, mix streams, feed to ASR | cpal for mic; ScreenCaptureKit (macOS), WASAPI loopback (Windows), PulseAudio/PipeWire monitor (Linux) for system audio. Lock-free ring buffer (ringbuf crate) bridges audio callback thread to ASR consumer thread. |
-| **ASR Engine** | Consume audio chunks, run inference, produce transcript segments with timestamps | sherpa-onnx via sherpa-rs Rust bindings. Offline recognition with Parakeet TDT model. VAD (Voice Activity Detection) to segment silence. Consumes from ring buffer, produces TranscriptSegment structs. |
-| **LLM Service** | Take completed transcript, generate structured meeting notes | HTTP client (reqwest) to Ollama localhost API or cloud LLM API. Streaming response via SSE/chunked transfer. Configurable provider with trait abstraction. |
-| **Storage Layer** | Persist meetings, transcripts, notes; full-text search | rusqlite with FTS5 virtual table. Single SQLite file at ~/.opennotes/data.db. Migrations via embedded SQL. |
-| **Model Manager** | First-run model download, hardware detection, model selection | Download Parakeet ONNX models (~640MB) with progress reporting. Detect CPU/GPU capabilities. Recommend INT8 (CPU), Core ML (Apple Silicon), CUDA (NVIDIA). |
-| **Frontend (React/TS)** | Recording controls, live transcript display, notes library, settings | React 18+ with Zustand or similar lightweight state. Tauri IPC for all backend communication. Tailwind CSS 4.x for styling. |
-| **System Tray** | Background presence, recording indicator, global start/stop shortcut | Tauri's tray plugin. Global shortcut plugin for hotkey. |
-| **App Lifecycle** | Initialization, teardown, configuration management | Tauri setup hook. Config in tauri.conf.json + user preferences in SQLite. |
+The diagram and component list below reflect **only the components touched by v1.1**, how they integrate with
+the existing architecture, and what changes vs. what stays the same.
 
-## Recommended Project Structure
+---
+
+## System Overview — v1.1 Touch Points
 
 ```
-opennotes/
-├── src/                        # React/TS frontend
-│   ├── components/             # UI components
-│   │   ├── recording/          # Recording controls, live indicator
-│   │   ├── transcript/         # Live transcript view, segment display
-│   │   ├── notes/              # Notes library, detail view, export
-│   │   └── settings/           # Audio device, model, LLM config
-│   ├── hooks/                  # Custom React hooks
-│   │   ├── useRecording.ts     # Recording state management
-│   │   ├── useTranscript.ts    # Live transcript stream consumer
-│   │   └── useMeetings.ts      # Meeting CRUD operations
-│   ├── stores/                 # Zustand stores
-│   │   ├── recording.ts        # Recording state (idle/recording/processing)
-│   │   └── app.ts              # Global app state (settings, theme)
-│   ├── lib/                    # Shared utilities
-│   │   ├── tauri.ts            # Typed IPC wrappers around invoke/listen
-│   │   └── types.ts            # Shared TypeScript types
-│   ├── App.tsx                 # Root component, routing
-│   └── main.tsx                # Entry point
-├── src-tauri/                  # Rust backend
-│   ├── src/
-│   │   ├── main.rs             # Desktop entry point
-│   │   ├── lib.rs              # Shared entry (mobile compat)
-│   │   ├── commands/           # Tauri command handlers
-│   │   │   ├── mod.rs
-│   │   │   ├── recording.rs    # start_recording, stop_recording
-│   │   │   ├── meetings.rs     # list_meetings, get_meeting, delete, export
-│   │   │   ├── settings.rs     # get/set audio devices, LLM config
-│   │   │   └── models.rs       # download_model, get_model_status
-│   │   ├── audio/              # Audio capture pipeline
-│   │   │   ├── mod.rs
-│   │   │   ├── capture.rs      # cpal mic capture
-│   │   │   ├── system.rs       # Platform-specific system audio
-│   │   │   ├── mixer.rs        # Mix mic + system into single stream
-│   │   │   └── resample.rs     # Sample rate conversion to 16kHz
-│   │   ├── asr/                # Speech recognition
-│   │   │   ├── mod.rs
-│   │   │   ├── engine.rs       # sherpa-onnx recognizer wrapper
-│   │   │   ├── vad.rs          # Voice activity detection
-│   │   │   └── segment.rs      # TranscriptSegment type + buffering
-│   │   ├── llm/                # LLM summarization
-│   │   │   ├── mod.rs
-│   │   │   ├── provider.rs     # LlmProvider trait
-│   │   │   ├── ollama.rs       # Ollama HTTP client
-│   │   │   ├── cloud.rs        # Cloud API client (OpenAI-compat)
-│   │   │   └── prompts.rs      # Meeting note generation prompts
-│   │   ├── storage/            # Database layer
-│   │   │   ├── mod.rs
-│   │   │   ├── db.rs           # Connection pool, migrations
-│   │   │   ├── meetings.rs     # Meeting CRUD queries
-│   │   │   └── search.rs       # FTS5 search queries
-│   │   ├── models/             # Model management
-│   │   │   ├── mod.rs
-│   │   │   ├── download.rs     # HTTP download with progress
-│   │   │   └── hardware.rs     # CPU/GPU detection
-│   │   ├── pipeline.rs         # Orchestrates audio -> ASR -> storage
-│   │   └── state.rs            # AppState struct, shared state types
-│   ├── Cargo.toml
-│   ├── tauri.conf.json
-│   ├── capabilities/           # Tauri permission capabilities
-│   └── build.rs
-├── package.json
-├── vite.config.ts
-└── tailwind.config.ts
+┌──────────────────────────────────────────────────────────────────────────┐
+│                       React / TS Frontend (WebView)                      │
+│                                                                          │
+│  ┌─────────────────────────────────────────────────────────────────────┐ │
+│  │  Settings > Summary tab                                              │ │
+│  │  SummarySection.tsx                                                  │ │
+│  │  ┌──────────────────────┐  ┌───────────────────────────────────┐    │ │
+│  │  │ Model selector       │  │ Ollama Management panel           │    │ │
+│  │  │ (select populated    │  │ list / delete / pull any model    │    │ │
+│  │  │  from list_ollama_   │  │                                   │    │ │
+│  │  │  models command)     │  │ [NEW: pull model UI re-uses       │    │ │
+│  │  │                      │  │  model param already wired]       │    │ │
+│  │  └──────────────────────┘  └───────────────────────────────────┘    │ │
+│  └─────────────────────────────────────────────────────────────────────┘ │
+│                                                                          │
+│  ┌─────────────────────────────────────────────────────────────────────┐ │
+│  │  export.ts — CURRENTLY eager-imported at module level               │ │
+│  │  @react-pdf/renderer  (~450 KB gz)    → MOVE to dynamic import()    │ │
+│  │  jszip                (~100 KB gz)    → MOVE to dynamic import()    │ │
+│  └─────────────────────────────────────────────────────────────────────┘ │
+│                                                                          │
+│  ┌───────────────────┐  ┌───────────────────┐  ┌─────────────────────┐  │
+│  │ SetupView.tsx     │  │ useSummary.ts     │  │ useOllamaSetup.ts  │  │
+│  │ (Ollama setup     │  │ reads ollamaModel │  │ hardcodes          │  │
+│  │  hardcodes        │  │ from settings,    │  │ 'phi4-mini' for    │  │
+│  │  'phi4-mini')     │  │ passes to command)│  │ pull — needs param)│  │
+│  └───────────────────┘  └───────────────────┘  └─────────────────────┘  │
+│                                                                          │
+├──────────────────────────────────────────────────────────────────────────┤
+│                      Tauri IPC Bridge                                    │
+│                                                                          │
+│  check_ollama_status(serverUrl, model?)   ← needs model param          │
+│  pull_ollama_model(serverUrl, model)      already parameterised         │
+│  list_ollama_models(serverUrl)            already exists                │
+│  generate_summary(meetingId, model?)     already parameterised         │
+│                                                                          │
+├──────────────────────────────────────────────────────────────────────────┤
+│                       Rust Backend (src-tauri)                           │
+│                                                                          │
+│  ┌──────────────────────┐    ┌──────────────────────────────────────┐   │
+│  │  llm/detect.rs       │    │  llm/mod.rs                          │   │
+│  │                      │    │                                      │   │
+│  │  full_status()       │    │  DEFAULT_MODEL = "phi4-mini"         │   │
+│  │  hardcodes           │    │  run_summary(transcript, url,        │   │
+│  │  DEFAULT_MODEL as    │    │    model, on_token) — already        │   │
+│  │  model_name arg      │    │    accepts any model string          │   │
+│  │  → needs to accept   │    │                                      │   │
+│  │    caller-supplied   │    │  save_summary() stores llm_model     │   │
+│  │    model param       │    │  column — already schema-ready       │   │
+│  └──────────────────────┘    └──────────────────────────────────────┘   │
+│                                                                          │
+│  ┌───────────────────────────────────────────────────────────────────┐   │
+│  │  transcription/worker.rs + mod.rs                                 │   │
+│  │  sherpa-rs 0.6.8  (pinned in Cargo.toml)                         │   │
+│  │  SileroVad  +  TransducerRecognizer (Parakeet TDT)               │   │
+│  │                                                                   │   │
+│  │  HEALTH: 0.6.8 released Oct 2025, upstream sherpa-onnx 1.12.9   │   │
+│  │  Open issues: 24. PRs: 7. Stars: 298. Forks: 64.                │   │
+│  │  Single maintainer (@thewh1teagle). Community-maintained.        │   │
+│  │  RISK: maintainer dropout could strand the crate.               │   │
+│  └───────────────────────────────────────────────────────────────────┘   │
+└──────────────────────────────────────────────────────────────────────────┘
 ```
 
-### Structure Rationale
-
-- **`src-tauri/src/commands/`:** Thin command handlers that validate input, call into service modules, and return results. Keeps the Tauri-specific `#[tauri::command]` surface minimal and testable.
-- **`src-tauri/src/audio/`:** Platform-specific audio code isolated here. The `mixer` combines streams, `system.rs` uses `#[cfg(target_os)]` for platform branching.
-- **`src-tauri/src/asr/`:** Wraps sherpa-onnx behind a clean Rust interface. The engine module owns the recognizer lifecycle; segment module handles buffering partial results into complete segments.
-- **`src-tauri/src/llm/`:** Trait-based abstraction (`LlmProvider`) allows swapping Ollama for cloud APIs without changing the pipeline.
-- **`src-tauri/src/pipeline.rs`:** The central orchestrator that wires audio capture to ASR to storage. Owns the recording session lifecycle. This is the most important file in the backend.
-- **`src/stores/`:** Zustand for frontend state because it is minimal, has no boilerplate, and works well with Tauri's event-driven updates.
-
-## Architectural Patterns
-
-### Pattern 1: Pipeline Thread Architecture (Producer-Consumer with Ring Buffer)
-
-**What:** Three dedicated threads for the recording pipeline: (1) Audio Capture thread running cpal callbacks, (2) ASR Inference thread consuming audio and producing transcript segments, (3) Main Tauri async runtime for IPC, storage, and LLM. Audio flows from capture to ASR via a lock-free SPSC ring buffer. Transcript segments flow from ASR to the frontend via Tauri Channels.
-
-**When to use:** Always during active recording. This is the core runtime architecture.
-
-**Trade-offs:** Ring buffers are fast and lock-free (no mutex contention on the audio hot path), but require careful sizing. Too small = dropped audio. Too large = wasted memory and latency. The SPSC constraint means exactly one producer and one consumer, which fits the audio-to-ASR flow perfectly.
-
-**Example:**
-```rust
-use ringbuf::HeapRb;
-use std::thread;
-
-// In pipeline.rs - start_recording
-pub fn start_recording(app: AppHandle, config: RecordingConfig) -> Result<RecordingHandle> {
-    // Ring buffer: ~2 seconds of 16kHz 16-bit mono audio
-    // 16000 samples/sec * 2 bytes * 2 sec = 64KB
-    let ring = HeapRb::<f32>::new(32000);
-    let (producer, consumer) = ring.split();
-
-    // Thread 1: Audio capture (high-priority, callback-driven)
-    let capture_handle = thread::spawn(move || {
-        audio::capture_loop(producer, &config)
-    });
-
-    // Thread 2: ASR inference (CPU/GPU bound)
-    let asr_handle = thread::spawn(move || {
-        asr::recognition_loop(consumer, transcript_tx)
-    });
-
-    // Tauri async task: Forward transcript segments to frontend
-    tauri::async_runtime::spawn(async move {
-        while let Some(segment) = transcript_rx.recv().await {
-            channel.send(TranscriptEvent::NewSegment(segment))?;
-            // Also persist to SQLite
-            storage::insert_segment(&db, meeting_id, &segment)?;
-        }
-    });
-
-    Ok(RecordingHandle { capture_handle, asr_handle })
-}
-```
-
-### Pattern 2: Tauri Channel for Streaming Transcript to Frontend
-
-**What:** Use Tauri's Channel API (not Events) to stream real-time transcript segments from Rust to the React frontend. Channels guarantee message ordering via an index-based system and are designed for high-throughput streaming. The frontend passes a Channel object when invoking the `start_recording` command, and the Rust side sends TranscriptEvent variants through it.
-
-**When to use:** For all high-frequency frontend updates: live transcript segments, model download progress, recording duration ticks.
-
-**Trade-offs:** Channels are faster than Events and preserve ordering, but they are tied to a single command invocation. Use Events for lifecycle notifications (recording-started, recording-stopped) that multiple UI components may need. Use Channels for the streaming data (transcript segments, progress updates).
-
-**Example:**
-```rust
-#[derive(Clone, serde::Serialize)]
-#[serde(tag = "type")]
-enum TranscriptEvent {
-    NewSegment { text: String, start_ms: u64, end_ms: u64 },
-    PartialResult { text: String },
-    RecordingComplete { meeting_id: String },
-}
-
-#[tauri::command]
-async fn start_recording(
-    app: AppHandle,
-    on_transcript: Channel<TranscriptEvent>,
-    device_config: DeviceConfig,
-) -> Result<String, String> {
-    let meeting_id = uuid::Uuid::new_v4().to_string();
-    pipeline::start(app, meeting_id.clone(), on_transcript, device_config)
-        .map_err(|e| e.to_string())?;
-    Ok(meeting_id)
-}
-```
-
-```typescript
-// Frontend: hooks/useTranscript.ts
-import { invoke, Channel } from '@tauri-apps/api/core';
-
-export function useTranscript() {
-  const [segments, setSegments] = useState<TranscriptSegment[]>([]);
-  const [partial, setPartial] = useState('');
-
-  const startRecording = async (config: DeviceConfig) => {
-    const onTranscript = new Channel<TranscriptEvent>();
-    onTranscript.onmessage = (event) => {
-      switch (event.type) {
-        case 'NewSegment':
-          setSegments(prev => [...prev, event]);
-          setPartial('');
-          break;
-        case 'PartialResult':
-          setPartial(event.text);
-          break;
-        case 'RecordingComplete':
-          // Navigate to meeting detail
-          break;
-      }
-    };
-    const meetingId = await invoke('start_recording', {
-      onTranscript,
-      deviceConfig: config,
-    });
-    return meetingId;
-  };
-
-  return { segments, partial, startRecording };
-}
-```
-
-### Pattern 3: Platform-Specific Audio via Conditional Compilation
-
-**What:** Use Rust's `#[cfg(target_os = "...")]` to select the system audio capture implementation at compile time. Each platform gets its own module implementing a common `SystemAudioCapture` trait. cpal handles microphone input cross-platform, but system/desktop audio requires platform-specific APIs.
-
-**When to use:** Always. System audio capture is fundamentally different on each platform.
-
-**Trade-offs:** Conditional compilation means each platform path is only compiled for its target, keeping binary size small. But it means you cannot test macOS code on Linux. CI must build and test on all three platforms.
-
-**Example:**
-```rust
-// audio/system.rs
-pub trait SystemAudioCapture: Send {
-    fn start(&mut self, producer: ringbuf::Producer<f32>) -> Result<()>;
-    fn stop(&mut self) -> Result<()>;
-}
-
-#[cfg(target_os = "macos")]
-mod macos {
-    use screencapturekit::*;
-    pub struct SCKCapture { /* ... */ }
-    impl SystemAudioCapture for SCKCapture { /* ... */ }
-}
-
-#[cfg(target_os = "windows")]
-mod windows {
-    // WASAPI loopback: use output device as input device
-    // cpal transparently enables loopback mode for WASAPI output devices
-    pub struct WasapiLoopback { /* ... */ }
-    impl SystemAudioCapture for WasapiLoopback { /* ... */ }
-}
-
-#[cfg(target_os = "linux")]
-mod linux {
-    // PipeWire or PulseAudio monitor source
-    pub struct PipeWireCapture { /* ... */ }
-    impl SystemAudioCapture for PipeWireCapture { /* ... */ }
-}
-
-pub fn create_system_capture() -> Box<dyn SystemAudioCapture> {
-    #[cfg(target_os = "macos")]
-    { Box::new(macos::SCKCapture::new()) }
-    #[cfg(target_os = "windows")]
-    { Box::new(windows::WasapiLoopback::new()) }
-    #[cfg(target_os = "linux")]
-    { Box::new(linux::PipeWireCapture::new()) }
-}
-```
-
-### Pattern 4: Trait-Based LLM Provider Abstraction
-
-**What:** Define an `LlmProvider` trait with a `summarize` method. Implement it for Ollama (local HTTP) and cloud APIs (OpenAI-compatible). The pipeline calls the trait without knowing which provider is active. Configuration determines which implementation is instantiated.
-
-**When to use:** For the summarization step. Allows users to choose local vs. cloud without code changes.
-
-**Trade-offs:** Adds indirection but keeps the pipeline clean. The trait is simple (one method), so the abstraction cost is minimal.
-
-**Example:**
-```rust
-// llm/provider.rs
-#[async_trait]
-pub trait LlmProvider: Send + Sync {
-    async fn summarize(
-        &self,
-        transcript: &str,
-        on_chunk: &dyn Fn(String) -> Result<()>,
-    ) -> Result<MeetingNotes>;
-}
-
-// llm/ollama.rs
-pub struct OllamaProvider {
-    base_url: String, // default: http://localhost:11434
-    model: String,    // default: llama3.2
-}
-
-#[async_trait]
-impl LlmProvider for OllamaProvider {
-    async fn summarize(&self, transcript: &str, on_chunk: &dyn Fn(String) -> Result<()>) -> Result<MeetingNotes> {
-        let response = reqwest::Client::new()
-            .post(format!("{}/api/generate", self.base_url))
-            .json(&OllamaRequest {
-                model: &self.model,
-                prompt: &format_meeting_prompt(transcript),
-                stream: true,
-            })
-            .send().await?;
-        // Stream chunks to on_chunk callback
-        // Parse final response into MeetingNotes struct
-    }
-}
-```
-
-### Pattern 5: Tauri Managed State for Shared Application State
-
-**What:** Use Tauri's built-in state management (`app.manage()`) with `Mutex<AppState>` for mutable shared state. Tauri wraps managed state in `Arc` internally, so you do not need to add `Arc` yourself. For state needed in spawned threads, clone the `AppHandle` (which is cheap) and retrieve state via `app_handle.state::<T>()`.
-
-**When to use:** For the database connection, recording state machine, and user configuration.
-
-**Trade-offs:** Standard `Mutex` is fine for most state access (short critical sections). Use `tokio::sync::Mutex` only if you need to hold the lock across `.await` points. Never hold the lock while doing audio processing or network I/O.
-
-**Example:**
-```rust
-// state.rs
-pub struct AppState {
-    pub db: rusqlite::Connection,
-    pub recording: RecordingState,
-    pub config: UserConfig,
-}
-
-pub enum RecordingState {
-    Idle,
-    Recording { meeting_id: String, started_at: Instant },
-    Processing { meeting_id: String }, // Summarization in progress
-}
-
-// In main.rs setup
-app.manage(Mutex::new(AppState {
-    db: storage::open_database()?,
-    recording: RecordingState::Idle,
-    config: storage::load_config(&db)?,
-}));
-```
-
-## Data Flow
-
-### Recording Flow (Core Pipeline)
-
-```
-┌────────────┐     ┌────────────┐
-│ Microphone │     │ System     │
-│ (cpal)     │     │ Audio      │
-│            │     │ (platform) │
-└─────┬──────┘     └─────┬──────┘
-      │                   │
-      │  f32 samples      │  f32 samples
-      │  @ device rate    │  @ device rate
-      ▼                   ▼
-┌─────────────────────────────────┐
-│         Audio Mixer             │
-│  Resample both to 16kHz mono   │
-│  Mix into single f32 stream    │
-└──────────────┬──────────────────┘
-               │
-               │  f32 samples @ 16kHz mono
-               ▼
-┌──────────────────────────────────┐
-│     Ring Buffer (SPSC, ringbuf)  │
-│     ~2 seconds, lock-free        │
-│     Producer ──── Consumer       │
-└──────────────┬───────────────────┘
-               │
-               ▼
-┌──────────────────────────────────┐
-│         ASR Engine               │
-│  sherpa-onnx (Parakeet TDT)     │
-│  Read chunks from ring buffer    │
-│  VAD → segment silence           │
-│  Produce TranscriptSegments      │
-└──────────────┬───────────────────┘
-               │
-               │  TranscriptSegment { text, start_ms, end_ms }
-               │  via tokio::mpsc channel
-               ▼
-┌──────────────────────────────────┐
-│     Pipeline Coordinator         │      ┌──────────────────┐
-│     (Tauri async task)           │─────>│  SQLite Storage   │
-│                                  │      │  INSERT segment   │
-│     Forward to frontend          │      └──────────────────┘
-│     via Tauri Channel            │
-└──────────────┬───────────────────┘
-               │
-               │  TranscriptEvent (JSON)
-               │  via Tauri Channel (ordered)
-               ▼
-┌──────────────────────────────────┐
-│     React Frontend               │
-│     Live transcript display      │
-│     Partial + confirmed segments │
-└──────────────────────────────────┘
-```
-
-### Summarization Flow (Post-Recording)
-
-```
-Recording stops
-       │
-       ▼
-┌──────────────────────────┐
-│  Load full transcript     │
-│  from SQLite              │
-└────────────┬─────────────┘
-             │
-             ▼
-┌──────────────────────────┐        ┌──────────────────┐
-│  LLM Provider            │───────>│  Ollama (local)  │
-│  Format prompt            │   OR   │  Cloud API       │
-│  Stream response          │        └──────────────────┘
-└────────────┬─────────────┘
-             │
-             │  Structured JSON (streamed)
-             ▼
-┌──────────────────────────┐        ┌──────────────────┐
-│  Parse MeetingNotes       │───────>│  SQLite Storage   │
-│  summary, key_points,     │        │  UPDATE meeting   │
-│  decisions, action_items  │        └──────────────────┘
-└────────────┬─────────────┘
-             │
-             │  Tauri Event: "meeting-notes-ready"
-             ▼
-┌──────────────────────────┐
-│  React Frontend           │
-│  Navigate to notes view   │
-└──────────────────────────┘
-```
-
-### Key Data Flows
-
-1. **Audio Capture to ASR:** Lock-free SPSC ring buffer (ringbuf crate). Audio callback pushes f32 samples; ASR thread pulls chunks. No mutex, no allocation on the hot path. Buffer sized for ~2 seconds to absorb jitter.
-
-2. **ASR to Frontend:** tokio::mpsc channel from ASR thread to Tauri async task, then Tauri Channel to frontend. Two-hop but decoupled: ASR thread never blocks on IPC serialization.
-
-3. **Frontend to Backend (Commands):** Standard Tauri `invoke()` for request-response operations (start/stop recording, list meetings, change settings). JSON-RPC serialization. All commands are async on the Rust side.
-
-4. **Backend to Frontend (Events):** Tauri global events for lifecycle changes (recording-started, recording-stopped, meeting-notes-ready) that multiple components may observe. Fire-and-forget, no ordering guarantee.
-
-5. **Backend to Frontend (Channels):** Tauri Channels for high-frequency ordered data (transcript segments, download progress). Tied to a single command invocation, faster than events.
-
-6. **Model Download:** HTTP GET with streaming body (reqwest). Progress reported via Tauri Channel. Model files stored in platform-specific app data directory.
-
-## Scaling Considerations
-
-This is a single-user desktop app, so "scaling" means handling longer meetings and larger data, not more users.
-
-| Scale | Architecture Adjustments |
-|-------|--------------------------|
-| Short meetings (< 30 min) | Base architecture handles this easily. Full transcript fits in memory. Summarization < 30 seconds. |
-| Medium meetings (1-2 hours) | Ring buffer and streaming architecture handles this. SQLite FTS5 search remains fast. Summarization may need chunked prompt strategy (split transcript, summarize chunks, then summarize summaries). |
-| Heavy usage (1000+ meetings) | SQLite FTS5 handles this well with proper indexing. Add pagination to meeting list queries. Consider WAL mode for concurrent read/write (WAL is default in modern SQLite). |
-| Very long meetings (4+ hours) | Memory budget (< 500MB) may be tight. Consider flushing transcript to disk periodically rather than accumulating in memory. Ring buffer size does not change (still ~2 sec). |
-
-### Scaling Priorities
-
-1. **First bottleneck: LLM summarization latency.** Long transcripts produce long prompts. Ollama with a 7B model on CPU can be slow for 2-hour transcripts. Mitigation: chunked summarization (process in 15-min windows, then combine). This is a prompt engineering problem, not an architecture problem.
-
-2. **Second bottleneck: Model download UX.** First-run downloads a ~640MB model. On slow connections this is painful. Mitigation: clear progress UI, resume support (HTTP Range headers), background download while showing app intro.
-
-## Anti-Patterns
-
-### Anti-Pattern 1: Sharing Audio Data Through Tauri IPC
-
-**What people do:** Capture audio in Rust, serialize it to JSON, send it to the frontend via events, then send it back to Rust for ASR processing. Or worse, trying to do ASR in the WebView via WASM.
-
-**Why it's wrong:** Tauri IPC serializes everything to JSON. Audio data at 16kHz is 32,000 bytes/second of f32 samples. JSON-encoding that would be catastrophically slow and would saturate the IPC bridge. The WebView is not designed for real-time audio processing.
-
-**Do this instead:** Keep the entire audio pipeline (capture, mix, resample, ASR) in Rust threads. Only send the text results (TranscriptSegment) to the frontend. Audio data never crosses the IPC boundary.
-
-### Anti-Pattern 2: Using Mutex on the Audio Callback Thread
-
-**What people do:** Wrap the ring buffer or shared state in a `Mutex` and lock it inside the cpal audio callback.
-
-**Why it's wrong:** cpal audio callbacks run on a high-priority, real-time thread. Mutex contention causes audio glitches (pops, dropouts) because the audio thread blocks waiting for the lock. Even brief contention is audible.
-
-**Do this instead:** Use a lock-free SPSC ring buffer (ringbuf crate). The producer (audio callback) and consumer (ASR thread) never block each other. If the consumer falls behind, samples are dropped rather than causing a deadlock.
-
-### Anti-Pattern 3: Running ASR on the Main Tauri Async Runtime
-
-**What people do:** Call sherpa-onnx inference inside a `#[tauri::command]` handler or a `tauri::async_runtime::spawn` task.
-
-**Why it's wrong:** sherpa-onnx inference is CPU-bound (or GPU-bound). Running it on the Tokio runtime blocks other async tasks, including IPC message handling. The UI becomes unresponsive during inference.
-
-**Do this instead:** Run ASR inference on a dedicated `std::thread::spawn` thread. Use `tokio::mpsc` to send results back to the async runtime for IPC forwarding. The ASR thread is free to block on inference without affecting the rest of the application.
-
-### Anti-Pattern 4: Polling for Transcript Updates
-
-**What people do:** Frontend polls the backend every 100ms asking "any new transcript segments?" via `invoke()`.
-
-**Why it's wrong:** Wasteful (most polls return nothing), adds latency (up to 100ms delay), and creates unnecessary IPC traffic.
-
-**Do this instead:** Push-based via Tauri Channels. The backend sends transcript segments the instant they are available. Zero polling, minimal latency, and the frontend only processes actual data.
-
-### Anti-Pattern 5: Single Monolithic AppState Mutex
-
-**What people do:** Put all application state (db connection, recording state, user config, audio devices) in one `Mutex<AppState>` struct.
-
-**Why it's wrong:** Any command that needs any piece of state locks the entire struct. A long-running database query blocks access to recording state. Reduces concurrency.
-
-**Do this instead:** Split state into independent managed state items. `Mutex<DbPool>`, `Mutex<RecordingState>`, `Mutex<UserConfig>` as separate `app.manage()` calls. Each lock is independent and held briefly.
+---
+
+## Component Responsibilities — v1.1 Delta
+
+### New vs Modified vs Unchanged
+
+| Component | v1.1 Status | What Changes |
+|-----------|-------------|--------------|
+| `llm/detect.rs :: full_status()` | MODIFIED | Accept optional `model_name` param instead of always using `DEFAULT_MODEL`; `check_ollama_status` Tauri command passes it through |
+| `commands.rs :: check_ollama_status` | MODIFIED | Accept optional `model: Option<String>` and forward to `llm::detect::full_status` |
+| `useOllamaSetup.ts` | MODIFIED | Replace hardcoded `'phi4-mini'` pull with `ollamaModel` setting value |
+| `SetupView.tsx` | MODIFIED | Pass configured model name to pull step, not hardcoded constant |
+| `lib/export.ts` | MODIFIED | Convert top-level `@react-pdf/renderer` and `jszip` imports to dynamic `import()` inside `buildPdfBlob()` and `bulkExportZip()` |
+| `vite.config.ts` | MODIFIED | Add `build.rollupOptions.output.manualChunks` to extract `@react-pdf/renderer`, `jszip`, `react-markdown`/`remark-gfm`, `lucide-react` into separate vendor chunks |
+| `Cargo.toml :: sherpa-rs` | MODIFIED (evaluated) | Pin exact version `= "0.6.8"` (already `"0.6.8"`); add CHANGELOG note; document fallback path |
+| `transcription/worker.rs` | UNCHANGED | No code changes needed for sherpa-rs evaluation |
+| `SummarySection.tsx` | UNCHANGED | Model selector and pull UI already fully parameterised |
+| `useSummary.ts` | UNCHANGED | Already reads `ollamaModel` from settings and passes to `generate_summary` |
+| `llm/mod.rs :: run_summary` | UNCHANGED | Already accepts `model: &str` — no changes needed |
+| `SessionCoordinator` / audio pipeline | UNCHANGED | v1.1 does not touch recording or transcription path |
+| SQLite schema | UNCHANGED | `summaries.llm_model` column already stores the model name |
+
+---
 
 ## Integration Points
 
-### External Services
+### Feature 1: LLM Model Selection
 
-| Service | Integration Pattern | Notes |
-|---------|---------------------|-------|
-| **Ollama** | HTTP API (localhost:11434) via reqwest | Check if Ollama is running before summarization. Graceful fallback to raw transcript if unavailable. User must install Ollama separately. |
-| **Cloud LLM APIs** | HTTPS REST API via reqwest | OpenAI-compatible API format. User provides API key in settings. Optional, opt-in only. |
-| **Model CDN** | HTTPS download via reqwest | HuggingFace or custom CDN for Parakeet ONNX models. Support HTTP Range for resume. |
+**Integration surface is smaller than it looks.** Most of the pipeline is already parameterised. The two gaps are:
 
-### Internal Boundaries
+**Gap A — `check_ollama_status` ignores the caller-configured model.**
 
-| Boundary | Communication | Notes |
-|----------|---------------|-------|
-| Audio callback thread to ASR thread | Lock-free SPSC ring buffer (ringbuf) | No allocation, no locking. Producer in audio callback, consumer in ASR thread. Must handle overflow (drop oldest samples). |
-| ASR thread to Tauri async runtime | tokio::mpsc channel | TranscriptSegment structs. Bounded channel (backpressure if frontend falls behind). |
-| Tauri async runtime to Frontend | Tauri Channel (for streaming) + Events (for lifecycle) | JSON serialization. Channel for transcript data; Events for state transitions. |
-| Frontend to Tauri backend | Tauri Commands via invoke() | Request-response. JSON-RPC. All commands async. |
-| Pipeline coordinator to Storage | Direct function calls (same thread/async context) | rusqlite is not Send, so either use a dedicated DB thread with message passing, or use rusqlite within a single async task. Consider r2d2-sqlite for a connection pool if needed. |
-| Pipeline coordinator to LLM | async HTTP calls | Run in Tauri async runtime. Stream response chunks via Channel to frontend for progress indication. |
-
-### Platform-Specific Integration Points
-
-| Platform | System Audio API | Crate/Approach | Permission Required |
-|----------|------------------|----------------|---------------------|
-| macOS 13+ | ScreenCaptureKit | screencapturekit-rs crate | Screen Recording permission (user prompt) |
-| Windows 10+ | WASAPI Loopback | cpal (use output device as input) | None (transparent loopback) |
-| Linux | PipeWire / PulseAudio monitor | libpulse-binding or pipewire-rs | None (monitor sources are accessible) |
-
-## Build Order Implications
-
-Components have dependencies that dictate build order:
-
+Current path:
 ```
-Phase 1: Foundation
-  ├── Tauri project scaffold (src-tauri + React frontend)
-  ├── SQLite storage layer (rusqlite, migrations, CRUD)
-  └── Basic UI shell (navigation, layout, settings page)
-
-Phase 2: Audio Capture
-  ├── Microphone capture via cpal (cross-platform)
-  ├── System audio capture (start with ONE platform, likely macOS)
-  ├── Audio mixer + resampler (16kHz mono)
-  └── Ring buffer pipeline (ringbuf)
-      Depends on: Phase 1 (Tauri scaffold)
-
-Phase 3: ASR Integration
-  ├── sherpa-onnx / sherpa-rs integration
-  ├── Model manager (download, hardware detect)
-  ├── Recognition pipeline (ring buffer consumer → segments)
-  └── Live transcript display (Tauri Channel → React)
-      Depends on: Phase 2 (audio pipeline feeding data)
-
-Phase 4: Summarization
-  ├── LLM provider trait + Ollama implementation
-  ├── Meeting notes generation (prompts, structured output)
-  ├── Notes library UI (list, search, detail, export)
-  └── Cloud LLM provider (optional)
-      Depends on: Phase 3 (transcript data to summarize)
-
-Phase 5: Polish
-  ├── System tray + global hotkey
-  ├── Second/third platform system audio
-  ├── First-run onboarding flow
-  └── Error handling, edge cases, performance tuning
-      Depends on: Phase 4 (complete feature set)
+check_ollama_status(serverUrl: Option<String>)
+  → llm::detect::full_status(&url, llm::DEFAULT_MODEL)   ← constant, not user setting
+  → OllamaStatus { model_ready: bool, model_name: "phi4-mini" }
 ```
 
-**Critical path:** Audio Capture (Phase 2) is the riskiest phase because platform-specific system audio APIs have the most unknowns (permissions, edge cases, format differences). Start with macOS ScreenCaptureKit because screencapturekit-rs has the most mature Rust bindings. Windows WASAPI loopback via cpal is relatively straightforward. Linux PipeWire is the least mature option.
+Required path:
+```
+check_ollama_status(serverUrl: Option<String>, model: Option<String>)
+  → let m = model.unwrap_or_else(|| llm::DEFAULT_MODEL.to_string());
+  → llm::detect::full_status(&url, &m)
+  → OllamaStatus { model_ready: bool, model_name: m }
+```
 
-**Parallelizable work:** Frontend UI (React components) can be built in parallel with backend pipeline work using mock data. Storage layer can be built independently and tested with fake transcript data.
+Impact: one-line change to `commands.rs` and `llm/detect.rs`. `full_status()` already accepts `model_name: &str`.
+
+**Gap B — `useOllamaSetup.ts` hardcodes `'phi4-mini'` for the pull step.**
+
+```typescript
+// Line 138 — current
+await invoke('pull_ollama_model', { model: 'phi4-mini', onEvent: channel });
+
+// Required
+const model = await getSetting('ollamaModel');
+await invoke('pull_ollama_model', { model: model || 'phi4-mini', onEvent: channel });
+```
+
+`SetupView.tsx` calls `useOllamaSetup.pullModel()` — it will automatically pull the user's configured model rather than always pulling phi4-mini.
+
+**Data flow after fix:**
+```
+User changes model in SummarySection dropdown
+  → useSetting('ollamaModel') persisted to settings.json (tauri-plugin-store)
+  → useSummary.generate() reads ollamaModel via getSetting()
+  → invoke('generate_summary', { model: ollamaModel, ... })
+  → Rust: run_summary(transcript, url, model)    [already correct]
+  → llm_model stored in summaries table           [already correct]
+
+check_ollama_status now passes model to full_status
+  → OllamaStatus.modelReady reflects the selected model, not always phi4-mini
+```
+
+**AppSettings type** already has `ollamaModel: string` and `DEFAULT_SETTINGS.ollamaModel = 'phi4-mini'`. No type changes needed.
+
+---
+
+### Feature 2: Frontend Bundle Size / Lazy-Loading
+
+**Root cause:** `src/lib/export.ts` uses top-level static imports.
+
+```typescript
+// Current — loaded on every app startup even for users who never export
+import { Document, Page, StyleSheet, Text, View, pdf } from '@react-pdf/renderer';
+import JSZip from 'jszip';
+```
+
+`@react-pdf/renderer` adds ~450 KB gzipped to the main bundle. `jszip` adds ~100 KB. Together ~550 KB of payload loaded even on the Record screen.
+
+**Fix A — Dynamic imports in export.ts:**
+
+```typescript
+async function buildPdfBlob(data: MeetingExportData): Promise<Blob> {
+  // Loaded only when PDF export is triggered — not at app startup
+  const { Document, Page, StyleSheet, Text, View, pdf } = await import('@react-pdf/renderer');
+  // ... existing code unchanged
+}
+
+export async function bulkExportZip(meetingIds: number[], format: ExportFormat): Promise<void> {
+  const JSZip = (await import('jszip')).default;
+  // ... existing code unchanged
+}
+```
+
+`createElement` is already from React (top-level React import) — not from react-pdf.
+
+**Fix B — vite.config.ts manualChunks:**
+
+```typescript
+// vite.config.ts
+export default defineConfig({
+  plugins: [react(), tailwindcss()],
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vendor-react': ['react', 'react-dom', 'react-router'],
+          'vendor-pdf': ['@react-pdf/renderer'],
+          'vendor-zip': ['jszip'],
+          'vendor-markdown': ['react-markdown', 'remark-gfm'],
+          'vendor-icons': ['lucide-react'],
+        },
+      },
+    },
+  },
+  // ...existing server config unchanged
+});
+```
+
+`manualChunks` defines stable chunk names for caching. Dynamic imports in Fix A ensure pdf/zip chunks are not loaded until needed. The two fixes work together: manualChunks controls cache identity, dynamic import controls load timing.
+
+**Fix C — Audit remaining eager imports:**
+
+Files to audit for unnecessary eager loading:
+- `SummaryPanel.tsx` imports `ReactMarkdown` + `remark-gfm` — used only on meeting detail screens, candidate for `React.lazy()`
+- `SummaryExport.tsx` — check if it re-imports pdf-related code
+
+Route-level lazy loading is lower priority since the app currently has few routes and Tauri's webview does local file loads (no network latency cost like a web app).
+
+**Expected impact:** Main chunk shrinks by ~40–50%. App cold startup noticeably faster, especially on first launch when WebView cache is cold.
+
+**What does NOT change:** The Tauri backend, IPC commands, SQLite schema, and all Rust code are completely untouched by this feature.
+
+---
+
+### Feature 3: sherpa-rs Dependency Health Evaluation
+
+**Current state:**
+- `Cargo.toml` pins `sherpa-rs = { version = "0.6.8", features = ["download-binaries"] }`
+- `0.6.8` released October 2025, wraps upstream `sherpa-onnx 1.12.9`
+- Single maintainer (`@thewh1teagle`), 298 stars, 64 forks, 24 open issues, 7 open PRs
+- Community-maintained, not backed by a company or foundation
+- Open issue #96: CMake 4.0 compatibility (build system concern, not functional)
+
+**Risk profile:** MEDIUM. The crate works today and is actively maintained, but it is one maintainer with no institutional backing. If the maintainer stops, the project would need:
+1. Direct FFI bindings to `sherpa-onnx-sys` (the underlying C library)
+2. Or a fork of `sherpa-rs` with the project as de-facto owner
+
+**Evaluation tasks (no code changes needed):**
+
+| Task | Type | Outcome |
+|------|------|---------|
+| Confirm `0.6.8` builds cleanly on all three platforms in CI | Verification | Pass/fail documented |
+| Review open issues for anything blocking v1.1 | Audit | Issue #96 (CMake) is build-env only, not a runtime bug |
+| Document upgrade path to next minor version | Documentation | Note breaking API changes between `0.6.x` releases |
+| Document FFI fallback plan | Documentation | Direct `sherpa-onnx` C bindings via `cc` crate if sherpa-rs abandoned |
+| Pin to exact version `= "0.6.8"` | Cargo.toml | Already done — keep it; do not use `^0.6.8` semver range |
+
+**Architecture impact:** Zero. This feature produces documentation and CI verification, not code changes. `transcription/worker.rs` and `transcription/mod.rs` are unchanged.
+
+**Upgrade note for later:** sherpa-rs `0.6.x` → `0.7.x` is a minor version bump in their scheme but has historically included API changes to recognizer config structs. Test on a branch before upgrading. The `WorkerConfig` struct in `transcription/worker.rs` directly mirrors `TransducerConfig` fields — these will need auditing on any sherpa-rs upgrade.
+
+---
+
+## Data Flow Changes
+
+### LLM Model Selection — before and after
+
+**Before (v1.0):**
+```
+User setting 'ollamaModel' stored in settings.json
+  → useSummary reads it → passed to generate_summary command ✓
+  → check_ollama_status ignores it → always checks phi4-mini ✗
+  → useOllamaSetup pulls phi4-mini regardless of setting ✗
+```
+
+**After (v1.1):**
+```
+User setting 'ollamaModel' stored in settings.json
+  → useSummary reads it → passed to generate_summary command ✓ (unchanged)
+  → check_ollama_status reads it → OllamaStatus.modelReady is accurate ✓ (fixed)
+  → useOllamaSetup reads it → pulls user's chosen model ✓ (fixed)
+```
+
+### Frontend Bundle Load — before and after
+
+**Before:**
+```
+App startup
+  → main.tsx → App.tsx → (all routes eagerly imported)
+  → export.ts loaded → @react-pdf/renderer loaded (~450 KB gz)
+  → export.ts loaded → jszip loaded (~100 KB gz)
+  [User on Record tab never exports, paid full cost anyway]
+```
+
+**After:**
+```
+App startup
+  → main.tsx → App.tsx → routes loaded
+  → export.ts loaded (module) but @react-pdf/renderer NOT loaded
+  → jszip NOT loaded
+  [User clicks Export PDF for first time]
+     → dynamic import('@react-pdf/renderer') resolves from vendor-pdf chunk
+     → buildPdfBlob executes with loaded module
+  [Subsequent exports: chunk already in memory, no re-download]
+```
+
+---
+
+## Architectural Patterns Relevant to v1.1
+
+### Pattern 1: Settings-Driven Command Parameterisation
+
+**What:** The `AppSettings` type in `src/types/index.ts` is the single source of truth for user preferences. Commands already accept `Option<String>` for `model` and `server_url`. The correct pattern is: read from settings in the hook, pass to command, do not hardcode in backend.
+
+**When to use:** Any new preference that affects backend behaviour. This is how `ollamaModel`, `ollamaServerUrl`, `preferredMicDevice`, and `transcriptionLanguage` are all handled.
+
+**Anti-pattern caught:** `useOllamaSetup.ts` line 138 hardcodes `'phi4-mini'` — this is the specific violation to fix. Every other LLM call already reads from settings.
+
+### Pattern 2: Dynamic Import for Heavy Frontend-Only Libraries
+
+**What:** Libraries used only on user action (export, print, download) should never be in the initial bundle. Vite's Rollup integration handles the chunking automatically when you use `await import('lib')` syntax. The pattern is:
+
+```typescript
+// Before: static import at module top — always bundled
+import { pdf } from '@react-pdf/renderer';
+
+// After: dynamic import inside the function — bundled separately, loaded on demand
+async function buildPdfBlob(...) {
+  const { pdf } = await import('@react-pdf/renderer');
+}
+```
+
+**When to use:** Any dependency over ~50 KB gzipped that is not needed on the critical render path (app startup, main navigation).
+
+**Tauri-specific note:** In Tauri, the frontend loads from a local file (`tauri://localhost` protocol), so there is no network latency for chunk loading. Dynamic imports are still worthwhile because they reduce WebView JS parse/compile time on startup, which is the dominant startup cost on lower-end hardware.
+
+### Pattern 3: Exact Version Pinning for Native Binaries
+
+**What:** `sherpa-rs` uses `features = ["download-binaries"]` to download pre-compiled native `.so`/`.dylib`/`.dll` files at build time. Semver ranges (`^0.6.8`) mean `cargo update` can silently pull a new version that downloads different binary artifacts. Use exact pinning (`= "0.6.8"`) for any crate that downloads native binaries.
+
+**Current status:** `Cargo.toml` uses `sherpa-rs = { version = "0.6.8", ... }` which Cargo interprets as `^0.6.8` (compatible releases). Change to `= "0.6.8"` for exact pinning.
+
+---
+
+## Build Order for v1.1
+
+Dependencies between the three features determine safe build order:
+
+```
+Step 1: sherpa-rs evaluation (no code changes)
+  ├── Audit open issues, document upgrade path
+  ├── Verify CI builds clean on all three platforms
+  └── Update Cargo.toml to exact pin (= "0.6.8")
+  ← No code risk. Do this first to close the open question.
+
+Step 2: LLM model selection fix (small Rust + small TS)
+  ├── Rust: commands.rs — add model: Option<String> param to check_ollama_status
+  ├── Rust: llm/detect.rs — full_status() already accepts model_name, just wire it
+  ├── TS: useOllamaSetup.ts — replace hardcoded 'phi4-mini' with getSetting('ollamaModel')
+  └── TS: SetupView.tsx — verify it passes through correctly
+  ← Small, contained, low risk. Rust and TS changes are independent.
+  ← Test: set ollamaModel to 'llama3.2:3b', verify status and pull use that model.
+
+Step 3: Frontend code-splitting (TS + vite config only, no Rust)
+  ├── export.ts — convert @react-pdf/renderer and jszip to dynamic imports
+  ├── vite.config.ts — add manualChunks configuration
+  └── Audit SummaryPanel.tsx imports (react-markdown, remark-gfm)
+  ← No backend changes. Isolated to build system and one library file.
+  ← Test: npm run build, inspect bundle, verify chunk sizes.
+  ← Risk: dynamic import timing — ensure TypeScript types still work (they do with type imports).
+```
+
+**Why this order:**
+- Step 1 is pure documentation/verification — no risk, establishes baseline health check
+- Step 2 Rust changes and Step 3 TS changes are fully independent — can be developed in parallel if needed, but Step 2 should merge first to keep PRs small
+- Step 3 has the most potential for subtle build regressions (Rollup chunk splitting edge cases) so it goes last
+
+---
+
+## Internal Boundaries — v1.1 Changes
+
+| Boundary | v1.0 Communication | v1.1 Change |
+|----------|--------------------|-------------|
+| `useOllamaSetup` → Tauri `pull_ollama_model` | Hardcoded `model: 'phi4-mini'` | Read from `getSetting('ollamaModel')` |
+| Frontend → `check_ollama_status` command | No model param | Add `model?: string` param |
+| `commands.rs` → `llm::detect::full_status()` | Passes `llm::DEFAULT_MODEL` constant | Passes caller-supplied model or falls back to `DEFAULT_MODEL` |
+| `export.ts` → `@react-pdf/renderer` | Static import at module level | Dynamic `import()` inside `buildPdfBlob()` |
+| `export.ts` → `jszip` | Static import at module level | Dynamic `import()` inside `bulkExportZip()` |
+| `Cargo.toml` → `sherpa-rs` | `version = "0.6.8"` (semver compatible) | `version = "= 0.6.8"` (exact pin) |
+
+---
+
+## Anti-Patterns to Avoid in v1.1
+
+### Anti-Pattern 1: Propagating the Model Hardcode
+
+**What people do:** Fix `useOllamaSetup.ts` but forget `SetupView.tsx` which calls it, or fix the Rust `check_ollama_status` but leave `check_model_pulled` called from elsewhere still using the constant.
+
+**Prevention:** Search all callsites of `DEFAULT_MODEL` in Rust and `'phi4-mini'` in TypeScript before closing the task. There are exactly two TypeScript callsites (useOllamaSetup and SetupView) and one Rust callsite (commands.rs check_ollama_status). `save_summary` in `commands.rs` also references `DEFAULT_MODEL` for manual saves — that should also be updated to accept the user's configured model.
+
+### Anti-Pattern 2: Using React.lazy() for Non-Component Dynamic Imports
+
+**What people do:** Try to apply `React.lazy(() => import('./export'))` to a utility module (non-component).
+
+**Why it's wrong:** `React.lazy()` only works with modules that export a React component as their default export. `export.ts` exports plain async functions. Use `await import('...')` directly inside the function bodies.
+
+**Do this instead:** Dynamic `import()` inside the async function, not `React.lazy()` at the module level.
+
+### Anti-Pattern 3: Over-Splitting Vendor Chunks
+
+**What people do:** Put every dependency in its own `manualChunks` entry, creating 20+ tiny chunks.
+
+**Why it's wrong:** In Tauri's local file protocol, each chunk load is a synchronous disk read (fast), but too many chunks can cascade waterfall loads. Rollup's default chunking is already reasonable. Only manually chunk libraries that are genuinely large and independently cacheable.
+
+**Do this instead:** Target `@react-pdf/renderer` (~450 KB gz) and `jszip` (~100 KB gz) as priority splits. Group `react-markdown` + `remark-gfm` together (they are always used together). Leave smaller utilities in the main vendor chunk.
+
+### Anti-Pattern 4: Upgrading sherpa-rs During v1.1
+
+**What people do:** See that a newer sherpa-rs version exists and upgrade "while we're in there."
+
+**Why it's wrong:** sherpa-rs minor version bumps have historically changed `TransducerConfig` field names and `SileroVadConfig` defaults. An upgrade during v1.1 (which is a hardening release, not a feature release) introduces unrelated risk and obscures any regressions.
+
+**Do this instead:** Pin at `= "0.6.8"`, document the upgrade path for v1.2, test the upgrade on a separate branch.
+
+---
 
 ## Sources
 
-- [Tauri 2 IPC Concepts](https://v2.tauri.app/concept/inter-process-communication/) -- HIGH confidence (official docs)
-- [Tauri 2 Calling Frontend from Rust (Events + Channels)](https://v2.tauri.app/develop/calling-frontend/) -- HIGH confidence (official docs)
-- [Tauri 2 State Management](https://v2.tauri.app/develop/state-management/) -- HIGH confidence (official docs)
-- [Tauri 2 Architecture Overview](https://v2.tauri.app/concept/architecture/) -- HIGH confidence (official docs)
-- [Tauri 2 Project Structure](https://v2.tauri.app/start/project-structure/) -- HIGH confidence (official docs)
-- [Tauri 2 Calling Rust from Frontend](https://v2.tauri.app/develop/calling-rust/) -- HIGH confidence (official docs)
-- [sherpa-onnx GitHub (k2-fsa)](https://github.com/k2-fsa/sherpa-onnx) -- HIGH confidence (official repo)
-- [sherpa-rs Rust bindings](https://github.com/thewh1teagle/sherpa-rs) -- MEDIUM confidence (community crate, active)
-- [screencapturekit-rs crate](https://github.com/svtlabs/screencapturekit-rs) -- MEDIUM confidence (community crate)
-- [ringbuf crate (lock-free SPSC)](https://github.com/agerasev/ringbuf) -- HIGH confidence (well-established crate)
-- [cpal (cross-platform audio I/O)](https://github.com/RustAudio/cpal) -- HIGH confidence (RustAudio org)
-- [Vibe (Tauri transcription app, reference architecture)](https://github.com/thewh1teagle/vibe) -- MEDIUM confidence (reference implementation)
-- [Long-running async tasks in Tauri v2](https://sneakycrow.dev/blog/2024-05-12-running-async-tasks-in-tauri-v2) -- MEDIUM confidence (community tutorial)
-- [Tauri + Async Rust Process pattern](https://rfdonnelly.github.io/posts/tauri-async-rust-process/) -- MEDIUM confidence (community tutorial)
-- [WASAPI Loopback in cpal](https://github.com/RustAudio/cpal/issues/251) -- MEDIUM confidence (issue discussion, confirmed working)
-- [ScreenCaptureKit Apple Docs](https://developer.apple.com/documentation/screencapturekit/) -- HIGH confidence (official docs)
-- [PipeWire audio capture with Rust](https://acalustra.com/playing-with-pipewire-audio-streams-and-rust.html) -- LOW confidence (single blog post)
-- [Building Local LM Desktop Apps with Tauri](https://medium.com/@dillon.desilva/building-local-lm-desktop-applications-with-tauri-f54c628b13d9) -- LOW confidence (single blog post)
+- Direct codebase reading: `src-tauri/src/commands.rs`, `llm/mod.rs`, `llm/detect.rs`, `transcription/worker.rs`, `src/lib/export.ts`, `src/hooks/useOllamaSetup.ts`, `src/hooks/useSummary.ts`, `src/types/index.ts`, `src/lib/constants.ts`, `vite.config.ts`, `package.json`, `Cargo.toml` — HIGH confidence (ground truth)
+- [sherpa-rs GitHub (thewh1teagle/sherpa-rs)](https://github.com/thewh1teagle/sherpa-rs) — v0.6.8 latest, 24 open issues, MEDIUM confidence (community crate)
+- [sherpa-rs crates.io](https://docs.rs/crate/sherpa-rs/latest) — version history, release cadence — MEDIUM confidence
+- [Vite code splitting — manualChunks](https://sambitsahoo.com/blog/vite-code-splitting-that-works.html) — MEDIUM confidence (community, consistent with Vite docs)
+- [Vite features — dynamic import](https://vite.dev/guide/features) — HIGH confidence (official docs)
+- [react-pdf bundle size issue](https://github.com/diegomura/react-pdf/issues/632) — confirmed ~450 KB gz, MEDIUM confidence (issue thread)
+- [React.lazy and dynamic imports](https://www.freecodecamp.org/news/how-to-use-react-lazy-and-suspense-for-components-lazy-loading-8d420ecac58/) — MEDIUM confidence (community, standard React pattern)
+- [Phi-4-Mini technical report](https://arxiv.org/html/2503.01743v1) — 128K context, summarization training limited to 30-min audio — HIGH confidence (official Microsoft paper)
+- [Ollama API: list models](https://docs.ollama.com/api/tags) — `/api/tags` endpoint shape confirmed — HIGH confidence (official docs)
 
 ---
-*Architecture research for: openNotes -- local-first AI meeting transcription desktop app*
-*Researched: 2026-02-26*
+*Architecture research for: openNotes v1.1 — LLM model selection, frontend code-splitting, sherpa-rs evaluation*
+*Researched: 2026-03-02*

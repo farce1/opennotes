@@ -1,227 +1,290 @@
 # Feature Research
 
-**Domain:** Local-first AI meeting transcription and summarization desktop app
-**Researched:** 2026-02-26
-**Confidence:** HIGH
+**Domain:** openNotes v1.1 — LLM Quality, Frontend Performance, Dependency Health
+**Researched:** 2026-03-02
+**Confidence:** HIGH (codebase read directly; ecosystem verified via official sources and WebSearch)
+
+---
+
+## Context: What Already Exists (v1.0)
+
+v1.0 shipped on 2026-03-01. The full feature set is documented in the previous iteration of this file. This document covers only the **three v1.1 concerns**:
+
+1. **LLM quality on long/domain-specific meetings** — phi4-mini is unbenchmarked at scale; need prompt tuning and user-selectable model support
+2. **Frontend bundle size and startup performance** — @react-pdf/renderer added for export; bundle not audited since then; lazy-loading not applied
+3. **sherpa-rs dependency health** — community-maintained crate last released October 2024; upstream sherpa-onnx has a native Rust API now
+
+**Codebase reality (confirmed by reading source):**
+- `@react-pdf/renderer` ^4.3.2 is a hard dependency loaded at startup — not lazy-loaded
+- `SummarySection.tsx` already has a model selector dropdown (`<select>`) that shows all installed Ollama models
+- `llm/mod.rs` uses `num_ctx: 32768`, hierarchical chunked summarization, and a single fixed prompt
+- `llm/detect.rs` has `check_model_pulled()` using `/api/tags` — foundation for model management is already there
+- `sherpa-rs` 0.6.8 (Oct 2024); upstream `sherpa-onnx` is at 1.12.28 (Feb 2026) with native Rust VAD API added in 1.12.27
+
+---
 
 ## Feature Landscape
 
 ### Table Stakes (Users Expect These)
 
-Features users assume exist. Missing these = product feels incomplete. Every competitive meeting transcription app in 2026 has these.
+These are the behaviors users assume any polished v1.1 hardening release will have. Missing them = the release feels like a regression or a skipped step.
 
 | Feature | Why Expected | Complexity | Notes |
 |---------|--------------|------------|-------|
-| One-click recording start/stop | Every competitor has this. Users will not tolerate complex setup per meeting. Granola, Krisp, and Jamie all use a single button or hotkey. | LOW | Global keyboard shortcut essential. System tray icon for state visibility. |
-| Real-time transcript display | Users need to see transcription working to trust it. Otter, Fireflies, Krisp, and Fathom all show live text during meetings. Granola is an exception (shows after). | MEDIUM | Stream partial results via IPC events. Buffer ~3 seconds per Parakeet latency. |
-| System audio + microphone capture | Capturing only mic means missing remote participants. Every meeting tool captures both sides. Krisp, Jamie, and Granola all capture system audio directly. | HIGH | Platform-specific: ScreenCaptureKit (macOS 13+), WASAPI Loopback (Windows), PulseAudio/PipeWire (Linux). This is the hardest table-stakes feature. |
-| Post-meeting structured summary | The core deliverable. Every competitor generates summaries with sections: overview, key points, decisions, action items. Otter, Fireflies, Fellow, Fathom, and Granola all do this. | MEDIUM | Requires LLM. Pluggable approach (Ollama local + cloud API fallback) is the right call per PROJECT.md. |
-| Action item extraction | Users expect action items pulled out automatically with assignees when possible. 94% of top 10 AI notetakers include this. Otter, Fireflies, Fellow, and tl;dv all extract action items. | MEDIUM | Part of the summarization prompt. LLM identifies "who committed to what." Without speaker diarization, assignees will be approximate (by name mentioned, not by voice). |
-| Full-text search across notes | Users accumulate hundreds of meeting notes. Search is how they find past decisions. Otter, Fireflies, Fellow, and Notion all offer cross-meeting search. | LOW | SQLite FTS5 handles this well. Already in PROJECT.md scope. |
-| Export to common formats | Users need to get notes out. Markdown, plain text, and clipboard copy are minimum. Most tools offer PDF, DOCX, TXT, Markdown. Fathom and Meetily export Markdown. | LOW | Markdown as primary format (developer audience). Add copy-to-clipboard. PDF can wait for post-MVP. |
-| Settings/preferences UI | Users need to select audio devices, configure LLM, manage models. Every desktop app has this. SuperWhisper has detailed model management. | MEDIUM | Audio device selection, model download/management, LLM configuration, keyboard shortcut customization. |
-| First-run setup/onboarding | Model download (~640 MB) requires explanation. SuperWhisper pattern: ship small app, download model on first run with hardware-specific recommendations. | MEDIUM | Hardware detection (CPU/GPU/Apple Silicon), model recommendation, download progress, guided LLM setup. |
-| Cross-platform support | Target audience uses macOS, Windows, and Linux. Tauri enables this. Krisp supports Mac + Windows. Jamie supports Mac + Windows. Meetily targets all three. | HIGH | Cumulative complexity across audio capture, model runtime, and UI. Each platform has different audio APIs. |
+| Model quality is measurably better on long meetings | v1.0 shipped phi4-mini untested on long/domain-specific content; users expect v1.1 to address the known gap | MEDIUM | Requires benchmark runs on 30-min and 60-min real transcripts, prompt iteration, and validation of hierarchical summarization output quality |
+| Model selection persists and applies correctly to all summary paths | Settings already has a model dropdown (confirmed in `SummarySection.tsx`); users assume the selected model is actually used everywhere, not just the happy path | LOW | Audit that `ollamaModel` setting is passed correctly through both `generate_summary_stream` and `generate_summary_chunked` paths in `llm/mod.rs` |
+| App starts fast | After adding PDF export, users expect no startup regression — desktop apps must open in under 1 second subjectively | MEDIUM | `@react-pdf/renderer` is the primary suspect; needs lazy import via `React.lazy` + `Suspense` on the export button click path |
+| Dependencies are pinned and upgrade path is documented | Shipping with a community crate that is 16 months behind upstream is a risk users don't know about, but maintainers must address proactively | LOW | Pin `sherpa-rs` version in `Cargo.toml`; document fallback plan; this is maintenance hygiene, not a user-visible feature |
 
 ### Differentiators (Competitive Advantage)
 
-Features that set openNotes apart from the field. These are why users choose openNotes over Otter/Fireflies/Granola.
+Features that make v1.1 meaningfully better than v1.0 and that no other fully-local meeting notes tool offers.
 
 | Feature | Value Proposition | Complexity | Notes |
 |---------|-------------------|------------|-------|
-| Fully local processing (no cloud required) | **The primary differentiator.** In 2026, users increasingly demand local processing for privacy (GDPR, HIPAA concerns). Krisp processes audio locally but sends to cloud for transcription on some plans. Granola transcribes in cloud ("computation too much locally"). openNotes runs Parakeet entirely on-device. Zero data leaves the machine unless user opts into cloud LLM. | HIGH | Parakeet via sherpa-onnx handles transcription. Ollama handles summarization. Both local. This is the core promise. |
-| Zero cost, no subscription | Otter: $16.99/mo. Fireflies: $18/mo. Granola: $18/mo. Krisp: $8/mo. Fathom free tier limits AI summaries to 5/month. openNotes is free forever (MIT licensed, models are CC-BY-4.0). For users attending 10+ meetings/week, this saves $200+/year. | LOW | Open source eliminates ongoing cost. Model download is one-time. Ollama is free. |
-| No meeting bot / invisible recording | Major user complaint in 2026: bots joining calls break flow and raise privacy concerns. Otter, Fireflies, Fathom, and tl;dv all send visible bots. Granola, Krisp, Jamie, and openNotes capture system audio directly -- no bot appears. This is a top-3 user requirement per multiple 2026 reviews. | N/A | Already inherent in the system audio capture architecture. Not a feature to build, but a feature to market. |
-| Open source and auditable | No other major meeting notes tool is fully open source. Meetily is the closest competitor (also Tauri + Parakeet). Open source means users can verify privacy claims, audit code, and self-host. Enterprise security teams prefer auditable software. | LOW | MIT license. Code on GitHub. Privacy claims are verifiable, unlike Otter/Granola/Krisp. |
-| Offline-capable | Works without internet. SuperWhisper pioneered this for dictation. With local Parakeet + local Ollama, openNotes can transcribe and summarize in airplane mode. No competitor except SuperWhisper (dictation only, not meetings) and Meetily offers true offline meeting notes. | LOW | Already inherent if using Ollama. Document as a feature. Test and verify offline workflow. |
-| Speaker diarization (post-MVP) | Identifying "who said what" is critical for action item attribution and meeting usefulness. 94% accuracy is achievable per 2026 benchmarks. Otter, Fireflies, and tl;dv all have this. Granola struggles with it. pyannote-audio is the standard open-source approach. | HIGH | PROJECT.md correctly defers to v0.2.0. Requires separate audio channels (not mixed stream). This will be the single most requested feature after MVP launch. |
-| Custom summary templates | Granola's "Recipes" feature is their key 2025-2026 innovation. Fellow, Otter, and tl;dv all offer custom templates for different meeting types (1:1, standup, sales call, retrospective). Users want summaries shaped to their meeting type. | MEDIUM | Implement as configurable prompt templates. Ship with 4-5 defaults (general, 1:1, standup, design review, customer call). Let users create custom templates. |
-| AI chat with transcript | "Ask questions about this meeting" -- Granola, Otter, and Fireflies all offer this. Users want to query: "What did John say about the deadline?" or "Summarize the budget discussion." | MEDIUM | Send transcript + question to LLM. Straightforward with Ollama/cloud API. High user value for long meetings. Defer to post-MVP (v0.2.0 or v0.3.0). |
-| Audio recording and playback | tl;dv's core feature: jump to any moment in the recording. Useful for verifying what was actually said vs. what the AI transcribed. Fathom and Otter also offer this. | MEDIUM | PROJECT.md lists as post-MVP. Store compressed audio alongside transcript. Link timestamps to audio positions. |
+| User-selectable LLM model with quality guidance | LM Studio, Askimo, Open WebUI all show model dropdowns. openNotes already has the dropdown — the gap is guidance: which model is recommended for meeting summaries, and why | MEDIUM | Add model recommendation labels (e.g., "Recommended: phi4-mini" or "Fast: llama3.2:3b") in the settings dropdown; validated against known Ollama model characteristics |
+| Improved summary quality on long meetings via tuned prompts | phi4-mini with 128K context is capable but prompt-sensitive; tuned prompts that force structured output and prevent hallucination on domain-specific terms are a genuine quality differentiator | MEDIUM | Requires iteration on `build_summary_prompt()` in `llm/mod.rs`; test on meeting transcripts > 30 min; measure section completeness and action item accuracy |
+| Lazy-loaded export stack = faster perceived startup | Tauri apps are already small (~15 MB); lazy-loading the PDF renderer means the main bundle loads faster, improving first-impression quality — a meaningful polish win | MEDIUM | `React.lazy()` + `Suspense` wrapper around `SummaryExport.tsx` or dynamic import of `@react-pdf/renderer` inside `onExportPdf` handler |
+| sherpa-rs version pinned + upgrade path documented | Users who build from source or self-host care about reproducibility; a pinned, tested dependency version is table stakes for a project claiming to be "auditable" | LOW | Pin exact version in `Cargo.toml` using `=0.6.8`; add comment in code documenting sherpa-onnx 1.12.x compatibility and fallback plan |
 
 ### Anti-Features (Commonly Requested, Often Problematic)
 
-Features that seem good but create problems -- especially for a local-first, privacy-focused, open-source project.
+Features that seem like natural v1.1 additions but would create disproportionate complexity or scope creep.
 
 | Feature | Why Requested | Why Problematic | Alternative |
 |---------|---------------|-----------------|-------------|
-| Cloud sync across devices | Users want notes on phone + laptop. Otter and Notion provide this. | Fundamentally conflicts with local-first privacy promise. Building sync infrastructure is a massive undertaking (conflict resolution, auth, server costs). Granola stores notes in AWS -- that is exactly the trust model openNotes rejects. | Export to Markdown files that users sync via their own tools (iCloud Drive, Dropbox, Syncthing, Git). Let users own their sync. |
-| Meeting bot that joins calls | Otter, Fireflies, Fathom, and tl;dv use bots. Some users ask for this because it means "zero setup." | Bots are the #1 user complaint in 2026 meeting tools. They break meeting flow, raise consent issues, and get blocked by IT policies. This would negate openNotes' "invisible recording" differentiator. | System audio capture is strictly better. Educate users on the advantages. |
-| Video recording | Users sometimes want to see the meeting, not just read it. tl;dv offers video clips. | Massive storage requirements (1 hour = 1-3 GB). Complex to implement cross-platform. Far outside core value prop of "structured meeting notes." Not what a note-taking app should do. | Link to the meeting platform's own recording if available. Focus on transcript + summary. |
-| Real-time collaborative editing | Notion and Google Docs have this. Users may expect simultaneous editing of meeting notes. | openNotes is a personal tool, not a team workspace. Collaborative editing requires CRDT/OT algorithms, networking, and conflict resolution -- enormous complexity. Conflicts with local-first architecture. | Export and share completed notes. Each person runs their own openNotes instance. |
-| CRM integration (Salesforce, HubSpot) | Sales-focused tools like Fathom, Fireflies, and Grain push notes to CRMs. | Requires maintaining integrations with third-party APIs that change frequently. Small open-source project cannot keep up with Salesforce API changes. Targets a narrow use case (sales teams) at high maintenance cost. | Export to Markdown/JSON. Provide a documented API or webhook that power users can connect to Zapier/n8n themselves. |
-| Noise cancellation | Krisp's headline feature. Users with noisy environments want cleaner audio. | Requires sophisticated DSP pipeline (Krisp spent years on this). Increases CPU usage and latency. Parakeet already handles moderate noise well. Building noise cancellation is a product unto itself. | Document recommended microphone setups. Defer to post-MVP (v0.4.0 per PROJECT.md). Consider integrating RNNoise if demand is high -- it is open source and lightweight. |
-| Multi-language simultaneous transcription | Some meetings mix languages. Users want transcription in both. | Parakeet v2 is English-only (6.05% WER). Parakeet v3 is multilingual but at 9.7% WER -- significantly worse. Mixing languages in a single stream further degrades accuracy. No tool handles this well. | Ship with English (Parakeet v2) as default. Offer Parakeet v3 as optional download for non-English meetings. Do not promise mixed-language support. |
-| Auto-join from calendar | Otter, Fireflies, and Notta auto-join meetings from calendar. Users want "set and forget." | Requires calendar API integration (Google Calendar, Outlook), background daemon, and implicit consent from all participants. Privacy implications of recording without explicit action contradict the "privacy-first" positioning. | Manual one-click start is intentional. Consider calendar awareness (show upcoming meetings, pre-populate meeting title) without auto-recording. |
+| Automatic model benchmarking in-app | Users want openNotes to test models and pick the best one automatically | Requires running the same transcript through multiple LLMs sequentially — slow, storage-intensive, and subjective (quality is task-dependent). No local meeting notes tool does this. | Provide curated recommendation text in the Settings UI based on external research; document benchmark methodology in GitHub README for power users |
+| Full migration from sherpa-rs to sherpa-onnx native Rust API | sherpa-onnx now has native Rust VAD and ASR APIs (confirmed in 1.12.27); migrating would eliminate the community wrapper | sherpa-onnx's Rust API is not yet published as a crates.io crate — it is only available by building sherpa-onnx from source. This makes dependency management significantly harder and breaks cross-platform CI. Risk > reward for v1.1. | Pin sherpa-rs 0.6.8, document the migration path for v1.2, monitor sherpa-onnx Rust crate publication |
+| Cloud model recommendations or model store | Users ask for a curated list of models to pick from (like LM Studio's model browser) | Requires fetching and caching remote data (Ollama registry), UI for browsing, and ongoing maintenance of recommendations as models evolve. Scope is a full sub-feature. | Hard-code a short recommended-models list in the Settings UI with Ollama pull names; link to ollama.com/library for browsing |
+| Full bundle analysis CI gate | Adding bundle size CI checks to fail builds on regressions sounds like good practice | Tauri WebView bundle size is not the primary performance constraint — the Rust binary and model startup time dominate. A CI gate on JS bundle size would generate false urgency. | Use Vite's built-in `vite-bundle-visualizer` as a one-time audit tool to find the actual heavy imports; do not add ongoing CI gates for this |
+| Replace phi4-mini as the default model | phi4-mini has known issues with some meeting types; switching defaults seems like a quality improvement | Changing the default model breaks existing user configurations silently (their local model may not be installed). The right approach is improving prompts before changing defaults. | Tune the prompt first; only change the default if benchmarks show a different model is consistently superior AND it is similarly small (3-4B params) for low-spec hardware |
+
+---
 
 ## Feature Dependencies
 
 ```
-[System Audio Capture]
-    └──requires──> [Audio Device Selection in Settings]
-    └──enables──> [Real-time Transcription]
-                      └──enables──> [Live Transcript Display]
-                      └──enables──> [Post-meeting Summary]
-                                        └──requires──> [LLM Configuration]
-                                        └──enables──> [Action Item Extraction]
-                                        └──enables──> [Custom Summary Templates]
-                      └──enables──> [AI Chat with Transcript]
+[LLM Model Selection UX improvements]
+    └──builds on──> [Existing model selector dropdown in SummarySection.tsx]
+    └──requires──> [list_ollama_models Tauri command already implemented]
+    └──enhances──> [Model quality benchmarking (offline research, not in-app)]
 
-[Model Download Flow]
-    └──requires──> [Hardware Detection]
-    └──requires──> [Settings UI]
-    └──enables──> [Real-time Transcription]
+[Prompt Tuning for Quality]
+    └──modifies──> [build_summary_prompt() in src-tauri/src/llm/mod.rs]
+    └──affects both──> [generate_summary_stream (short meetings)]
+    └──affects both──> [generate_summary_chunked (long meetings > 96K chars)]
+    └──requires──> [Test corpus of real meeting transcripts]
 
-[Notes Library]
-    └──requires──> [SQLite Storage]
-    └──enables──> [Full-text Search (FTS5)]
-    └──enables──> [Export (Markdown/Clipboard)]
-    └──enables──> [Browse/Filter Notes]
+[Frontend Bundle Optimization]
+    └──targets──> [@react-pdf/renderer in SummaryExport.tsx]
+    └──uses──> [React.lazy + Suspense (already available in React 19)]
+    └──does NOT affect──> [Rust backend startup time]
+    └──audit tool──> [vite-bundle-visualizer (one-time, not CI)]
 
-[Speaker Diarization] ──requires──> [Separate Audio Channels (not mixed stream)]
-    └──conflicts──> [Current mixed-stream architecture]
-    └──NOTE: Requires architecture change from mixed to separate channels
-
-[Audio Recording & Playback] ──enhances──> [Notes Library]
-    └──enables──> [Timestamp-linked playback]
-
-[Custom Summary Templates] ──enhances──> [Post-meeting Summary]
-    └──requires──> [Template Management UI]
-
-[Global Keyboard Shortcut] ──enhances──> [One-click Recording]
-    └──requires──> [System Tray Integration]
+[sherpa-rs Dependency Evaluation]
+    └──reads──> [Cargo.toml sherpa-rs version pin]
+    └──compares against──> [sherpa-onnx 1.12.28 changelog]
+    └──produces──> [Version pin + upgrade path documentation]
+    └──does NOT require──> [Code changes to transcription pipeline]
+    └──future path──> [sherpa-onnx native Rust crate (not yet on crates.io)]
 ```
 
 ### Dependency Notes
 
-- **Real-time Transcription requires System Audio Capture:** Without audio, there is nothing to transcribe. Audio capture is the foundation of the entire app.
-- **Post-meeting Summary requires LLM Configuration:** Summary generation needs either Ollama running locally or a cloud API key configured. Must gracefully degrade to raw transcript if no LLM is available.
-- **Speaker Diarization conflicts with mixed-stream architecture:** PROJECT.md correctly identifies this. MVP uses a single mixed audio stream for simplicity. Diarization (v0.2.0) requires capturing mic and system audio as separate channels, then aligning them. This is a significant architectural change.
-- **Custom Summary Templates enhance Post-meeting Summary:** Templates are an incremental feature on top of the summarization pipeline. Can be added without changing the core architecture.
-- **Model Download Flow gates everything:** The app is non-functional without the ASR model. First-run experience must handle this gracefully before any other feature works.
+- **Model selection UX builds on existing infrastructure:** The dropdown, `list_ollama_models` command, and settings persistence all exist. v1.1 work is additive — adding recommendation labels, not rebuilding the selector.
+- **Prompt tuning affects both summarization paths:** The `build_summary_prompt()` function is shared. Any prompt change automatically applies to both single-pass and chunked summarization. This is the correct design.
+- **PDF lazy-loading is isolated to SummaryExport.tsx:** The component already uses `useMemo` for section parsing and `useState` for async PDF creation. Converting to lazy import is a small, contained change.
+- **sherpa-rs evaluation is research + documentation, not code:** The transcription pipeline is working correctly in v1.0. The v1.1 action is to document risk and pin versions — not to rewrite the integration.
 
-## MVP Definition
+---
 
-### Launch With (v0.1.0)
+## MVP Definition (v1.1 Scope)
 
-Minimum viable product -- what is needed to validate "one-click meeting recording that produces structured meeting notes, entirely local."
+### Ship in v1.1
 
-- [ ] **System audio + microphone capture** -- The hardest feature, but without it the app does nothing. Platform-specific (ScreenCaptureKit, WASAPI, PulseAudio). Must work reliably on at least macOS + Windows for launch.
-- [ ] **Real-time transcription via Parakeet** -- Core value. User sees text appearing during the meeting. Via sherpa-onnx with hardware-appropriate backend (Core ML, ONNX INT8, CUDA).
-- [ ] **Live transcript display** -- Show transcription in real time so users know it is working. Simple scrolling text view.
-- [ ] **First-run model download** -- App ships at ~10 MB. On first launch, detect hardware, recommend model variant, download ~640 MB model with progress indication.
-- [ ] **Post-meeting structured summary** -- When recording stops, send transcript to LLM (Ollama or cloud API). Generate: summary, key points, decisions, action items. This is the deliverable users came for.
-- [ ] **Notes library with search** -- SQLite + FTS5. Browse past meetings, search across all notes. Basic but functional.
-- [ ] **Export to Markdown and clipboard** -- Users need to get notes out of the app and into Slack, email, Notion, or their own files.
-- [ ] **Settings UI** -- Audio device selection, LLM configuration (Ollama endpoint or API key), model management, global shortcut configuration.
-- [ ] **System tray with recording indicator** -- Users need to know recording is active without keeping the app window open. Global shortcut to start/stop.
-- [ ] **Graceful LLM fallback** -- If no LLM is configured or available, save the raw transcript. Do not lose the meeting. Prompt user to configure LLM for summaries.
+Minimum changes to address the three documented v1.0 concerns.
 
-### Add After Validation (v0.2.0 - v0.3.0)
+- [ ] **Prompt benchmark + iteration** — Run phi4-mini on at least 3 real meeting transcripts of varying length (15 min, 45 min, 90 min+). Identify failure modes (truncated action items, missed decisions, hallucinated names). Iterate `build_summary_prompt()` until output is consistently structured. Document results.
+- [ ] **Model recommendation labels in Settings** — Augment the existing model selector in `SummarySection.tsx` with a curated recommendation (e.g., mark `phi4-mini` as "Recommended"). Pull the curated list from a small constant in the frontend. Does not require backend changes.
+- [ ] **Lazy-load @react-pdf/renderer** — Wrap the PDF export logic in a dynamic import so the PDF renderer does not load at app startup. Use `React.lazy` + `Suspense` or convert the import inside `onExportPdf` to `import('@react-pdf/renderer')`. Measure before/after with Vite's build output.
+- [ ] **Bundle audit** — Run `npx vite-bundle-visualizer` or equivalent once, identify all imports over 100 KB in the initial chunk, and address the top 2-3 offenders beyond @react-pdf/renderer.
+- [ ] **sherpa-rs version pin + upgrade path doc** — Pin `sherpa-rs = "=0.6.8"` in `Cargo.toml`. Add inline comment documenting sherpa-onnx version it targets (1.12.x) and the upgrade plan (monitor sherpa-onnx Rust crate on crates.io; fallback: write thin FFI if sherpa-rs falls > 3 versions behind). Update `.planning/research/STACK.md` with the finding that sherpa-onnx 1.12.27 added native Rust VAD API.
 
-Features to add once the core recording-to-summary pipeline is solid and users are providing feedback.
+### Defer to v1.2
 
-- [ ] **Speaker diarization** -- The most requested feature after basic transcription. Requires pyannote-audio integration and separate audio channels. Triggers architectural change from mixed to separate streams. Add when: users consistently report "I need to know who said what."
-- [ ] **Audio recording and playback** -- Save audio files alongside transcripts. Timestamp-linked playback for verification. Add when: users report transcription errors they cannot verify.
-- [ ] **Custom summary templates** -- Different meeting types need different summary formats. Ship 4-5 defaults (general, 1:1, standup, design review, customer call). Add when: users report summaries do not match their meeting style.
-- [ ] **AI chat with transcript** -- "What did we decide about the budget?" Query the meeting transcript conversationally. Add when: users report difficulty finding specific information in long meeting notes.
-- [ ] **Calendar awareness** -- Read Google Calendar / Outlook to show upcoming meetings and auto-populate meeting titles. NOT auto-record. Add when: users report friction in naming/organizing meetings.
-- [ ] **Multilingual support** -- Offer Parakeet v3 as optional model for non-English meetings (25 languages). Add when: non-English users request it.
+Features that are natural follow-ons but require more scope than v1.1 justifies.
 
-### Future Consideration (v0.4.0+)
+- [ ] **In-app model comparison** — Let users generate summaries from the same transcript with different models side-by-side. High user value but doubles LLM invocations per meeting and requires significant UI work.
+- [ ] **sherpa-onnx native Rust migration** — Wait for official crates.io publication of sherpa-onnx Rust crate (currently source-build only). Re-evaluate in v1.2 once the crate is stable and documented.
+- [ ] **Prompt template customization UI** — Let users edit the summarization prompt. Currently the prompt is hardcoded in Rust (`build_summary_prompt()`). Moving it to a user-editable store requires UI, validation, and reset-to-default logic.
+- [ ] **Context length slider** — Expose `num_ctx` as a user-facing setting. Currently hardcoded to 32768. Power users want control; general users do not need it. Good v1.2 setting.
 
-Features to defer until product-market fit is established.
+### Future Consideration (v2.0+)
 
-- [ ] **Noise cancellation** -- RNNoise integration for challenging audio environments. Defer because: Parakeet handles moderate noise; this is a separate engineering challenge.
-- [ ] **Slack/PM tool push** -- Send summaries and action items to Slack channels or project management tools. Defer because: requires API integrations that need ongoing maintenance.
-- [ ] **Mobile companion** -- Read notes on phone. Defer because: Tauri mobile is not production-ready; export to Markdown covers this use case via file sync.
-- [ ] **Team/org features** -- Self-hosted server for team sharing. Defer because: openNotes is a personal tool first; team features require auth, permissions, and server infrastructure.
-- [ ] **Webhooks/API for integrations** -- Let power users connect openNotes to their own automation. Defer because: core product must work first; this is an extensibility feature.
+- [ ] **Custom model backends beyond Ollama** — Support llama.cpp directly, LM Studio API, or vLLM for users with specific hardware setups. Requires a provider abstraction layer.
+- [ ] **Quantization-aware model recommendations** — Detect available VRAM/RAM and recommend specific quantization variants (Q4, Q5, Q8) per hardware. Complex hardware detection required.
+
+---
 
 ## Feature Prioritization Matrix
 
 | Feature | User Value | Implementation Cost | Priority |
 |---------|------------|---------------------|----------|
-| System audio + mic capture | HIGH | HIGH | P1 |
-| Real-time transcription (Parakeet) | HIGH | HIGH | P1 |
-| Live transcript display | HIGH | LOW | P1 |
-| First-run model download | HIGH | MEDIUM | P1 |
-| Post-meeting structured summary | HIGH | MEDIUM | P1 |
-| Notes library with FTS5 search | HIGH | LOW | P1 |
-| Export (Markdown, clipboard) | MEDIUM | LOW | P1 |
-| Settings UI | MEDIUM | MEDIUM | P1 |
-| System tray + global shortcut | MEDIUM | LOW | P1 |
-| LLM fallback (raw transcript) | HIGH | LOW | P1 |
-| Speaker diarization | HIGH | HIGH | P2 |
-| Audio recording & playback | MEDIUM | MEDIUM | P2 |
-| Custom summary templates | MEDIUM | LOW | P2 |
-| AI chat with transcript | MEDIUM | MEDIUM | P2 |
-| Calendar awareness | LOW | MEDIUM | P2 |
-| Multilingual (Parakeet v3) | MEDIUM | LOW | P2 |
-| Noise cancellation | LOW | HIGH | P3 |
-| Slack/PM push | LOW | MEDIUM | P3 |
-| Mobile companion | MEDIUM | HIGH | P3 |
-| Team/org deployment | LOW | HIGH | P3 |
-| Webhooks/API | LOW | MEDIUM | P3 |
+| Prompt benchmark + iteration on long meetings | HIGH | MEDIUM | P1 |
+| Lazy-load @react-pdf/renderer | MEDIUM | LOW | P1 |
+| Bundle audit (identify heavy imports) | MEDIUM | LOW | P1 |
+| sherpa-rs version pin + upgrade doc | HIGH (risk mitigation) | LOW | P1 |
+| Model recommendation labels in Settings | MEDIUM | LOW | P1 |
+| In-app model comparison UI | MEDIUM | HIGH | P2 |
+| Prompt template customization UI | MEDIUM | MEDIUM | P2 |
+| Context length slider in Settings | LOW | LOW | P2 |
+| sherpa-onnx native Rust migration | LOW (now) | HIGH | P3 |
+| Custom model backend support | LOW | HIGH | P3 |
 
 **Priority key:**
-- P1: Must have for launch (MVP v0.1.0)
-- P2: Should have, add in v0.2.0-v0.3.0 based on user feedback
-- P3: Nice to have, future consideration v0.4.0+
+- P1: Target for v1.1 — directly addresses the documented concerns
+- P2: Natural v1.2 follow-ons — additive improvements once P1 is validated
+- P3: Future — requires ecosystem maturation or major scope expansion
 
-## Competitor Feature Analysis
+---
 
-| Feature | Otter.ai | Fireflies | Granola | Krisp | Fathom | tl;dv | Jamie | openNotes (planned) |
-|---------|----------|-----------|---------|-------|--------|-------|-------|---------------------|
-| Real-time transcription | Yes | Yes (2026) | No (post-meeting) | Yes | Yes | Yes | No | **Yes** |
-| Bot-free recording | No (bot) | No (bot) | **Yes** | **Yes** | No (bot) | No (bot) | **Yes** | **Yes** |
-| Local processing | No | No | Partial (audio local, transcription cloud) | Partial (audio local) | No | No | Partial | **Fully local** |
-| Offline capable | No | No | No | No | No | No | No | **Yes** |
-| Speaker diarization | Yes | Yes | Limited | Yes | Yes | Yes | Yes | Post-MVP (v0.2.0) |
-| Custom templates | Yes | Yes | Yes (Recipes) | No | No | Yes | No | Post-MVP (v0.2.0) |
-| AI chat with notes | Yes | Yes | Yes | No | No | No | No | Post-MVP |
-| Action items | Yes | Yes | Yes | Yes | Yes | Yes | Yes | **Yes (MVP)** |
-| Cross-meeting search | Yes | Yes | Limited | Limited | Limited | Yes | Limited | **Yes (MVP, FTS5)** |
-| Export Markdown | No | Yes | Yes | No | Yes | Yes | Yes | **Yes (MVP)** |
-| Calendar integration | Yes (auto-join) | Yes (auto-join) | Yes (titles only) | No | Yes | Yes | Yes (titles) | Post-MVP (awareness only) |
-| Video recording | No | No | No | No | No | **Yes** | No | No (anti-feature) |
-| CRM integration | Yes | Yes | No | No | Yes | Yes | No | No (anti-feature) |
-| Free tier | 300 min/mo | 800 min storage | 25 meetings lifetime | 50 min/day | Unlimited (5 AI summaries) | Unlimited (limited AI) | Limited | **Unlimited, forever** |
-| Price (paid) | $16.99/mo | $18/mo | $18/mo | $8/mo | $19/mo | $25/mo | $24/mo | **$0 (MIT)** |
-| Open source | No | No | No | No | No | No | No | **Yes** |
-| Languages | 3 | 100+ | ~10 | ~20 | ~20 | 30+ | 100+ | 1 (EN), 25 post-MVP |
+## Detailed Feature Analysis
 
-### Key Competitive Insights
+### Feature 1: LLM Quality on Long Meetings
 
-1. **Bot-free is the new table stakes.** In 2026, user complaints about meeting bots are pervasive. Granola, Krisp, Jamie, and Tactiq all market "no bot" as a primary feature. openNotes inherently has this -- it must be front-and-center in positioning.
+**Current state (confirmed by reading source):**
+- `MAX_SINGLE_PASS_CHARS = 96_000` (approximately 96K chars ≈ ~24K tokens at ~4 chars/token)
+- `MAP_CHUNK_CHARS = 80_000` with `MAP_CHUNK_OVERLAP_CHARS = 2_000`
+- `num_ctx = 32768` tokens hardcoded in both streaming and non-streaming paths
+- Prompt is fixed: Overview + Key Points + Decisions Made + Action Items + TITLE line
 
-2. **"Local processing" claims are often exaggerated.** Granola processes audio locally but transcribes in the cloud. Krisp processes audio locally for noise cancellation but uses cloud for transcription on some plans. openNotes with Parakeet via sherpa-onnx is genuinely fully local. This is a real and rare differentiator.
+**Known failure modes from architecture inspection:**
+- phi4-mini is optimized for "math and logic" and "memory-constrained environments" — not specifically validated for meeting summarization
+- Chunked path (`generate_summary_chunked`) concatenates partial summaries then runs a synthesis prompt — synthesis prompt quality is critical and currently minimal
+- `num_ctx = 32768` at phi4-mini's 3.8B size is aggressive on low-RAM machines (< 8 GB)
 
-3. **Speaker diarization is the biggest gap for MVP.** Every competitor except early-stage open-source tools has it. Users will ask for it immediately. The v0.2.0 timeline in PROJECT.md is correct -- ship without it, but plan the architecture to support it.
+**What good looks like:**
+- Structured output sections are always complete (no truncated action items)
+- Action items include person names when mentioned in transcript
+- Decisions are not confused with general discussion
+- Title is concise and accurate to meeting content
+- Synthesis across chunks does not repeat or contradict
 
-4. **Custom templates are table stakes for power users.** Granola's "Recipes" drove significant adoption in 2025-2026. This should be early in the post-MVP roadmap.
+**Expected user behavior:** Users assume the AI summary is accurate. Summaries that miss half the meeting or repeat section headers without content destroy trust in the entire app.
 
-5. **Cross-meeting search/knowledge base is the emerging battleground.** Otter, Fireflies, and Notion are all investing heavily in "chat with all your meetings." For openNotes, FTS5 is a solid foundation; AI-powered cross-meeting chat is a strong v0.3.0 feature.
+**Complexity:** MEDIUM. Research and iteration, not new architecture. The chunking infrastructure already exists.
 
-6. **Meetily is the closest direct competitor.** Also Tauri + Parakeet, also open source, also local-first. openNotes must differentiate on polish, UX, and completeness. Meetily is at v0.2.1 and rough around the edges.
+---
+
+### Feature 2: Model Selection UX
+
+**Current state (confirmed by reading source):**
+- `SummarySection.tsx` already renders a `<select>` populated from `list_ollama_models` IPC call
+- Default model is `phi4-mini` (hardcoded in `llm/mod.rs` as `DEFAULT_MODEL`)
+- Model list is refreshed on settings page load and on explicit refresh button click
+- No recommendation labels or size indicators shown
+- Pull-model-by-name input exists for downloading new models
+
+**What users expect (per LM Studio/Askimo research):**
+- See which model is currently active and whether it is a good fit for the task
+- Know model sizes so they can manage disk space
+- Get a recommendation for which model to use if they are unsure
+- Switch models without restarting the app (already works — it is just a settings save)
+
+**Gap to address:** The mechanics are correct; the guidance is missing. Add recommendation annotation, not a new system.
+
+**Complexity:** LOW. Frontend-only change to `SummarySection.tsx`. No backend changes needed.
+
+---
+
+### Feature 3: Frontend Bundle Optimization
+
+**Current state (confirmed by reading package.json and SummaryExport.tsx):**
+- `@react-pdf/renderer` ^4.3.2 is in `dependencies` (not devDependencies) — loaded on startup
+- Import in `SummaryExport.tsx`: `import { Document, Page, StyleSheet, Text, View, pdf } from '@react-pdf/renderer'`
+- This is a static top-level import — loaded when `SummaryExport` component is rendered
+- `SummaryExport` is rendered in `SummaryPanel.tsx` (inferred from component structure)
+- @react-pdf/renderer is known to be ~500-800 KB minified
+
+**Other potential heavy imports (flagged for audit):**
+- `jszip` ^3.10.1 — present in package.json; unclear which component imports it; ZIP export or bulk export
+- `react-markdown` + `remark-gfm` — markdown rendering; likely smaller but worth checking
+- `date-fns` ^4.1.0 — known for large bundle if not tree-shaken properly (though v4 improved this)
+- `lucide-react` ^0.575.0 — icon library; tree-shakes well with named imports
+
+**Recommended approach (HIGH confidence — standard React pattern):**
+```typescript
+// Before: static import at top of SummaryExport.tsx
+import { pdf } from '@react-pdf/renderer';
+
+// After: dynamic import inside the handler
+const onExportPdf = async () => {
+  const { pdf } = await import('@react-pdf/renderer');
+  // ... rest of handler
+};
+```
+
+**Impact:** @react-pdf/renderer moves from initial bundle to a separately loaded chunk. First app load is faster. PDF export still works — just has a brief load delay on first click (acceptable).
+
+**Complexity:** LOW. Single file change. Vite handles dynamic import chunking automatically.
+
+---
+
+### Feature 4: sherpa-rs Dependency Health
+
+**Confirmed facts (from source reads and WebFetch):**
+- `sherpa-rs` last released: v0.6.8, October 5, 2024 (16 months ago as of research date)
+- `sherpa-onnx` upstream: v1.12.28, February 28, 2026 — actively maintained with releases every 2-3 weeks
+- `sherpa-onnx` v1.12.27 added native Rust VAD API; v1.12.26 added streaming ASR Rust API
+- sherpa-onnx native Rust API is NOT yet published to crates.io — available only as source build
+- `chobits-sherpa-rs` fork exists on crates.io (v0.7.0) — alternative if main crate stalls
+
+**Risk assessment:**
+- sherpa-rs v0.6.8 wraps sherpa-onnx ~1.12.x (confirmed in release notes)
+- 16-month gap between sherpa-rs and sherpa-onnx does NOT mean incompatibility — sherpa-rs pins the sherpa-onnx it builds against via `sherpa-rs-sys`
+- The risk is: if a future sherpa-onnx model format changes in a way that requires sherpa-rs API updates, openNotes would need to wait for sherpa-rs to catch up or fork
+
+**What "health evaluation" means in practice:**
+1. Verify which sherpa-onnx version `sherpa-rs 0.6.8` vendors/links against (check `sherpa-rs-sys` Cargo.toml)
+2. Verify Parakeet TDT model files loaded in v1.0 still load correctly with current sherpa-onnx
+3. Document the three fallback options (update sherpa-rs if released, use chobits-sherpa-rs fork, write thin FFI to sherpa-onnx C API)
+4. Pin `sherpa-rs = "=0.6.8"` to prevent accidental breaking upgrades
+
+**Complexity:** LOW. Research and documentation task with one small `Cargo.toml` change.
+
+---
+
+## Competitor Feature Analysis (v1.1 Scope)
+
+*This section compares what analogous local-first tools do for the same three problem areas.*
+
+| Area | LM Studio | Ollama Native App | Open WebUI | openNotes v1.0 | openNotes v1.1 target |
+|------|-----------|-------------------|------------|----------------|----------------------|
+| Model selector | Dropdown with size info, quantization type, hardware suitability | Dropdown in context window (added July 2025) | Per-chat dropdown with model descriptions | Dropdown with installed model names only | Dropdown with recommendation labels |
+| Model recommendation | Hardware-aware recommendations, red/yellow/green suitability | None | None | None | Static curated recommendation text |
+| Bundle/startup time | N/A (Electron) | N/A (Go) | N/A (server) | Not audited post-PDF export | Audited; PDF renderer lazy-loaded |
+| Dependency management | Well-maintained | Well-maintained | Well-maintained | sherpa-rs 16 months behind upstream | Pinned + upgrade path documented |
+
+**Key insight from competitor analysis:** LM Studio is the gold standard for local model management UX. Their pattern — show model size, quantization, hardware suitability, and a recommended badge — is what users expect after using LM Studio. openNotes does not need to match all of this (it is a meeting notes app, not a model manager), but adding a "Recommended" label and model size to the dropdown is a low-cost, high-signal improvement.
+
+---
 
 ## Sources
 
-- [Otter.ai](https://otter.ai/) -- Official product page. Features and pricing verified.
-- [Fireflies.ai](https://fireflies.ai) -- Official product page. 2026 features confirmed.
-- [Granola](https://www.granola.ai/) -- Official product page. Bot-free and Recipes features confirmed.
-- [Granola Security](https://www.granola.ai/security) -- Official security page. Cloud transcription, local note storage confirmed.
-- [Krisp](https://krisp.ai/) -- Official product page. Bot-free, local audio processing confirmed.
-- [Fathom](https://www.fathom.ai/) -- Official product page. Free tier limits confirmed.
-- [tl;dv](https://tldv.io/) -- Official product page. Video clips and multi-language confirmed.
-- [Jamie](https://www.meetjamie.ai/) -- Official product page. Bot-free, local capture confirmed.
-- [Meetily](https://github.com/Zackriya-Solutions/meeting-minutes) -- GitHub repo. Tauri + Parakeet stack, v0.2.1 status confirmed.
-- [AssemblyAI - Top AI Notetakers 2026](https://www.assemblyai.com/blog/top-ai-notetakers) -- Feature comparison across 10 tools. HIGH confidence (multiple data points).
-- [Krisp - Best AI Note Taking Apps 2026](https://krisp.ai/blog/ai-note-taking-apps/) -- Feature comparison matrix. MEDIUM confidence (vendor source but comprehensive).
-- [Fellow - AI Meeting Assistants Guide](https://fellow.ai/blog/ai-meeting-assistants-ultimate-guide/) -- 22 tools compared. MEDIUM confidence.
-- [Notion AI Meeting Notes](https://www.notion.com/product/ai-meeting-notes) -- Official product page. Template types and pricing confirmed.
-- [SuperWhisper](https://superwhisper.com/) -- Official product page. Local Whisper processing, model download pattern confirmed.
+- `src/components/settings/SummarySection.tsx` — confirmed model selector dropdown, pull flow, and model list behavior (HIGH confidence, direct source read)
+- `src-tauri/src/llm/mod.rs` — confirmed prompt structure, context length (32768), chunking thresholds, and hierarchical summarization (HIGH confidence, direct source read)
+- `src-tauri/src/llm/detect.rs` — confirmed `check_model_pulled()` and `list_ollama_models` infrastructure (HIGH confidence, direct source read)
+- `src/components/SummaryExport.tsx` — confirmed static `@react-pdf/renderer` import (HIGH confidence, direct source read)
+- `package.json` — confirmed `@react-pdf/renderer ^4.3.2` in runtime dependencies, `jszip ^3.10.1`, Vite 7.0.4 (HIGH confidence, direct source read)
+- [sherpa-onnx GitHub releases](https://github.com/k2-fsa/sherpa-onnx/releases) — v1.12.28 Feb 28 2026; native Rust VAD API added v1.12.27 (HIGH confidence)
+- [sherpa-rs GitHub](https://github.com/thewh1teagle/sherpa-rs) — v0.6.8, October 2024, 24 open issues, 298 stars (MEDIUM confidence — GitHub page summary)
+- [Ollama phi4-mini model page](https://ollama.com/library/phi4-mini) — 128K context, 2.5 GB, optimized for math/logic/multilingual; no explicit meeting summarization claims (HIGH confidence)
+- [React lazy loading documentation](https://react.dev/reference/react/lazy) — React.lazy + Suspense pattern for code splitting (HIGH confidence)
+- [Vite bundle analysis](https://vueschool.io/lessons/vite-bundle-analyzer) — vite-bundle-visualizer as audit tool (MEDIUM confidence)
+- [Askimo Ollama UI comparison](https://askimo.chat/app/ollama/best-gui-for-ollama/) — model selector patterns from Askimo, LM Studio, Open WebUI (MEDIUM confidence)
+- [Local meeting notes with Ollama](https://dev.to/zackriya/local-meeting-notes-with-whisper-transcription-ollama-summaries-gemma3n-llama-mistral--2i3n) — Gemma3n, LLaMA, Mistral recommended for meeting summarization; model selection flexibility emphasized (MEDIUM confidence)
 
 ---
-*Feature research for: local-first AI meeting transcription and summarization desktop app*
-*Researched: 2026-02-26*
+*Feature research for: openNotes v1.1 Hardening & Quality*
+*Researched: 2026-03-02*
+*Updated from: v1.0 feature research (2026-02-26)*

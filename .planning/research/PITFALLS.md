@@ -1,185 +1,186 @@
 # Pitfalls Research
 
-**Domain:** Local-first AI meeting transcription and summarization desktop app
-**Researched:** 2026-02-26
-**Confidence:** HIGH (multiple sources verified across official docs, GitHub issues, and community reports)
+**Domain:** Adding LLM model selection, frontend performance optimization, and dependency risk mitigation to an existing Tauri 2 + React + Rust desktop app
+**Researched:** 2026-03-02
+**Confidence:** HIGH (codebase inspected directly; findings verified against Ollama official docs, Vite GitHub issues, sherpa-rs releases, and community post-mortems)
+
+> **Context:** This document covers pitfalls specific to v1.1 hardening work on a working v1.0 MVP. The app already ships with 68 validated requirements, `~23,600 LOC`, Tauri 2 + React + Rust, sherpa-rs for transcription, and Ollama for summaries. Pitfalls from v1.0 construction (WASAPI silence gaps, CPAL callback blocking, macOS notarization, etc.) are documented in the prior research pass and are not repeated here. This file answers: "what breaks when adding model selection, bundle optimization, and dependency pinning to a working system?"
+
+---
 
 ## Critical Pitfalls
 
-### Pitfall 1: Parakeet TDT Is an Offline Model -- Not a True Streaming Model
+### Pitfall 1: Hardcoded `num_ctx: 32768` Breaks When Users Switch to Models with Smaller Context Windows
 
 **What goes wrong:**
-Developers assume that because Parakeet TDT delivers excellent WER scores and sherpa-onnx supports "streaming" ASR, they can wire up Parakeet TDT for real-time streaming transcription with word-by-word output. In reality, Parakeet TDT (both v2 and v3) is architecturally an **offline transducer model** -- it is not designed for chunked streaming input. The sherpa-onnx GitHub issue #2918 explicitly confirms this: "designed as an offline transducer model and isn't architected for true streaming scenarios." Pseudo-streaming (re-sending the entire growing buffer each decode cycle) degrades in performance as the buffer grows, making it unusable for meetings longer than a few minutes.
+The existing `run_generate_stream` and `run_generate_non_stream` functions in `src-tauri/src/llm/mod.rs` always send `"num_ctx": 32768` in the Ollama options. For phi4-mini this is fine — its theoretical maximum is 128k. However, if users switch to a smaller quantized model (e.g., `llama3.2:1b`, `gemma2:2b`, `qwen2.5:0.5b`) that was pulled with a Modelfile capping context at 2048 or 4096, Ollama either silently ignores the overriding value or — in some versions — crashes the model runner and returns a 500 error. The user sees a vague "Ollama generate failed" and has no explanation.
 
 **Why it happens:**
-The PROJECT.md references "real-time transcription via local NVIDIA Parakeet model (sherpa-onnx)" which conflates "low-latency offline inference on audio segments" with "true streaming ASR." Marketing materials describe Parakeet as "49x faster than real-time" which sounds streaming-capable but refers to batch throughput on pre-recorded audio.
+Developers test model selection with well-known large models and never test a user-pulled 1B-parameter model that has a restricted context Modelfile. The `num_ctx` sent by the client is treated by Ollama as a hint but some model variants reject values that exceed their Modelfile-configured maximum. GitHub issue `ollama/ollama#9890` documents cases where large `num_ctx` values "completely break usability" — 100% CPU spin and no response.
 
 **How to avoid:**
-Use a **VAD + offline segment** pattern instead of true streaming:
-1. Run Silero VAD continuously on the audio stream to detect speech segments (sherpa-onnx bundles Silero VAD natively)
-2. When VAD detects end-of-speech (silence threshold), extract the completed speech segment
-3. Send the completed segment to Parakeet TDT for offline transcription (fast -- sub-second for typical utterances)
-4. Display the result as it completes -- giving a near-real-time feel with 1-3 second latency after speech ends
-
-This is the pattern used by SuperWhisper and other local transcription apps. It produces accurate transcription with acceptable latency. For interim "typing indicator" UX while someone is still speaking, show an animated indicator based on VAD state rather than partial ASR results.
+- Remove the hardcoded `"num_ctx": 32768` from both generate functions in `llm/mod.rs`
+- Instead, estimate required context from transcript length at the call site: `max(required_tokens * 1.2, 4096)` capped at `131072`
+- Before sending a generate request, call `/api/show` to inspect the model's `parameters` field and extract its actual `num_ctx` limit
+- Alternatively, omit `num_ctx` from the request entirely and let Ollama use the model's Modelfile default — then handle context overflow via the existing `generate_summary_chunked` path that already exists in the codebase
+- Add a clear error message distinguishing "Ollama not running" from "Ollama returned an error" (the current `format!("Ollama generate failed: {status} {body}")` is close — preserve the body in the user-visible message)
 
 **Warning signs:**
-- Latency increases proportionally with recording duration
-- CPU/GPU usage climbs steadily during a meeting instead of remaining stable
-- Memory usage grows unboundedly as the re-sent buffer accumulates
-- Transcription of the same segment changes between decode cycles
+- Summary generation hangs indefinitely or returns a 500 after switching models
+- CPU pinned at 100% on the machine during summary generation after a model change
+- Works with phi4-mini but fails with any other pulled model
 
 **Phase to address:**
-Phase 1 (Audio Capture + ASR Foundation). This is an architecture decision that must be correct from the start. Implementing true streaming and then discovering it doesn't work forces a rewrite of the entire ASR pipeline.
-
-**Confidence:** HIGH -- verified via sherpa-onnx GitHub issue #2918, HuggingFace discussion on parakeet-tdt-0.6b-v2 streaming, and NVIDIA's own recommendation to use FastConformer Hybrid for true streaming.
+Phase implementing LLM model selection. The `num_ctx` handling must be resolved before exposing the model dropdown to users.
 
 ---
 
-### Pitfall 2: WASAPI Loopback Produces No Data When System Audio Is Silent
+### Pitfall 2: Model Name Mismatch Between `/api/tags` Response and `/api/generate` Request
 
 **What goes wrong:**
-On Windows, WASAPI loopback capture only delivers audio data when something is actively playing to the audio endpoint. When the remote meeting participant is silent (or between speakers), WASAPI stops pushing data entirely -- no silence frames, no callbacks, nothing. This breaks audio mixing with the microphone stream because the two streams lose time synchronization. The mixed stream develops gaps, timing drift, and eventually the transcript desynchronizes from actual speech.
+Ollama's `/api/tags` returns model names as `"phi4-mini:latest"` (with the `:latest` suffix) when the user has the default tag. The existing `check_model_pulled` function in `detect.rs` correctly normalises this with `starts_with` matching. However, the `SummarySection.tsx` saves the raw model name from the dropdown (which is populated from `list_ollama_models`) into `plugin-store` as the `ollamaModel` setting. If Ollama returns `"phi4-mini:latest"` and this full string is saved, then `DEFAULT_MODEL = "phi4-mini"` in `llm/mod.rs` will no longer match as a fallback and existing users who have never changed the setting (stored as `"phi4-mini"` without the tag) will have different behaviour from new users (stored as `"phi4-mini:latest"`). Both work with Ollama's generate endpoint, but the model name stored in the `summaries` table `llm_model` column will be inconsistent across users.
 
 **Why it happens:**
-WASAPI is designed to capture what the audio hardware is rendering. When nothing is rendering, there is nothing to capture. This is documented behavior, not a bug. Developers coming from macOS (where ScreenCaptureKit delivers continuous frames) or Linux (where PulseAudio monitor sources deliver silence) don't expect this Windows-specific behavior.
+The `/api/tags` API is not documented to guarantee whether `:latest` is included or stripped, and this has changed between Ollama versions. String equality is used in the status check flow. When model selection is added, the model name becomes user-input rather than a constant, making normalisation suddenly important.
 
 **How to avoid:**
-- Generate synthetic silence frames when WASAPI reports no data for more than one audio buffer period (typically 10ms)
-- Maintain a monotonic timestamp counter independent of WASAPI callbacks to detect gaps
-- Use `IAudioCaptureClient::GetNextPacketSize` in a polling loop with a timeout, and inject zero-filled buffers when the timeout fires without data
-- Alternatively, play an inaudible tone (e.g., 1Hz sine wave at minimum volume) to keep the render endpoint active -- but this is hacky and can interfere with other audio
-- Consider using WASAPI "event mode" carefully: event mode does NOT work for loopback capture despite the initialize call succeeding (documented Microsoft limitation)
+- Normalise model names before storing: strip a trailing `:latest` suffix before saving to plugin-store or the `summaries` table
+- Apply the same normalisation in the `list_ollama_models` command before returning names to the frontend
+- Add a migration guard in `getSettingsStore()` (in `settings.ts`) that reads the stored `ollamaModel`, strips `:latest`, and re-saves if it changed — this handles existing users who may have `:latest` stored from a previous session
 
 **Warning signs:**
-- Transcript timestamps drift from wall clock time during meetings with long pauses
-- Audio mixing tests work fine with music playback but fail with actual meeting audio (which has silences)
-- Windows-only bugs in transcription timing that don't reproduce on macOS or Linux
+- Ollama status check shows model as "not ready" even though it is visible in the model list
+- `summaries.llm_model` column shows inconsistent values like `"phi4-mini"` vs `"phi4-mini:latest"` across meetings
 
 **Phase to address:**
-Phase 1 (Audio Capture). Must be handled in the initial platform-specific audio capture implementation. The silence-filling logic needs to be baked into the audio capture abstraction layer.
-
-**Confidence:** HIGH -- verified via Microsoft Learn WASAPI documentation, multiple community reports, and Audacity forum discussions on WASAPI loopback behavior.
+Phase implementing LLM model selection, specifically the `list_ollama_models` command and the settings persistence logic.
 
 ---
 
-### Pitfall 3: macOS ScreenCaptureKit Requires Entitlements, Code Signing, and Notarization for Distribution
+### Pitfall 3: `@react-pdf/renderer` Adds ~700KB+ to the Initial JS Bundle and Cannot Be Tree-Shaken
 
 **What goes wrong:**
-System audio capture works perfectly in development (unsigned local builds) but breaks completely when the app is distributed to users. On macOS 13+, ScreenCaptureKit requires the app to be properly code-signed and notarized with specific entitlements. Without correct entitlements, the app either crashes on launch, silently fails to capture audio, or gets rejected by Gatekeeper. Tauri's WebView also needs JIT and unsigned executable memory entitlements that conflict with some hardened runtime requirements.
+`@react-pdf/renderer` at v4.x bundles yoga-wasm, pdfkit, fontkit, and other heavy dependencies that cannot be removed via tree-shaking because the library's internals reference them unconditionally. The library accounts for approximately 700KB–1.2MB of the minified+gzipped bundle (community reports, GitHub issue `diegomura/react-pdf#632`). Currently `SummaryExport.tsx` imports the library at the top level, meaning every user who opens the app pays this cost on startup — even before they ever try to export a PDF.
 
 **Why it happens:**
-Development builds bypass many macOS security checks. The jump from "works on my machine" to "works when distributed" is massive on macOS because of TCC (Transparency, Consent, and Control), Gatekeeper, and notarization requirements. Tauri's sidecar binaries add complexity: notarization errors occur when externalBin sidecars are included (Tauri issue #11992).
+The import is static and unconditional in `SummaryExport.tsx`:
+```typescript
+import { Document, Page, StyleSheet, Text, View, pdf } from '@react-pdf/renderer';
+```
+Vite cannot split this because it cannot know the export is only used on demand. The component renders in the `MeetingCompleteView` which is eagerly loaded on the `/meeting-complete` route. In a Tauri app, the bundle is loaded from disk (no CDN latency), but bundle parsing and JS execution cost still impact startup time, especially on slower machines.
 
 **How to avoid:**
-- Set up code signing and notarization CI/CD pipeline in Phase 1, not at the end
-- Required entitlements for the Tauri app on macOS:
-  - `com.apple.security.cs.allow-jit` (WebView)
-  - `com.apple.security.cs.allow-unsigned-executable-memory` (WebView)
-  - `com.apple.security.cs.allow-dyld-environment-variables` (WebView)
-  - `com.apple.security.device.audio-input` (Microphone)
-  - `com.apple.security.screen-capture` (ScreenCaptureKit) -- **if using App Sandbox**
-- Add `NSScreenCaptureUsageDescription` and `NSMicrophoneUsageDescription` to Info.plist
-- Test the signed and notarized build on a clean macOS machine (not the development machine) before every release
-- If using sherpa-onnx as a sidecar rather than linked library, be aware that sidecar notarization is a known pain point -- prefer static linking into the Tauri binary
+- Lazy-load the PDF export logic using a dynamic import triggered only when the user clicks "Export PDF":
+  ```typescript
+  const onExportPdf = async () => {
+    const { pdf } = await import('@react-pdf/renderer');
+    // ... rest of export
+  };
+  ```
+- Move the `SummaryDocument` component and all `@react-pdf/renderer` imports into a separate file (`SummaryPdfExport.ts`) and import it only inside the async handler
+- Do NOT use `React.lazy` for this — the component does not need to be lazily rendered, only the library needs to be lazily loaded for the export action
+- Verify the split works using `vite-bundle-visualizer` (`npx vite-bundle-visualizer`) before and after
+- The Markdown export and clipboard copy paths do not need the library and should remain synchronous
 
 **Warning signs:**
-- App works unsigned in development but crashes after code signing
-- "App is damaged" errors on user machines
-- ScreenCaptureKit returns empty audio buffers silently (no error thrown) when permissions are missing
-- Users on macOS 13+ report "no permission prompt appeared"
+- Running `npx vite-bundle-visualizer` shows `@react-pdf/renderer` in the main or eagerly-loaded chunk
+- App startup time exceeds 800ms measured with DevTools Performance tab
+- `dist/` contains a single large JS file exceeding 1MB
 
 **Phase to address:**
-Phase 1 (Project Setup / Audio Capture). Code signing must be configured before the first user-facing build. Do not defer this to a "distribution phase."
-
-**Confidence:** HIGH -- verified via Tauri official documentation, Apple Developer Forums, and multiple Tauri GitHub issues (#11992, #4415).
+Phase performing frontend bundle optimization. This is the highest-ROI single change for startup performance.
 
 ---
 
-### Pitfall 4: Ollama Default Context Window (2048-4096 Tokens) Silently Truncates Meeting Transcripts
+### Pitfall 4: Adding `manualChunks` to `vite.config.ts` Can Break the Existing `@react-pdf` Lazy Split
 
 **What goes wrong:**
-A 30-minute meeting transcript is approximately 4,000-8,000 words (~5,000-10,000 tokens). Ollama's default context window is 2048-4096 tokens depending on the model. When you send a full meeting transcript to Ollama for summarization, it silently drops the beginning of the transcript to fit the context window. The resulting summary only covers the last few minutes of the meeting, missing the introduction, agenda, and early discussion points. Users get confidently-wrong summaries without any error or warning.
+A well-intentioned addition of `build.rollupOptions.output.manualChunks` to extract vendor libraries into named chunks can inadvertently defeat any dynamic import-based lazy loading. Vite/Rollup's `manualChunks` function is evaluated **before** tree-shaking and chunk-splitting. If a `manualChunks` function assigns `@react-pdf/renderer` (or any of its transitive dependencies like `fontkit`, `pdfkit`) to a named chunk, Rollup may promote that chunk into the initial load graph to satisfy dependency ordering, undoing the lazy split. Vite GitHub issue `#5189` documents exactly this: "scripts set in manualChunks are loaded directly on the front page instead of being lazy loaded."
 
 **Why it happens:**
-Ollama does not return an error when context is exceeded -- it silently truncates by discarding the oldest tokens. Developers test with short transcripts during development and never encounter the issue. The first real 30-minute meeting produces a garbage summary and the developer has no idea why.
+Developers add `manualChunks: { vendor: [/@react-pdf/] }` or use the `SplitVendorChunkPlugin` strategy, expecting React-PDF to be isolated. Instead, Rollup sees that the named chunk is needed by the initial module graph (through static imports that weren't yet removed) and marks it as a synchronous dependency.
 
 **How to avoid:**
-- Always set `num_ctx` explicitly when calling Ollama API. For meeting summarization, use at minimum 16384 tokens, ideally 32768
-- Implement a **token counting pre-check** before sending to Ollama: estimate token count (~0.75 tokens per word for English), and if it exceeds 80% of the configured context window, use chunked summarization
-- For transcripts exceeding context: use **hierarchical summarization** -- split transcript into chunks at natural boundaries (VAD-detected pauses, topic shifts), summarize each chunk, then summarize the summaries
-- Show the user a warning if the transcript is very long and summarization quality may be affected
-- Include a fallback: if Ollama is not available or context is too small, present the raw transcript with timestamp markers instead of a bad summary
+- Remove all static imports of `@react-pdf/renderer` from the module graph **before** adding any `manualChunks` configuration
+- Verify that `vite-bundle-visualizer` shows the PDF chunk as a separate async chunk after the dynamic import refactor
+- Only then, optionally, add `manualChunks` to extract React and other truly-shared vendor libraries — but do not include `@react-pdf/renderer` in any manual chunk definition; let Rollup split it automatically from the dynamic import
+- Use `manualChunks` only for libraries that are legitimately shared synchronous dependencies (React, React DOM, date-fns, lucide-react)
 
 **Warning signs:**
-- Summaries consistently miss information from the first half of meetings
-- Summary quality degrades noticeably for longer meetings
-- No errors in logs but summaries feel "incomplete"
-- Users report "the summary only covered the last topic we discussed"
+- After adding `manualChunks`, the PDF-related code appears in `index-[hash].js` instead of a separate async chunk
+- Network tab shows `@react-pdf` chunk loading on page load rather than on button click
 
 **Phase to address:**
-Phase 2 (LLM Summarization). Must be addressed when implementing the summarization pipeline. Token counting and chunking strategy should be designed before writing the Ollama integration.
-
-**Confidence:** HIGH -- verified via Ollama official documentation on context-length, multiple GitHub issues (#2204, #6026), and community reports.
+Phase performing frontend bundle optimization, after the dynamic import refactor for `@react-pdf` is completed and verified.
 
 ---
 
-### Pitfall 5: CPAL Audio Callback Thread Blocking Causes Silent Audio Drops
+### Pitfall 5: `useSetting` Returns `null` on First Render, Causing Model Selection to Flash or Auto-Generate with Wrong Model
 
 **What goes wrong:**
-The cpal audio callback runs on a high-priority real-time audio thread. If ANY blocking operation occurs inside the callback -- mutex lock, memory allocation, channel send that can block, file I/O, logging -- the audio driver drops frames. On macOS, CoreAudio will terminate the audio unit entirely if the callback takes too long. On Windows, WASAPI will report discontinuities. The result is gaps in the audio that produce garbled or missing transcription with no obvious error.
+`useSettings.ts` is async: it loads settings from `plugin-store` on mount and returns `null` until the async read completes. The `SummarySection` guards against this with `currentModel = ollamaModel ?? DEFAULT_SETTINGS.ollamaModel`, which is correct. However, if `useSummary.ts` is called during the auto-summary flow triggered immediately after session end (before the settings hook has resolved), `getSetting('ollamaModel')` in `useSummary.generate()` reads from the store directly and could race with a concurrent `setSetting` from a settings change. More dangerously: if the user changes the active model in Settings while a summary is being generated, the mid-flight IPC call to `generate_summary` has already committed to `model: oldModel` on the Rust side, but the frontend's streaming channel will reflect the new model name in the next call. The mismatch is invisible to the user but the `llm_model` column in `summaries` will record the wrong model.
 
 **Why it happens:**
-Rust's type system encourages patterns like `Mutex<T>` and `mpsc::Sender` that are perfectly safe but involve blocking operations. Developers naturally reach for these in audio callbacks. The `ringbuf` crate's producer, when used inside a cpal callback on Windows, has been reported to stop the callback from firing entirely (cpal issue #970). Even `try_send` on some channel types can allocate internally.
+The settings are loaded lazily and are not passed down as props to the summary generation — instead, `useSummary.generate()` reads settings at call time. This is fine for a single model but becomes a consistency hazard when the active model can change at any time.
 
 **How to avoid:**
-- Use ONLY lock-free, allocation-free data structures in the audio callback
-- Use `ringbuf` crate (or `rtrb`) for lock-free SPSC ring buffers -- but write to the producer ONLY (never read in the callback)
-- The callback should do ONE thing: copy samples into the ring buffer. Nothing else.
-- Perform ALL processing (resampling, mixing, format conversion) on a separate processing thread that reads from the ring buffer
-- Never log inside the audio callback, not even debug logs
-- Never allocate (`Vec::push`, `String::new`, `Box::new`) inside the callback
-- Test with `#[cfg(debug_assertions)]` guards that panic if the callback takes longer than the buffer duration
+- Capture the model name at the start of `generate()` and pass it through the entire generation pipeline — do not re-read it mid-flow
+- Disable the model dropdown in `SummarySection` while a summary is actively being generated (the `generating` state in `useSummary` can gate this)
+- The `generate_summary` Tauri command already accepts `model` as a parameter; this is architecturally correct — the risk is on the call site not capturing the value before any async delay
 
 **Warning signs:**
-- Intermittent "pops" or "clicks" in captured audio
-- Transcription has random missing words or garbled segments
-- Audio works fine for short tests but develops issues after 5-10 minutes
-- Problems appear only under CPU load (when the system is busy with ASR inference)
+- `summaries.llm_model` in the database records `"phi4-mini"` even though user changed to a different model before clicking Generate
+- Summary generation starts with one model and the logs show a different model name in the Rust backend output
 
 **Phase to address:**
-Phase 1 (Audio Capture). The audio callback architecture must be lock-free from day one. Retrofitting lock-free patterns into a blocking callback is a rewrite.
-
-**Confidence:** HIGH -- verified via cpal documentation, cpal GitHub issues (#970, #787, #907), and Rust audio programming community patterns.
+Phase implementing LLM model selection, during integration testing of the Settings → Summary flow.
 
 ---
 
-### Pitfall 6: Cross-Platform Audio Format Mismatch Silently Degrades Transcription
+### Pitfall 6: Updating `sherpa-rs` Version Pins Can Break CI Without Warning Due to `download-binaries` Network Calls
 
 **What goes wrong:**
-Each platform delivers audio in different formats: macOS ScreenCaptureKit provides 48kHz float32 stereo, WASAPI provides the endpoint's native format (commonly 48kHz/44.1kHz, 16/24/32-bit, stereo), PulseAudio/PipeWire varies by configuration. Parakeet requires 16kHz 16-bit mono PCM. If resampling is done incorrectly (wrong algorithm, no anti-aliasing filter, integer truncation) or format conversion loses precision, the WER jumps dramatically. A naive `sample as i16` cast from float32 will clip and distort. Downsampling from 48kHz to 16kHz without a proper low-pass anti-aliasing filter introduces aliasing artifacts that confuse the ASR model.
+`sherpa-rs = { version = "0.6.8", features = ["download-binaries"] }` in `Cargo.toml` means every `cargo build` in CI downloads pre-built native sherpa-onnx binaries from GitHub Releases at compile time. When updating to a newer `sherpa-rs` version, the downloaded binaries change to a different sherpa-onnx upstream version. If the `sherpa-rs` build script's checksum validation fails (network fluke, CDN hiccup, GitHub rate limiting on the CI runner), the build silently fails or panics. The `UNSAFE_DISABLE_CHECKSUM_VALIDATION=1` escape hatch exists but is unsafe for production builds. Additionally, CI runners have no local cache of the downloaded binaries between runs, so a version bump that pulls a new 50MB binary adds that download to every CI invocation until caching is configured.
 
 **Why it happens:**
-Developers hard-code one platform's format during initial development and assume others match. Or they implement resampling that works but produces poor quality (nearest-neighbor interpolation instead of sinc interpolation). The app "works" -- it produces transcription -- but the WER is significantly worse than Parakeet's published benchmarks, and nobody realizes the audio pipeline is the bottleneck.
+The `download-binaries` feature is convenient for development but was not designed with reproducible CI caching in mind. The sherpa-rs build script downloads to a per-run temp directory by default, so Rust's `swatinem/rust-cache` does not cache the downloaded binaries (it caches compiled Rust artifacts, not build script downloads).
 
 **How to avoid:**
-- Build an explicit audio format normalization layer that sits between platform capture and ASR input
-- Use the `rubato` crate for high-quality async resampling (sinc interpolation with configurable quality)
-- Convert float32 to i16 correctly: `(sample * 32767.0).clamp(-32768.0, 32767.0) as i16`
-- Mix stereo to mono correctly: `(left + right) / 2.0` (not just taking one channel)
-- Always request the capture format from the platform API rather than assuming -- use `cpal::Device::default_input_config()` and handle whatever format it returns
-- Write an integration test that compares WER on a reference audio file processed through your pipeline vs. the same file fed directly to Parakeet
+- When evaluating a sherpa-rs version bump, test the new version on all three CI platforms (macOS, Windows, Linux) in a branch before merging — do not assume a version that works locally will work in CI
+- Cache the sherpa-onnx binaries explicitly in the GitHub Actions workflow by caching the directory where `sherpa-rs-sys` places the downloaded artifacts (typically `$CARGO_HOME/registry/src/.../sherpa-rs-sys-*/`); check the exact path with `cargo build -v` to find the download destination
+- Pin to an exact version in `Cargo.toml` using `= "0.6.8"` (already done) and commit `Cargo.lock` to the repository — this ensures CI always downloads the same binary
+- Do not use `cargo update` on sherpa-rs without first verifying the new version's binaries are available for all three target platforms
 
 **Warning signs:**
-- Transcription quality is noticeably worse than expected from Parakeet benchmarks
-- Quality differs between platforms (e.g., great on macOS, poor on Windows)
-- Audio sounds "tinny," "muffled," or has high-frequency artifacts when played back
-- WER testing shows numbers significantly above the published 6.05%
+- CI fails on `cargo build` with a network error or checksum mismatch, while local builds succeed
+- macOS CI builds succeed but Windows or Linux CI fails after a `sherpa-rs` version bump (binary availability varies per platform per release)
+- Build time increases by 2–5 minutes after a `sherpa-rs` update (binary re-download, no cache hit)
 
 **Phase to address:**
-Phase 1 (Audio Capture). Audio format normalization should be implemented as a testable, isolated component during initial audio pipeline work.
+Phase evaluating sherpa-rs dependency health. The caching strategy for `download-binaries` must be implemented before any version bump is attempted.
 
-**Confidence:** HIGH -- verified via NVIDIA NeMo documentation on audio format requirements, Google Cloud Speech-to-Text optimization guide, and whisper/ASR community discussions.
+---
+
+### Pitfall 7: The Existing `check_model_pulled` Logic Will Silently Pass for Models That Are Pulled but Too Large for the User's RAM
+
+**What goes wrong:**
+`check_model_pulled` in `detect.rs` confirms that a model name appears in `/api/tags`. It does not confirm the model can actually run. A user may have pulled a large model (e.g., `llama3.3:70b` at 40GB) in a previous session; it appears in the model list and `model_ready: true`, but attempting to generate a summary with it on a machine with 8GB RAM will cause Ollama to fail with an OOM error. The error surfaces as `"Ollama generate failed: 500 ..."` with a body containing `"model requires more system memory"` — but the current error handling in `llm/mod.rs` strips this to a generic message.
+
+**Why it happens:**
+Status checking is separated from capability checking. The `/api/tags` response includes `size` (bytes on disk) but not runtime RAM requirements. Adding a free-form model picker lets users select models that cannot run on their hardware.
+
+**How to avoid:**
+- Parse the error body from Ollama 500 responses and surface model-specific messages to the user (the `body` is already available in `run_generate_stream` and `run_generate_non_stream` — currently it is included in the error string but formatted as a Rust-internal message)
+- In the UI, show model file size from `/api/tags` (the `size` field) next to each model name in the dropdown as a heuristic warning
+- On summary generation failure, check if the error body contains "requires more system memory" or similar and show a targeted error: "This model requires more RAM than is available. Try a smaller model."
+
+**Warning signs:**
+- Users report "summary failed" errors after selecting non-default models from the list
+- Logs show `Ollama generate failed: 500` with a body mentioning memory
+- Error message gives no actionable guidance
+
+**Phase to address:**
+Phase implementing LLM model selection, specifically in error handling and the model selection UX.
 
 ---
 
@@ -187,120 +188,124 @@ Phase 1 (Audio Capture). Audio format normalization should be implemented as a t
 
 | Shortcut | Immediate Benefit | Long-term Cost | When Acceptable |
 |----------|-------------------|----------------|-----------------|
-| Hard-code single audio device | Faster initial development | Users with USB mics, DACs, or multi-output setups can't use the app. Must refactor device selection. | Never -- enumerate devices from day one, even if you default to system default |
-| Skip resumable model downloads | Simpler download code | 640MB model download fails on flaky connections, user must restart from zero. Frustration → uninstall. | MVP only if download has retry logic. Must add resume before public release. |
-| Single SQLite connection for all threads | Avoids connection pooling complexity | "Database is locked" errors under concurrent writes from audio capture, ASR results, and UI queries | Never -- use a connection pool (r2d2-sqlite or deadpool-sqlite) with WAL mode from the start |
-| Concatenate all transcript text before summarization | Simple to implement | Exceeds context window on long meetings, silent truncation, bad summaries | Only if transcript is pre-checked against token limit and chunking fallback exists |
-| Ship without auto-update | Faster initial release | Users stuck on buggy versions, no way to push critical fixes | MVP only. Must add Tauri updater before second release. |
-| Skip VAD, transcribe continuously | Simpler pipeline | Wastes compute transcribing silence, produces garbage tokens from background noise, higher latency | Never -- VAD is essential for the offline-model-as-pseudo-streaming pattern |
+| Keep hardcoded `"num_ctx": 32768` for all models | No change required | Breaks on small models; may cause OOM on low-RAM machines with large context models | Never — must be made dynamic before model selection is user-facing |
+| Store raw model name from Ollama API without normalising | Simple code | `:latest` suffix inconsistency corrupts the `llm_model` audit trail in the DB | Never — normalise before storing |
+| Add `manualChunks` without first removing static PDF imports | Bundle appears "organised" | Actually increases initial bundle size by promoting the PDF chunk into eager load | Never — fix static imports first, then optionally add `manualChunks` |
+| Pin `sherpa-rs` forever without a documented upgrade path | No breaking changes risk | Security vulnerabilities in bundled sherpa-onnx binaries go unpatched; potential FFI incompatibility accumulates | Acceptable for v1.1, but the upgrade path must be documented in this milestone |
+| Lazy-load PDF with `React.lazy` instead of a dynamic import | Familiar API | `React.lazy` only works for component default exports; `@react-pdf/renderer` exports are not React components | Never for this use case — use dynamic `import()` inside the button handler |
+
+---
 
 ## Integration Gotchas
 
 | Integration | Common Mistake | Correct Approach |
 |-------------|----------------|------------------|
-| sherpa-onnx native library | Linking sherpa-onnx as a Rust dependency and expecting cross-compilation to work | sherpa-onnx provides pre-built binaries per platform/arch. Download and link platform-specific binaries in build.rs. Use CI/CD with native runners (macOS on macOS, Windows on Windows) -- Tauri cannot meaningfully cross-compile. |
-| Ollama API | Assuming Ollama is always running and available | Check Ollama availability on app startup. Provide clear "Ollama not detected" UX with installation instructions. Implement timeout handling -- summarization of long transcripts can take 30+ seconds. Provide a "skip summarization" escape hatch. |
-| ScreenCaptureKit (macOS) | Using deprecated CGDisplayStream or AVCaptureScreenInput for audio | Use SCShareableContent + SCStream with audio-only configuration. Requires macOS 13+. Implement permission checking via SCShareableContent.current() before attempting capture. Handle the case where user grants "Screen Recording" but not "System Audio" separately (macOS 15+ splits these). |
-| PipeWire/PulseAudio (Linux) | Assuming PulseAudio monitor sources work the same way on PipeWire | Use the PulseAudio compatibility layer (pipewire-pulse) but test on both PulseAudio and PipeWire systems. On PipeWire, monitor sources may not be exposed the same way. Consider using PipeWire native API as primary on modern distros. |
-| Tauri IPC (events) | Streaming transcript updates as rapid individual events (one per word) | Batch transcript updates. Tauri IPC serializes to JSON; rapid small events cause overhead. Use Tauri's Channel API for streaming data. Batch updates to ~200ms intervals for UI rendering. |
-| ONNX Runtime sessions | Creating and destroying sessions per transcription segment | Create the ONNX session once at startup, reuse for all inference. Session creation loads the model into memory (~640MB) and is expensive (seconds). Destroying and recreating leaks memory in some ONNX Runtime versions (GitHub issues #11118, #22271). |
+| Ollama `/api/tags` | Treating the response as a stable list of ready-to-run models | Treat it as "models available on disk." Filter for models that are actively usable given hardware. Show size as a hint. |
+| Ollama `/api/show` | Not calling it before generate to validate model context limits | Call `/api/show` to get the model's `parameters.num_ctx` before sending a prompt. Use that value to determine chunking strategy. |
+| Ollama model pull during active summary | Allowing pull while a summary generation is in-flight | The `SummarySection` pull flow and `useSummary.generate` both invoke Ollama. If a pull starts while generation is running, Ollama may return 503 or queue the request indefinitely. Gate pull behind a "no active generation" check. |
+| `plugin-store` settings on v1.0 → v1.1 upgrade | Adding a new setting key without migration for users who already have a store file | `getSettingsStore()` already checks `hasTheme` as a proxy for "first run." If a new key is added (e.g., `ollamaContextOverride`), existing users' store files will not have it. `store.get()` returns `undefined`, and the fallback `?? DEFAULT_SETTINGS[key]` handles it. This is safe — but do not change the type of an existing key (e.g., `ollamaModel` from `string` to `string | null`) without verifying all call sites handle the new type. |
+| `@react-pdf/renderer` dynamic import | Calling `import('@react-pdf/renderer')` inside a React render path (e.g., in a `useMemo`) | Dynamic imports must only be called inside event handlers or `useEffect`. Calling inside render creates a new Promise on every render cycle and breaks React's rendering guarantees. |
+| Vite build in Tauri's `beforeBuildCommand` | Forgetting that Tauri runs `npm run build` (tsc + vite build) in CI — bundle visualizer plugins left in production config slow down build | Keep `rollup-plugin-visualizer` in `vite.config.ts` only under `process.env.ANALYZE` guard |
+
+---
 
 ## Performance Traps
 
 | Trap | Symptoms | Prevention | When It Breaks |
 |------|----------|------------|----------------|
-| Unbounded transcript storage in memory | RAM usage grows linearly during meeting, eventually OOM on 2+ hour meetings | Write completed transcript segments to SQLite incrementally. Keep only the last N segments in memory for UI display. | Meetings >1 hour on machines with <8GB RAM |
-| JSON serialization of large transcripts over IPC | UI freezes when loading meeting history, slow scroll through long transcripts | Use pagination for transcript display. Send only visible segments to frontend. Use Tauri raw request API for large data. | Meetings >30 minutes (~50KB+ JSON per meeting) |
-| ONNX inference blocking the audio pipeline | Audio drops during ASR inference on CPU, causing gaps in the next segment | Run ASR inference on a dedicated thread pool, completely decoupled from audio capture. Use ring buffer backpressure to queue segments. | On machines without GPU, during CPU-intensive inference |
-| Ollama cold start latency | First summarization takes 30-60 seconds as Ollama loads model into VRAM/RAM | Pre-warm Ollama on app startup with a small prompt. Show clear loading state. Allow user to cancel and get raw transcript. | Every app restart if Ollama model is not cached |
-| Resampling on every audio chunk | High CPU usage from real-time resampling 48kHz->16kHz | Use rubato with pre-allocated buffers. Process in chunks matching the audio callback buffer size. Consider requesting 16kHz directly from the platform if supported (some devices support it). | Sustained CPU load on low-power machines |
-| SQLite FTS5 index rebuild on every insert | Slow inserts as the meeting library grows | Use triggers or batch FTS5 updates. Insert meeting notes as complete documents, not word-by-word. | >100 meetings in the library |
+| Model list refresh on every Settings tab open | 200–400ms Ollama HTTP round-trip delay on every Settings navigation | Cache the model list in component state with a manual "Refresh" button; do not re-fetch on every mount | On every navigation to Settings if Ollama is on a remote host |
+| `@react-pdf/renderer` WASM initialisation delay on first use | First PDF export takes 3–5 seconds while yoga-wasm initialises | Accept this as unavoidable first-use cost (WASM init is one-time per session); display a spinner and "Generating PDF..." label | First export per session — subsequent exports are fast |
+| Vite splitting too many chunks | 30+ small chunk files in `dist/` cause many parallel HTTP requests on startup (even from disk in Tauri) | Target 3–6 chunks total: `index`, `react-vendor`, `pdf-vendor` (lazy), and route-specific lazy chunks. Avoid splitting below 20KB. | When `manualChunks` is overly granular; not critical for Tauri disk loads but adds IPC overhead |
+| Ollama status check on every RecordView mount | Extra 200ms round-trip delay every time user navigates to Record tab | Poll Ollama status once at startup; update on manual refresh or on navigation to Settings/Summary views only | With slow Ollama host or network latency |
+
+---
 
 ## Security Mistakes
 
 | Mistake | Risk | Prevention |
 |---------|------|------------|
-| Storing meeting transcripts in plain text without encryption | Sensitive meeting content (HR discussions, strategy, financials) exposed if laptop is stolen or shared | Use SQLCipher for encrypted-at-rest SQLite database. Derive encryption key from user password or system keychain. Document security model clearly. |
-| Ollama API exposed on localhost without auth | Any local process can query/poison the LLM, or exfiltrate meeting data via crafted prompts | Verify Ollama is listening on 127.0.0.1 only (default). Do not proxy Ollama through the Tauri webview. Send transcripts directly from Rust backend to Ollama. |
-| Logging transcript content | Debug logs contain full meeting transcripts, potentially committed to crash reports or shared in bug reports | Never log transcript text in production. Use structured logging with content-free metadata only (segment count, word count, timestamps). |
-| Model download over HTTP without integrity verification | Man-in-the-middle could replace the ASR model with a malicious or degraded version | Download models over HTTPS only. Verify SHA-256 checksum after download. Pin expected checksums in the application code. |
-| Tauri CSP too permissive | XSS in the webview could access the Rust backend and exfiltrate data | Use strict CSP. Tauri 2 defaults are good but verify: no `unsafe-eval`, no `unsafe-inline` for scripts. Use Tauri's permission system to restrict IPC commands to only what the frontend needs. |
+| Displaying raw Ollama error bodies in the UI | Ollama error bodies may contain file system paths (e.g., model file paths), internal port numbers, or stack traces | Strip or truncate Ollama error bodies before displaying in the UI; show a simplified user-facing message and log the full body only to Rust stderr |
+| Allowing arbitrary URL input for Ollama server without validation | User could type a URL pointing to an internal network resource, turning the app into an SSRF proxy | Validate the Ollama server URL allows only `http://` or `https://` schemes and reject non-HTTP schemes; the existing `currentServerUrl` is passed verbatim to Rust HTTP calls |
+| Model names used directly in Ollama API calls without sanitisation | A model name containing newlines or JSON escape sequences could break the JSON payload sent to Ollama | Model names should only come from the `/api/tags` list (trusted source) or be validated against a safe character set (`[a-zA-Z0-9:._-]`) before use |
+
+---
 
 ## UX Pitfalls
 
 | Pitfall | User Impact | Better Approach |
 |---------|-------------|-----------------|
-| No feedback during first-run 640MB model download | User thinks app is broken, quits, or force-quits mid-download corrupting the file | Show download progress with percentage, speed, and ETA. Make download resumable (HTTP Range headers). Allow "Skip for now, use cloud API" option. |
-| Permission prompts without explanation | macOS shows "openNotes wants to record your screen" -- user denies because they don't understand why a note-taking app needs screen recording | Show a pre-permission explanation screen: "openNotes needs Screen Recording permission to capture meeting audio from apps like Zoom and Teams. No video is recorded." Then trigger the system prompt. |
-| No indication of recording state | User forgets recording is active, captures unintended conversations | Always-visible recording indicator: system tray icon changes color (red), menu bar shows duration, optional desktop notification every 30 minutes. |
-| Transcription errors shown without correction ability | User sees wrong transcription but can't fix it, loses trust | Allow inline editing of transcript segments. Show confidence indicators for uncertain words (lower opacity, underline). |
-| Summarization takes too long with no progress | User clicks "End Meeting," expects instant notes, stares at spinner for 30+ seconds | Show the raw transcript immediately. Generate summary in background with progress indication. Allow the user to read/export the raw transcript while summary generates. |
-| No graceful degradation without Ollama | User without Ollama installed sees "Summarization failed" and gets nothing | Detect Ollama absence at startup. Offer three paths: (1) install Ollama, (2) configure cloud API, (3) use raw transcript only. Never show an error for a missing optional dependency. |
+| Showing all pulled models including ones that cannot run on the user's hardware | User selects a 70B model, generation fails with a cryptic error | Show model file size in the dropdown (from `/api/tags` `size` field). Consider greying out models larger than a configurable threshold. |
+| No indication that model switching affects existing summaries | User switches from phi4-mini to llama3 and regenerates; expects same format | Add a note: "Switching models affects future summaries. Existing summaries are not changed." |
+| Lazy-loaded PDF chunk shows a blank/frozen UI while loading | User clicks Export PDF, nothing visible happens for 2–3 seconds while WASM loads | Show a loading spinner immediately on click, before the dynamic import resolves; set `creatingPdf: true` before calling `import()` |
+| Bundle optimization breaks existing layout if CSS chunks split incorrectly | App loads with unstyled content for a frame (Flash Of Unstyled Content) | Tailwind CSS v4 uses a Vite plugin that inlines critical CSS; verify this still works after any `vite.config.ts` changes by doing a production build and checking for FOUC |
+
+---
 
 ## "Looks Done But Isn't" Checklist
 
-- [ ] **Audio capture:** Often missing silence handling on Windows WASAPI loopback -- verify capture continues producing data during remote speaker silence
-- [ ] **Audio mixing:** Often missing time-alignment between mic and system audio streams -- verify mixed output doesn't have echo or drift over a 1-hour recording
-- [ ] **Resampling:** Often missing anti-aliasing filter -- verify no high-frequency artifacts in downsampled audio by comparing spectrograms
-- [ ] **VAD configuration:** Often using default thresholds that trigger on keyboard typing or fan noise -- verify VAD only triggers on actual speech in a real meeting environment
-- [ ] **Transcript persistence:** Often only keeping transcript in memory -- verify a crash during a 1-hour meeting doesn't lose the entire transcript
-- [ ] **Model download:** Often not resumable -- verify killing the app mid-download and restarting picks up where it left off
-- [ ] **macOS permissions:** Often only tested on development machine -- verify the signed+notarized build prompts correctly on a clean macOS installation
-- [ ] **Linux audio:** Often only tested on one distro -- verify audio capture works on both PulseAudio and PipeWire systems
-- [ ] **Long meetings:** Often only tested with 5-minute recordings -- verify 2-hour meeting stays within 500MB RAM and transcript quality doesn't degrade
-- [ ] **Ollama context:** Often only tested with short transcripts -- verify summarization of a 30-minute meeting (5000+ words) produces a complete summary covering all topics
+- [ ] **Model selection:** Verify model selection persists across app restart — check `plugin-store` `settings.json` contains the chosen model name after restart
+- [ ] **Model selection:** Verify model switching does NOT interrupt an in-progress summary generation — test by changing model mid-generation
+- [ ] **Model selection:** Verify the `ollamaModel` setting stored in the DB `summaries.llm_model` column matches the model that actually generated the summary
+- [ ] **PDF lazy load:** Run `npx vite-bundle-visualizer` and confirm `@react-pdf/renderer` chunks are absent from the eager load set
+- [ ] **PDF lazy load:** Test PDF export after the dynamic import refactor — verify the generated PDF content is identical to pre-refactor output
+- [ ] **sherpa-rs pinning:** Confirm `Cargo.lock` is committed to the repository and CI uses it (`cargo build` not `cargo build --update`)
+- [ ] **sherpa-rs upgrade path:** Verify on all three CI platforms (macOS, Windows, Linux) that the pinned version builds successfully in a clean environment with no cached binaries
+- [ ] **Settings migration:** Install v1.0, then upgrade to v1.1 with the new code, and verify no settings are lost or reset to defaults
+- [ ] **Ollama num_ctx:** Test summary generation with a model that has a Modelfile capping context at 4096 tokens — verify no 500 error or hang
+- [ ] **Ollama error body:** Verify that Ollama error messages shown in the UI do not expose internal file system paths
+
+---
 
 ## Recovery Strategies
 
 | Pitfall | Recovery Cost | Recovery Steps |
 |---------|---------------|----------------|
-| Wrong ASR streaming architecture (true streaming with offline model) | HIGH | Rewrite ASR pipeline to VAD+segment pattern. Audio capture layer can be preserved. Estimated 1-2 weeks. |
-| WASAPI silence gap handling missing | LOW | Add silence frame injection to Windows audio capture. Isolated fix, ~1 day. |
-| macOS entitlements wrong | MEDIUM | Fix entitlements, re-sign, re-notarize, re-test. But debugging entitlement issues can take days of trial-and-error. |
-| Ollama context truncation | LOW | Add token counting + chunked summarization. ~2-3 days to implement and test hierarchical summarization. |
-| Audio callback blocking | HIGH | Requires rewriting the callback to be lock-free and moving all processing to separate threads. May require changing data structures throughout the audio pipeline. 1-2 weeks. |
-| Audio format mismatch | MEDIUM | Add proper resampling/conversion layer. Isolated change but requires re-testing transcription quality on all platforms. 3-5 days. |
-| No resumable model download | LOW | Switch to HTTP Range-based downloads. 1-2 days. But users who already had corrupted downloads need a "re-download" button. |
-| SQLite locking errors | MEDIUM | Switch to WAL mode + connection pool. Requires audit of all database access patterns. 2-3 days. |
+| Hardcoded `num_ctx` breaks small model users | LOW | Remove `"num_ctx"` from both generate functions or make it dynamic; 1 day including testing |
+| Model name `:latest` suffix inconsistency in DB | LOW | Add normalisation in `list_ollama_models` command and a one-time migration in `getSettingsStore()`; half a day |
+| `@react-pdf` in eager bundle after `manualChunks` added | LOW | Remove `@react-pdf` from `manualChunks` config and verify dynamic import is working; 2-4 hours |
+| Static PDF import not removed before `manualChunks` | MEDIUM | Refactor `SummaryExport.tsx` to use dynamic import handler pattern; 1 day including regression test |
+| sherpa-rs version bump breaks CI | MEDIUM | Revert `Cargo.toml` and `Cargo.lock` to previous version; investigate binary availability for the new version per platform; 1-3 days depending on platform-specific issues |
+| Model RAM error surfaces as generic "failed" message | LOW | Parse Ollama error body and add model-specific error routing in `run_generate_stream`; 2-4 hours |
+
+---
 
 ## Pitfall-to-Phase Mapping
 
 | Pitfall | Prevention Phase | Verification |
 |---------|------------------|--------------|
-| Parakeet TDT is offline, not streaming | Phase 1: Audio + ASR Foundation | Transcription latency stays constant regardless of meeting duration |
-| WASAPI silence gaps | Phase 1: Audio Capture | Audio capture produces continuous frames during a 5-minute silence test on Windows |
-| macOS entitlements and notarization | Phase 1: Project Setup + CI/CD | Signed build runs correctly on clean macOS VM/machine |
-| Ollama context truncation | Phase 2: LLM Summarization | Summary of 8000-word transcript covers topics from beginning, middle, and end |
-| CPAL callback blocking | Phase 1: Audio Capture | 2-hour recording shows no audio drops under simultaneous ASR load |
-| Audio format mismatch | Phase 1: Audio Capture | WER on pipeline-processed audio within 1% of direct-file Parakeet benchmark |
-| SQLite concurrent access | Phase 1: Storage Foundation | Simultaneous write (from ASR) and read (from UI) produce no "database locked" errors |
-| Tauri IPC bottleneck | Phase 1: App Shell + IPC | Transcript updates render at 60fps with no UI jank during active transcription |
-| ONNX Runtime memory leaks | Phase 1: ASR Foundation | Memory usage stays stable (within 50MB variance) across 10 consecutive meetings |
-| Model download UX | Phase 1: First-Run Experience | Interrupted download resumes correctly; progress bar is accurate |
-| Permission prompt UX | Phase 1: First-Run Experience | Clean-install user grants permissions on first attempt without confusion |
-| Linux PulseAudio/PipeWire compat | Phase 2: Cross-Platform Hardening | Audio capture verified on Ubuntu (PipeWire), Fedora (PipeWire), and Debian (PulseAudio) |
+| Hardcoded `num_ctx` breaks non-default models | LLM model selection phase | Summary generation succeeds with 3 different models including a <2B parameter model |
+| Model name `:latest` normalisation | LLM model selection phase — settings persistence task | `summaries.llm_model` column contains normalised names across multiple model selections |
+| `useSetting` race during auto-generate | LLM model selection phase — integration testing | Change model in Settings while a summary generates; verify DB records the pre-change model |
+| `@react-pdf` in eager bundle | Frontend performance phase — bundle audit task | `vite-bundle-visualizer` shows PDF chunk as async-only |
+| `manualChunks` undoing lazy split | Frontend performance phase — must come after dynamic import refactor | Network tab shows PDF chunk loads on button click, not on page load |
+| sherpa-rs `download-binaries` CI caching | Dependency risk phase — CI audit task | CI build completes without re-downloading binaries on second run (cache hit confirmed) |
+| Large model OOM error messages | LLM model selection phase — error handling task | OOM error surfaces as actionable UI message, not generic "failed" |
+| Settings migration existing users | LLM model selection phase or frontend phase — whichever adds a new setting key first | Fresh install of v1.0 followed by in-place upgrade to v1.1 retains all settings |
+
+---
 
 ## Sources
 
-- [sherpa-onnx GitHub issue #2918 -- Parakeet TDT streaming limitations](https://github.com/k2-fsa/sherpa-onnx/issues/2918) (HIGH confidence)
-- [HuggingFace parakeet-tdt-0.6b-v2 streaming discussion](https://huggingface.co/nvidia/parakeet-tdt-0.6b-v2/discussions/3) (HIGH confidence)
-- [Microsoft Learn -- WASAPI Loopback Recording](https://learn.microsoft.com/en-us/windows/win32/coreaudio/loopback-recording) (HIGH confidence)
-- [Microsoft Learn -- WASAPI Audio Discontinuity](https://learn.microsoft.com/en-us/answers/questions/1188388/persistent-audio-discontinuity-in-wasapi-loopback) (HIGH confidence)
-- [Tauri macOS Code Signing Documentation](https://v2.tauri.app/distribute/sign/macos/) (HIGH confidence)
-- [Tauri GitHub issue #11992 -- Sidecar notarization bug](https://github.com/tauri-apps/tauri/issues/11992) (HIGH confidence)
-- [Ollama Context Length Documentation](https://docs.ollama.com/context-length) (HIGH confidence)
-- [cpal GitHub issue #970 -- Windows callback thread blocking](https://github.com/RustAudio/cpal/issues/970) (HIGH confidence)
-- [cpal Documentation -- Real-time callback constraints](https://docs.rs/cpal) (HIGH confidence)
-- [ONNX Runtime GitHub issues #11118, #22271 -- Memory leaks](https://github.com/microsoft/onnxruntime/issues/11118) (HIGH confidence)
-- [Tauri GitHub discussion #7146 -- IPC high-rate data transfer](https://github.com/tauri-apps/tauri/discussions/7146) (HIGH confidence)
-- [Tauri GitHub issue #12724 -- Memory leak when emitting events](https://github.com/tauri-apps/tauri/issues/12724) (MEDIUM confidence)
-- [Electron GitHub issue #47490 -- ScreenCaptureKit audio capture](https://github.com/electron/electron/issues/47490) (MEDIUM confidence)
-- [Apple Developer Forums -- Screen Recording TCC permission](https://developer.apple.com/forums/thread/760483) (HIGH confidence)
-- [SQLite Concurrent Writes analysis](https://tenthousandmeters.com/blog/sqlite-concurrent-writes-and-database-is-locked-errors/) (HIGH confidence)
-- [Deepchecks -- LLM Token Limit Strategies](https://www.deepchecks.com/5-approaches-to-solve-llm-token-limits/) (MEDIUM confidence)
-- [tauri-plugin-macos-permissions crate](https://crates.io/crates/tauri-plugin-macos-permissions) (MEDIUM confidence)
-- [OBS Studio GitHub issue #10401 -- macOS audio capture permissions](https://github.com/obsproject/obs-studio/issues/10401) (MEDIUM confidence)
+- [Ollama context-length official documentation](https://docs.ollama.com/context-length) (HIGH confidence)
+- [Ollama GitHub issue #9890 — large context breaks model usability](https://github.com/ollama/ollama/issues/9890) (HIGH confidence)
+- [Ollama GitHub issue #2714 — num_ctx misunderstanding](https://github.com/ollama/ollama/issues/2714) (HIGH confidence)
+- [Ollama GitHub issue #5794 — expose model capabilities via /api/tags](https://github.com/ollama/ollama/issues/5794) (MEDIUM confidence)
+- [Ollama GitHub issue #12094 — phi4-mini-reasoning crashes on recent Ollama versions](https://github.com/ollama/ollama/issues/12094) (HIGH confidence)
+- [Ollama GitHub issue #13461 — 100% CPU spin near context limit](https://github.com/ollama/ollama/issues/13461) (HIGH confidence)
+- [Ollama common mistakes in local LLM deployments (Medium)](https://sebastianpdw.medium.com/common-mistakes-in-local-llm-deployments-03e7d574256b) (MEDIUM confidence)
+- [sherpa-rs GitHub releases — v0.6.8 is latest as of 2025-10-05](https://github.com/thewh1teagle/sherpa-rs/releases) (HIGH confidence)
+- [sherpa-rs crates.io listing](https://crates.io/crates/sherpa-rs) (HIGH confidence)
+- [diegomura/react-pdf GitHub issue #632 — huge bundle size](https://github.com/diegomura/react-pdf/issues/632) (HIGH confidence)
+- [diegomura/react-pdf GitHub issue #1119 — tree-shaking not possible](https://github.com/diegomura/react-pdf/issues/1119) (HIGH confidence)
+- [Vite GitHub issue #5189 — manualChunks loaded on front page instead of lazily](https://github.com/vitejs/vite/issues/5189) (HIGH confidence)
+- [Vite GitHub issue #17653 — setting manualChunks breaks react lazy loading](https://github.com/vitejs/vite/issues/17653) (HIGH confidence)
+- [Vite GitHub issue #12209 — using manualChunks breaks code-splitting](https://github.com/vitejs/vite/issues/12209) (HIGH confidence)
+- [Mykola Aleksandrov — Route-level code-splitting with React.lazy, Suspense, and Vite manualChunks (2025)](http://www.mykolaaleksandrov.dev/posts/2025/10/react-lazy-suspense-vite-manualchunks/) (MEDIUM confidence)
+- [infinitejs — Common pitfalls in React Suspense and lazy loading](https://infinitejs.com/posts/common-pitfalls-react-suspense-lazy-loading/) (MEDIUM confidence)
+- [Cargo Book — Specifying Dependencies (version pinning)](https://doc.rust-lang.org/cargo/reference/specifying-dependencies.html) (HIGH confidence)
+- [Effective Rust — Managing dependency graph](https://lurklurk.org/effective-rust/dep-graph.html) (HIGH confidence)
+- Direct codebase inspection of `src-tauri/src/llm/mod.rs`, `src-tauri/src/llm/detect.rs`, `src/components/SummaryExport.tsx`, `src/components/settings/SummarySection.tsx`, `src/lib/settings.ts`, `src/hooks/useSettings.ts`, `src/hooks/useSummary.ts`, `Cargo.toml`, `package.json`, `vite.config.ts` (HIGH confidence — first-party)
 
 ---
-*Pitfalls research for: Local-first AI meeting transcription and summarization desktop app (openNotes)*
-*Researched: 2026-02-26*
+*Pitfalls research for: v1.1 Hardening — LLM model selection, frontend performance, and dependency risk mitigation added to existing openNotes v1.0 MVP*
+*Researched: 2026-03-02*
