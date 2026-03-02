@@ -125,4 +125,11 @@ export type OllamaPullEvent =
 export type LlmTokenEvent =
   | { event: 'token'; data: { text: string; done: boolean } }
   | { event: 'error'; data: { message: string } }
-  | { event: 'titleExtracted'; data: { title: string } };
+  | { event: 'titleExtracted'; data: { title: string } }
+  | { event: 'contextTruncated'; data: { minutesCovered: number } }
+  | { event: 'ollamaError'; data: { kind: string; raw: string } };
+
+export interface OllamaModelInfo {
+  name: string;
+  parameterSize: string | null;
+}

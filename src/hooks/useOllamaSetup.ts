@@ -2,6 +2,7 @@ import { Channel, invoke } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-shell';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { getSetting } from '../lib/settings';
 import type { OllamaPullEvent, OllamaSetupPhase, OllamaStatus } from '../types';
 
 type PullProgress = {
@@ -51,7 +52,10 @@ export function useOllamaSetup() {
       }
 
       try {
-        const status = await invoke<OllamaStatus>('check_ollama_status');
+        const currentModel = await getSetting('ollamaModel');
+        const status = await invoke<OllamaStatus>('check_ollama_status', {
+          model: currentModel || undefined,
+        });
         const nextPhase = mapStatusToPhase(status);
         setSetupPhase(nextPhase);
         setErrorMessage(null);
@@ -135,7 +139,8 @@ export function useOllamaSetup() {
     pullChannelRef.current = channel;
 
     try {
-      await invoke('pull_ollama_model', { model: 'phi4-mini', onEvent: channel });
+      const currentModel = await getSetting('ollamaModel');
+      await invoke('pull_ollama_model', { model: currentModel || 'phi4-mini', onEvent: channel });
     } catch {
       setSetupPhase('error');
       setErrorMessage('Unable to pull Ollama model. Ensure Ollama is running and retry.');
