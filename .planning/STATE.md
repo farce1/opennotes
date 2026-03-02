@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Hardening & Quality
-status: in_progress
-last_updated: "2026-03-02T17:58:00Z"
+status: ready_to_verify
+last_updated: "2026-03-02T18:03:00Z"
 progress:
   total_phases: 4
   completed_phases: 1
   total_plans: 6
-  completed_plans: 2
+  completed_plans: 3
 ---
 
 # Project State
@@ -23,29 +23,29 @@ See: .planning/PROJECT.md (updated 2026-03-02)
 ## Current Position
 
 Phase: 11 of 13 (LLM Model Selection End-to-End)
-Plan: 1 of 2 in current phase
-Status: Phase 11 execution in progress (11-01 complete, 11-02 pending)
-Last activity: 2026-03-02 — Completed Phase 11 Plan 01 (model-selection wiring, dynamic num_ctx, structured Ollama errors)
+Plan: 2 of 2 in current phase
+Status: Phase 11 implementation complete; verification pending
+Last activity: 2026-03-02 — Completed Phase 11 Plan 02 (error UX, generation lock context, model provenance label)
 
-Progress: [████░░░░░░] 33%
+Progress: [█████░░░░░] 50%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 2 (v1.1)
-- Average duration: 1.5 min/plan
-- Total execution time: ~3 min
+- Total plans completed: 3 (v1.1)
+- Average duration: 1.7 min/plan
+- Total execution time: ~5 min
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 10 | 1 | 1 min | 1 min |
-| 11 | 1 | 2 min | 2 min |
+| 11 | 2 | 4 min | 2 min |
 
 **Recent Trend:**
-- Last 5 plans: 10-01, 11-01
-- Trend: Backend model-selection correctness landed; next focus is UX resilience and actionable error handling.
+- Last 5 plans: 10-01, 11-01, 11-02
+- Trend: Phase 11 build work is complete; verification should focus on runtime behavior of error classification and dropdown locking.
 
 *Updated after each plan completion*
 | Phase 10 P01 | 1 min | 3 tasks | 3 files |
@@ -65,6 +65,8 @@ Recent decisions affecting current work:
 - [Phase 10]: Added standalone actions/cache@v4 step for sherpa binaries with warning on cache miss while preserving rust-cache step. — Keeps release builds non-blocking on misses while improving cache-hit observability and speed.
 - [Phase 11]: Dynamic num_ctx now clamps transcript token estimates by Ollama model context length from /api/show. — Removes hardcoded context window assumptions and aligns generation limits with the selected model.
 - [Phase 11]: Manual summary inserts persist llm_model as manual instead of DEFAULT_MODEL. — Preserves provenance so user-authored summaries are not misattributed to generated output.
+- [Phase 11]: Generation lock state is centralized in SummaryGenerationContext so settings model controls remain consistent across route transitions.
+- [Phase 11]: Summary errors are displayed through structured kind/raw payload parsing to support contextual recovery actions.
 
 ### Pending Todos
 
@@ -79,5 +81,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-03-02
-Stopped at: Completed 11-01-PLAN.md
+Stopped at: Completed 11-02-PLAN.md
 Resume file: None
