@@ -75,11 +75,11 @@ Plans:
   3. `vite build` produces stable vendor chunk filenames for React and markdown libraries across rebuilds (no hash churn on unrelated changes).
   4. First PDF export after app launch shows a loading indicator ("Generating PDF...") for the duration of WASM initialization before the download begins.
   5. A bundle audit note exists (in a SUMMARY or CONTEXT file) with before/after chunk sizes as baseline for future regressions.
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 12-01: Dynamic imports for @react-pdf/renderer and jszip in export.ts
-- [ ] 12-02: vite.config.ts manualChunks, rollup-plugin-visualizer setup, bundle audit
+- [ ] 12-01: Dynamic imports — extract shared pdf-renderer.ts, convert export.ts and SummaryExport.tsx to lazy imports, add idle prefetch in App.tsx
+- [ ] 12-02: Vendor chunking and audit — manualChunks in vite.config.ts, rollup-plugin-visualizer, CI bundle size warning, before/after audit
 
 ### Phase 13: LLM Quality Tuning
 **Goal**: phi4-mini's summarization quality on meetings of varying length is understood and measured, and the default prompt produces reliably complete structured output on long meetings.
