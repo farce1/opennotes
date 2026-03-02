@@ -3,10 +3,12 @@ import { Copy, Download, Plus, RotateCcw, TriangleAlert } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router';
 
+import { SummaryError } from '../components/SummaryError';
 import { SummaryExport } from '../components/SummaryExport';
 import { SummaryPanel } from '../components/SummaryPanel';
 import { useSummary } from '../hooks/useSummary';
 import { getDb } from '../lib/db';
+import { getSetting } from '../lib/settings';
 import type { Meeting, TranscriptRow, TranscriptSegment } from '../types';
 
 type MeetingCompleteRouteState = {
@@ -68,6 +70,7 @@ export function MeetingCompleteView() {
     hasExistingSummary,
     edited,
     errorMessage: summaryError,
+    llmModel,
     generate,
     saveEdit,
     setText,
@@ -347,9 +350,27 @@ export function MeetingCompleteView() {
             ) : null}
 
             {summaryError ? (
-              <p className="rounded-lg border border-red-300/70 bg-red-50/70 px-3 py-2 text-xs text-red-700 dark:border-red-500/40 dark:bg-red-500/10 dark:text-red-200">
-                {summaryError}
-              </p>
+              <SummaryError
+                errorMessage={summaryError}
+                onRetry={onRegenerateSummary}
+                onSwitchModel={async (model) => {
+                  const { setSetting } = await import('../lib/settings');
+                  await setSetting('ollamaModel', model);
+                  if (meetingId) {
+                    void generate(meetingId);
+                  }
+                }}
+                onCheckConnection={async () => {
+                  try {
+                    const currentModel = await getSetting('ollamaModel');
+                    await invoke('check_ollama_status', {
+                      model: currentModel || undefined,
+                    });
+                  } catch {
+                    // Connection check failed — error is surfaced on the next generation attempt.
+                  }
+                }}
+              />
             ) : null}
 
             <SummaryPanel
@@ -361,6 +382,7 @@ export function MeetingCompleteView() {
               onRegenerate={onRegenerateSummary}
               onSave={onSaveSummary}
               meetingId={meeting.id}
+              generatedWithModel={llmModel}
             />
 
             <SummaryExport summaryText={summaryText} meetingTitle={titleInput || fallbackTitle} />
