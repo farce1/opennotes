@@ -9,9 +9,9 @@ Requirements for v1.1 Hardening & Quality release. Each maps to roadmap phases.
 
 ### LLM Model Selection & Quality
 
-- [ ] **LLM-01**: User can select any installed Ollama model and it is used for summary generation end-to-end (no hardcoded phi4-mini)
-- [ ] **LLM-02**: Model names are normalised (`:latest` stripped) before storage so the `summaries.llm_model` audit trail is consistent
-- [ ] **LLM-03**: Context window (`num_ctx`) adapts to the selected model instead of hardcoding 32768
+- [x] **LLM-01**: User can select any installed Ollama model and it is used for summary generation end-to-end (no hardcoded phi4-mini)
+- [x] **LLM-02**: Model names are normalised (`:latest` stripped) before storage so the `summaries.llm_model` audit trail is consistent
+- [x] **LLM-03**: Context window (`num_ctx`) adapts to the selected model instead of hardcoding 32768
 - [ ] **LLM-04**: User sees actionable error messages when Ollama fails (OOM, model too large, connection refused)
 - [ ] **LLM-05**: Model dropdown is disabled during active summary generation to prevent settings race
 - [ ] **LLM-06**: Settings dropdown shows recommendation labels (e.g., "Recommended" badge on phi4-mini)
@@ -62,9 +62,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| LLM-01 | Phase 11 | Pending |
-| LLM-02 | Phase 11 | Pending |
-| LLM-03 | Phase 11 | Pending |
+| LLM-01 | Phase 11 | Complete |
+| LLM-02 | Phase 11 | Complete |
+| LLM-03 | Phase 11 | Complete |
 | LLM-04 | Phase 11 | Pending |
 | LLM-05 | Phase 11 | Pending |
 | LLM-06 | Phase 11 | Pending |
