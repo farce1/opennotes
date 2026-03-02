@@ -44,10 +44,10 @@ Full details: `.planning/milestones/v1.0-ROADMAP.md`
   2. GitHub Actions CI completes without downloading sherpa-rs-sys binaries on cache-hit runs.
   3. A developer reading `Cargo.toml` finds an inline comment describing the v1.2 migration path to sherpa-onnx native Rust API.
   4. The DEPS-02 upgrade-path document exists at `.planning/research/` and covers both the chobits-sherpa-rs fork and the direct FFI fallback options.
-**Plans**: TBD
+**Plans**: 1/1 complete
 
 Plans:
-- [ ] 10-01: Pin sherpa-rs, add CI binary cache, write upgrade path document
+- [x] 10-01: Pin sherpa-rs, add CI binary cache, write upgrade path document (completed 2026-03-02)
 
 ### Phase 11: LLM Model Selection End-to-End
 **Goal**: The model selector the user chose in Settings is actually used everywhere — summary generation, Ollama status checks, and the setup wizard — with consistent model names in the database and clear error messages when things go wrong.
@@ -107,7 +107,7 @@ Plans:
 | 07. Settings Surface Expansion | v1.0 | 3/3 | Complete | 2026-02-28 |
 | 08. Cross-Platform Hardening | v1.0 | 4/4 | Complete | 2026-03-01 |
 | 09. Polish & Tech Debt Cleanup | v1.0 | 3/3 | Complete | 2026-03-01 |
-| 10. Dependency Risk Closure | 1/1 | Complete   | 2026-03-02 | - |
+| 10. Dependency Risk Closure | v1.1 | 1/1 | Complete | 2026-03-02 |
 | 11. LLM Model Selection End-to-End | v1.1 | 0/2 | Not started | - |
 | 12. Frontend Bundle Optimization | v1.1 | 0/2 | Not started | - |
 | 13. LLM Quality Tuning | v1.1 | 0/1 | Not started | - |
