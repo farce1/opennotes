@@ -27,6 +27,13 @@ pub struct TranscriptRow {
     pub start_time_ms: i64,
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OllamaModelInfo {
+    pub name: String,
+    pub parameter_size: Option<String>,
+}
+
 fn timestamp_string() -> String {
     if let Ok(output) = std::process::Command::new("date")
         .arg("+%Y%m%d_%H%M%S")
@@ -403,7 +410,7 @@ pub fn list_audio_input_devices() -> Result<Vec<String>, String> {
 }
 
 #[tauri::command]
-pub async fn list_ollama_models(server_url: Option<String>) -> Result<Vec<String>, String> {
+pub async fn list_ollama_models(server_url: Option<String>) -> Result<Vec<OllamaModelInfo>, String> {
     let base = server_url.unwrap_or_else(|| "http://localhost:11434".to_string());
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(4))
@@ -428,6 +435,12 @@ pub async fn list_ollama_models(server_url: Option<String>) -> Result<Vec<String
     #[derive(serde::Deserialize)]
     struct ModelTag {
         name: String,
+        details: Option<ModelTagDetails>,
+    }
+
+    #[derive(serde::Deserialize)]
+    struct ModelTagDetails {
+        parameter_size: Option<String>,
     }
 
     let payload: TagsResponse = response
@@ -435,7 +448,14 @@ pub async fn list_ollama_models(server_url: Option<String>) -> Result<Vec<String
         .await
         .map_err(|err| format!("failed to parse model list: {err}"))?;
 
-    Ok(payload.models.into_iter().map(|model| model.name).collect())
+    Ok(payload
+        .models
+        .into_iter()
+        .map(|model| OllamaModelInfo {
+            name: model.name,
+            parameter_size: model.details.and_then(|details| details.parameter_size),
+        })
+        .collect())
 }
 
 #[tauri::command]
@@ -476,9 +496,13 @@ pub async fn update_recording_shortcut(
 }
 
 #[tauri::command]
-pub async fn check_ollama_status(server_url: Option<String>) -> Result<llm::detect::OllamaStatus, String> {
+pub async fn check_ollama_status(
+    server_url: Option<String>,
+    model: Option<String>,
+) -> Result<llm::detect::OllamaStatus, String> {
     let url = server_url.unwrap_or_else(|| llm::DEFAULT_OLLAMA_URL.to_string());
-    Ok(llm::detect::full_status(&url, llm::DEFAULT_MODEL).await)
+    let model_name = model.unwrap_or_else(|| llm::DEFAULT_MODEL.to_string());
+    Ok(llm::detect::full_status(&url, &model_name).await)
 }
 
 #[tauri::command]
@@ -558,7 +582,7 @@ pub async fn save_summary(
         llm::update_summary_content(pool.inner(), meeting_id, &content).await?;
         existing.id
     } else {
-        llm::save_summary(pool.inner(), meeting_id, &content, llm::DEFAULT_MODEL).await?
+        llm::save_summary(pool.inner(), meeting_id, &content, "manual").await?
     };
 
     if let Err(err) = fts_upsert(pool.inner(), meeting_id).await {
