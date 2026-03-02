@@ -29,9 +29,9 @@ Requirements for v1.1 Hardening & Quality release. Each maps to roadmap phases.
 
 ### Dependency Risk
 
-- [ ] **DEPS-01**: `sherpa-rs` pinned to exact version (`= "0.6.8"`) in `Cargo.toml`
-- [ ] **DEPS-02**: Upgrade path documented (sherpa-onnx native Rust API as v1.2 migration path)
-- [ ] **DEPS-03**: GitHub Actions CI caches `sherpa-rs-sys` binary downloads to speed up builds
+- [x] **DEPS-01**: `sherpa-rs` pinned to exact version (`= "0.6.8"`) in `Cargo.toml`
+- [x] **DEPS-02**: Upgrade path documented (sherpa-onnx native Rust API as v1.2 migration path)
+- [x] **DEPS-03**: GitHub Actions CI caches `sherpa-rs-sys` binary downloads to speed up builds
 
 ## v1.2 Requirements
 
@@ -76,9 +76,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | PERF-04 | Phase 12 | Pending |
 | PERF-05 | Phase 12 | Pending |
 | PERF-06 | Phase 12 | Pending |
-| DEPS-01 | Phase 10 | Pending |
-| DEPS-02 | Phase 10 | Pending |
-| DEPS-03 | Phase 10 | Pending |
+| DEPS-01 | Phase 10 | Complete |
+| DEPS-02 | Phase 10 | Complete |
+| DEPS-03 | Phase 10 | Complete |
 
 **Coverage:**
 - v1.1 requirements: 17 total
