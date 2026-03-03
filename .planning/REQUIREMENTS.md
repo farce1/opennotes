@@ -22,9 +22,9 @@ Requirements for v1.1 Hardening & Quality release. Each maps to roadmap phases.
 
 - [x] **PERF-01**: `@react-pdf/renderer` loaded via dynamic import, removed from initial bundle (~450KB savings)
 - [x] **PERF-02**: `jszip` loaded via dynamic import, removed from initial bundle
-- [ ] **PERF-03**: `vite.config.ts` updated with `manualChunks` for React and markdown vendor cache stability
-- [ ] **PERF-04**: `rollup-plugin-visualizer` added as dev dependency for bundle analysis
-- [ ] **PERF-05**: Bundle audit completed with before/after measurements documenting improvements
+- [x] **PERF-03**: `vite.config.ts` updated with `manualChunks` for React and markdown vendor cache stability
+- [x] **PERF-04**: `rollup-plugin-visualizer` added as dev dependency for bundle analysis
+- [x] **PERF-05**: Bundle audit completed with before/after measurements documenting improvements
 - [x] **PERF-06**: First PDF export shows loading indicator during WASM init delay
 
 ### Dependency Risk
@@ -72,9 +72,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | LLM-08 | Phase 13 | Pending |
 | PERF-01 | Phase 12 | Complete |
 | PERF-02 | Phase 12 | Complete |
-| PERF-03 | Phase 12 | Pending |
-| PERF-04 | Phase 12 | Pending |
-| PERF-05 | Phase 12 | Pending |
+| PERF-03 | Phase 12 | Complete |
+| PERF-04 | Phase 12 | Complete |
+| PERF-05 | Phase 12 | Complete |
 | PERF-06 | Phase 12 | Complete |
 | DEPS-01 | Phase 10 | Complete |
 | DEPS-02 | Phase 10 | Complete |
