@@ -1,4 +1,4 @@
-import { ArrowRight, Bot, Download, RefreshCw } from 'lucide-react';
+import { ArrowRight, Bot, Download, Loader2, RefreshCw } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 
@@ -41,14 +41,12 @@ export function SetupView() {
   const {
     setupPhase,
     pullProgress,
+    ollamaDownloadProgress,
     errorMessage: ollamaErrorMessage,
-    waitingForOllama,
-    checkStatus,
-    openOllamaDownload,
-    startOllama,
-    pullModel,
+    autoSetup,
   } = useOllamaSetup();
   const [downloadStartedAt, setDownloadStartedAt] = useState<number | null>(null);
+  const [ollamaDownloadStartedAt, setOllamaDownloadStartedAt] = useState<number | null>(null);
   const [tick, setTick] = useState(0);
 
   useEffect(() => {
@@ -63,7 +61,19 @@ export function SetupView() {
   }, [downloadStartedAt, modelStatus]);
 
   useEffect(() => {
-    if (modelStatus !== 'downloading') {
+    if (setupPhase === 'downloading_ollama' && ollamaDownloadStartedAt === null) {
+      setOllamaDownloadStartedAt(Date.now());
+    }
+
+    if (setupPhase !== 'downloading_ollama') {
+      setOllamaDownloadStartedAt(null);
+    }
+  }, [setupPhase, ollamaDownloadStartedAt]);
+
+  const isAnyDownloading = modelStatus === 'downloading' || setupPhase === 'downloading_ollama';
+
+  useEffect(() => {
+    if (!isAnyDownloading) {
       return;
     }
 
@@ -72,7 +82,7 @@ export function SetupView() {
     }, 1000);
 
     return () => window.clearInterval(timer);
-  }, [modelStatus]);
+  }, [isAnyDownloading]);
 
   const progressPercent = useMemo(() => {
     if (!downloadProgress || downloadProgress.total <= 0) {
@@ -105,16 +115,35 @@ export function SetupView() {
     return Math.max(0, Math.min(100, (pullProgress.completed / pullProgress.total) * 100));
   }, [pullProgress]);
 
-  const allReady = modelStatus === 'ready' && setupPhase === 'ready';
-
-  const onRetryOllama = () => {
-    if (pullProgress && pullProgress.completed > 0) {
-      void pullModel();
-      return;
+  const ollamaDownloadPercent = useMemo(() => {
+    if (!ollamaDownloadProgress || ollamaDownloadProgress.total <= 0) {
+      return 0;
     }
 
-    void checkStatus();
-  };
+    return Math.max(0, Math.min(100, (ollamaDownloadProgress.downloaded / ollamaDownloadProgress.total) * 100));
+  }, [ollamaDownloadProgress]);
+
+  const ollamaDownloadEtaLabel = useMemo(() => {
+    if (
+      !ollamaDownloadStartedAt ||
+      !ollamaDownloadProgress ||
+      ollamaDownloadProgress.total <= 0 ||
+      ollamaDownloadProgress.downloaded <= 0
+    ) {
+      return 'estimating…';
+    }
+
+    const elapsedSeconds = Math.max(1, (Date.now() - ollamaDownloadStartedAt) / 1000);
+    const bytesPerSecond = ollamaDownloadProgress.downloaded / elapsedSeconds;
+    if (bytesPerSecond <= 0) {
+      return 'estimating…';
+    }
+
+    const remainingBytes = Math.max(0, ollamaDownloadProgress.total - ollamaDownloadProgress.downloaded);
+    return formatEta(remainingBytes / bytesPerSecond);
+  }, [ollamaDownloadProgress, ollamaDownloadStartedAt, tick]);
+
+  const allReady = modelStatus === 'ready' && setupPhase === 'ready';
 
   return (
     <section className="flex h-full min-h-[calc(100vh-3rem)] items-center justify-center px-6 py-10">
@@ -217,50 +246,71 @@ export function SetupView() {
             {setupPhase === 'not_installed' ? (
               <div className="mt-4 space-y-3">
                 <p className="text-sm text-gray-600 dark:text-gray-300">
-                  Ollama is required to run Phi-4 Mini locally. It runs entirely on your machine and transcripts never leave this device.
+                  Ollama is required to run Phi-4 Mini locally. Click below to automatically download, install, and configure everything.
                 </p>
                 <button
                   type="button"
-                  onClick={() => void openOllamaDownload()}
+                  onClick={() => void autoSetup()}
                   className="inline-flex items-center gap-2 rounded-md bg-accent px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-accent-hover"
                 >
                   <Download size={16} />
-                  Download Ollama
+                  Set Up AI Notes
                 </button>
-                <p className="text-xs text-gray-500 dark:text-gray-400">
-                  After installing, return here and we will detect it automatically.
-                </p>
-                {waitingForOllama ? (
-                  <p className="text-xs font-medium text-accent animate-pulse">Waiting for Ollama…</p>
-                ) : null}
               </div>
             ) : null}
 
             {setupPhase === 'not_running' ? (
               <div className="mt-4 space-y-3">
                 <p className="text-sm text-gray-600 dark:text-gray-300">Ollama is installed but not running.</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">
-                  Open Ollama from your Applications folder or start it from your menu bar icon.
-                </p>
-                <div className="flex flex-wrap items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => void startOllama()}
-                    className="inline-flex items-center gap-2 rounded-md border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:text-gray-100 dark:hover:bg-gray-800"
-                  >
-                    I Opened Ollama
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void checkStatus()}
-                    className="inline-flex items-center gap-2 rounded-md border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:text-gray-100 dark:hover:bg-gray-800"
-                  >
-                    Check Again
-                  </button>
+                <button
+                  type="button"
+                  onClick={() => void autoSetup()}
+                  className="inline-flex items-center gap-2 rounded-md bg-accent px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-accent-hover"
+                >
+                  <Loader2 size={16} />
+                  Start Ollama
+                </button>
+              </div>
+            ) : null}
+
+            {setupPhase === 'downloading_ollama' ? (
+              <div className="mt-4 space-y-3">
+                <p className="text-sm font-medium text-gray-700 dark:text-gray-100">Downloading Ollama…</p>
+                <div className="h-2.5 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
+                  <div
+                    className="h-full rounded-full bg-accent transition-[width] duration-300"
+                    style={{ width: `${ollamaDownloadPercent}%` }}
+                  />
                 </div>
-                {waitingForOllama ? (
-                  <p className="text-xs font-medium text-accent animate-pulse">Waiting for Ollama…</p>
+                {ollamaDownloadProgress ? (
+                  <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
+                    <span>
+                      {formatBytes(ollamaDownloadProgress.downloaded)} / {formatBytes(ollamaDownloadProgress.total)}
+                    </span>
+                    <span>ETA {ollamaDownloadEtaLabel}</span>
+                  </div>
                 ) : null}
+              </div>
+            ) : null}
+
+            {setupPhase === 'extracting_ollama' ? (
+              <div className="mt-4 flex items-center gap-2 rounded-md bg-gray-100 px-4 py-3 text-sm text-gray-600 dark:bg-gray-800 dark:text-gray-300">
+                <Loader2 size={14} className="animate-spin" />
+                Extracting Ollama…
+              </div>
+            ) : null}
+
+            {setupPhase === 'installing_ollama' ? (
+              <div className="mt-4 flex items-center gap-2 rounded-md bg-gray-100 px-4 py-3 text-sm text-gray-600 dark:bg-gray-800 dark:text-gray-300">
+                <Loader2 size={14} className="animate-spin" />
+                Installing Ollama…
+              </div>
+            ) : null}
+
+            {setupPhase === 'starting_ollama' ? (
+              <div className="mt-4 flex items-center gap-2 rounded-md bg-gray-100 px-4 py-3 text-sm text-gray-600 dark:bg-gray-800 dark:text-gray-300">
+                <Loader2 size={14} className="animate-spin" />
+                Starting Ollama…
               </div>
             ) : null}
 
@@ -271,7 +321,7 @@ export function SetupView() {
                 </p>
                 <button
                   type="button"
-                  onClick={() => void pullModel()}
+                  onClick={() => void autoSetup()}
                   className="inline-flex items-center gap-2 rounded-md bg-accent px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-accent-hover"
                 >
                   <Download size={16} />
@@ -309,7 +359,7 @@ export function SetupView() {
                 <p className="text-red-700 dark:text-red-200">{ollamaErrorMessage ?? 'Ollama model setup failed. Please retry.'}</p>
                 <button
                   type="button"
-                  onClick={onRetryOllama}
+                  onClick={() => void autoSetup()}
                   className="inline-flex items-center gap-2 rounded-lg border border-red-300 px-3 py-1.5 text-xs font-semibold text-red-700 transition hover:bg-red-100 dark:border-red-500/40 dark:text-red-200 dark:hover:bg-red-500/20"
                 >
                   <RefreshCw size={14} />

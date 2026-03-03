@@ -67,22 +67,25 @@ export function DataManagement() {
   };
 
   return (
-    <div className="pb-6">
-      <div className="flex items-center gap-2 text-gray-700 dark:text-gray-100">
-        <Database size={16} />
-        <h2 className="text-sm font-medium text-gray-500 dark:text-gray-400">Data Management</h2>
+    <div className="rounded-2xl border border-gray-200/80 bg-white/75 p-4 shadow-sm backdrop-blur-sm dark:border-gray-700/80 dark:bg-gray-900/45">
+      <div className="flex items-start gap-3">
+        <span className="rounded-xl border border-gray-200/80 bg-white/80 p-1.5 text-gray-500 dark:border-gray-700/80 dark:bg-gray-800/70 dark:text-gray-300">
+          <Database size={15} />
+        </span>
+        <div>
+          <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-100">Data Management</h3>
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            Backup your complete library or restore from a previous archive.
+          </p>
+        </div>
       </div>
-
-      <p className="mt-3 text-sm text-gray-700 dark:text-gray-100">
-        Backup your entire library including recordings, transcripts, and summaries. Restore from a previous backup archive when needed.
-      </p>
 
       <div className="mt-4 flex flex-wrap gap-2">
         <button
           type="button"
           onClick={() => void onBackup()}
           disabled={backupStatus === 'backing_up' || restoreStatus === 'restoring'}
-          className="inline-flex items-center gap-2 rounded-lg bg-accent px-3 py-2 text-sm font-semibold text-white transition hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-70"
+          className="inline-flex items-center gap-2 rounded-xl border border-accent/40 bg-accent px-3 py-2 text-sm font-semibold text-white transition-all duration-150 hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-70"
         >
           <HardDrive size={14} />
           {backupStatus === 'backing_up' ? 'Backing up...' : 'Backup Library'}
@@ -92,7 +95,7 @@ export function DataManagement() {
           type="button"
           onClick={() => void onRestore()}
           disabled={backupStatus === 'backing_up' || restoreStatus === 'restoring'}
-          className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white/70 px-3 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-70 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:hover:bg-gray-700"
+          className="inline-flex items-center gap-2 rounded-xl border border-gray-200/80 bg-white/80 px-3 py-2 text-sm font-semibold text-gray-700 transition-all duration-150 hover:border-gray-300 hover:bg-white disabled:cursor-not-allowed disabled:opacity-70 dark:border-gray-700/80 dark:bg-gray-800/70 dark:text-gray-100 dark:hover:border-gray-600 dark:hover:bg-gray-800"
         >
           <Upload size={14} />
           {restoreStatus === 'restoring' ? 'Restoring...' : 'Restore from Backup'}
@@ -100,16 +103,16 @@ export function DataManagement() {
       </div>
 
       <p className="mt-3 text-xs text-amber-700 dark:text-amber-200">
-        Restoring will replace all current data. This cannot be undone.
+        Restoring replaces all current data and cannot be undone.
       </p>
 
       {statusMessage ? (
         <p
           className={[
-            'mt-2 rounded-md border px-3 py-2 text-xs',
+            'mt-3 rounded-xl border px-3 py-2 text-xs',
             backupStatus === 'error' || restoreStatus === 'error'
-              ? 'border-red-300/70 bg-red-50/70 text-red-700 dark:border-red-500/40 dark:bg-red-500/10 dark:text-red-200'
-              : 'border-emerald-300/70 bg-emerald-50/70 text-emerald-700 dark:border-emerald-500/40 dark:bg-emerald-500/10 dark:text-emerald-200',
+              ? 'border-red-300/70 bg-red-50/80 text-red-700 dark:border-red-500/40 dark:bg-red-500/10 dark:text-red-200'
+              : 'border-emerald-300/70 bg-emerald-50/80 text-emerald-700 dark:border-emerald-500/40 dark:bg-emerald-500/10 dark:text-emerald-200',
           ].join(' ')}
         >
           {statusMessage}

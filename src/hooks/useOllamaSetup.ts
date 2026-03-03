@@ -3,11 +3,16 @@ import { open } from '@tauri-apps/plugin-shell';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { getSetting } from '../lib/settings';
-import type { OllamaPullEvent, OllamaSetupPhase, OllamaStatus } from '../types';
+import type { OllamaPullEvent, OllamaSetupEvent, OllamaSetupPhase, OllamaStatus } from '../types';
 
 type PullProgress = {
   status: string;
   completed: number;
+  total: number;
+};
+
+type OllamaDownloadProgress = {
+  downloaded: number;
   total: number;
 };
 
@@ -32,6 +37,7 @@ function mapStatusToPhase(status: OllamaStatus): OllamaSetupPhase {
 export function useOllamaSetup() {
   const [setupPhase, setSetupPhase] = useState<OllamaSetupPhase>('checking');
   const [pullProgress, setPullProgress] = useState<PullProgress | null>(null);
+  const [ollamaDownloadProgress, setOllamaDownloadProgress] = useState<OllamaDownloadProgress | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [waitingForOllama, setWaitingForOllama] = useState(false);
 
@@ -147,6 +153,63 @@ export function useOllamaSetup() {
     }
   }, []);
 
+  const autoSetup = useCallback(async () => {
+    setSetupPhase('checking');
+    setErrorMessage(null);
+    setOllamaDownloadProgress(null);
+    setPullProgress(null);
+
+    let errorHandled = false;
+
+    const channel = new Channel<OllamaSetupEvent>();
+    channel.onmessage = (event) => {
+      switch (event.event) {
+        case 'stage':
+          if (event.data.name === 'pulling_model') {
+            setSetupPhase('pulling');
+          } else {
+            setSetupPhase(event.data.name as OllamaSetupPhase);
+          }
+          break;
+        case 'downloadProgress':
+          setOllamaDownloadProgress({
+            downloaded: event.data.downloadedBytes,
+            total: event.data.totalBytes,
+          });
+          break;
+        case 'pullProgress':
+          setSetupPhase('pulling');
+          setPullProgress({
+            status: event.data.status,
+            completed: event.data.completed,
+            total: event.data.total,
+          });
+          break;
+        case 'complete':
+          setSetupPhase('ready');
+          setOllamaDownloadProgress(null);
+          setPullProgress(null);
+          setErrorMessage(null);
+          break;
+        case 'error':
+          errorHandled = true;
+          setSetupPhase('error');
+          setErrorMessage(event.data.message);
+          break;
+      }
+    };
+
+    try {
+      const currentModel = await getSetting('ollamaModel');
+      await invoke('auto_setup_ollama', { model: currentModel || 'phi4-mini', onEvent: channel });
+    } catch {
+      if (!errorHandled) {
+        setSetupPhase('error');
+        setErrorMessage('Auto-setup failed. Please retry.');
+      }
+    }
+  }, []);
+
   useEffect(() => {
     void checkStatus();
   }, [checkStatus]);
@@ -162,11 +225,13 @@ export function useOllamaSetup() {
   return {
     setupPhase,
     pullProgress,
+    ollamaDownloadProgress,
     errorMessage,
     waitingForOllama,
     checkStatus,
     openOllamaDownload,
     startOllama,
     pullModel,
+    autoSetup,
   };
 }

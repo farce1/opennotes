@@ -217,6 +217,7 @@ pub fn run() {
             commands::list_ollama_models,
             commands::delete_ollama_model,
             commands::update_recording_shortcut,
+            commands::auto_setup_ollama,
             commands::check_ollama_status,
             commands::pull_ollama_model,
             commands::generate_summary,

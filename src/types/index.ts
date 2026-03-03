@@ -112,6 +112,10 @@ export type OllamaSetupPhase =
   | 'checking'
   | 'not_installed'
   | 'not_running'
+  | 'downloading_ollama'
+  | 'extracting_ollama'
+  | 'installing_ollama'
+  | 'starting_ollama'
   | 'model_not_pulled'
   | 'pulling'
   | 'ready'
@@ -121,6 +125,13 @@ export type OllamaPullEvent =
   | { event: 'progress'; data: { status: string; completed: number; total: number } }
   | { event: 'complete' }
   | { event: 'error'; data: { message: string } };
+
+export type OllamaSetupEvent =
+  | { event: 'stage'; data: { name: string } }
+  | { event: 'downloadProgress'; data: { downloadedBytes: number; totalBytes: number } }
+  | { event: 'pullProgress'; data: { status: string; completed: number; total: number } }
+  | { event: 'complete' }
+  | { event: 'error'; data: { stage: string; message: string } };
 
 export type LlmTokenEvent =
   | { event: 'token'; data: { text: string; done: boolean } }

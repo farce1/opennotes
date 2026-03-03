@@ -5331,6 +5331,7 @@ dependencies = [
  "tauri-plugin-store",
  "tauri-plugin-updater",
  "tauri-plugin-window-state",
+ "tokio",
  "zip 2.4.2",
 ]
 

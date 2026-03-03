@@ -140,7 +140,7 @@ export function FilterBar({
   const datePreset = activeDatePreset();
 
   return (
-    <div className="mt-5 space-y-3 border-b border-gray-200/50 pb-4 dark:border-gray-800/50">
+    <div className="space-y-3 border-b border-gray-200/50 pb-4 dark:border-gray-800/50">
       {/* Row 1: Search + Status + Duration */}
       <div className="flex flex-wrap items-center gap-2">
         <label className="relative min-w-[200px] flex-1">

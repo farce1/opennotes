@@ -2,7 +2,11 @@ import { getVersion } from '@tauri-apps/api/app';
 import { relaunch } from '@tauri-apps/plugin-process';
 import { AlertCircle, CheckCircle, Download, Info, Loader2 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
+
 import { useUpdate } from '../../contexts/UpdateContext';
+
+const panelClasses =
+  'rounded-2xl border border-gray-200/80 bg-white/75 p-4 shadow-sm backdrop-blur-sm dark:border-gray-700/80 dark:bg-gray-900/45';
 
 export function AboutSection() {
   const { updateAvailable, availableVersion, cachedUpdate, checkForUpdate, checkState, errorMessage } = useUpdate();
@@ -35,31 +39,35 @@ export function AboutSection() {
   }, [cachedUpdate]);
 
   return (
-    <section className="space-y-4">
-      <div className="flex items-center gap-2 text-gray-700 dark:text-gray-100">
-        <Info size={20} />
-        <h2 className="text-lg font-semibold">About</h2>
+    <section className="space-y-5">
+      <div className="flex items-start gap-3">
+        <span className="rounded-xl border border-gray-200/80 bg-white/80 p-2 text-gray-500 shadow-sm dark:border-gray-700/80 dark:bg-gray-800/70 dark:text-gray-300">
+          <Info size={18} />
+        </span>
+        <div>
+          <h2 className="text-lg font-semibold tracking-tight text-gray-800 dark:text-gray-50">About</h2>
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Application version and update controls.</p>
+        </div>
       </div>
-      <div className="border-b border-gray-100 pb-6 dark:border-gray-800">
-        <p className="text-xl font-semibold text-gray-800 dark:text-gray-50">openNotes</p>
-        <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">{appVersion}</p>
+
+      <div className={panelClasses}>
+        <p className="text-xl font-semibold tracking-tight text-gray-800 dark:text-gray-50">openNotes</p>
+        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{appVersion}</p>
         <p className="mt-4 text-sm leading-relaxed text-gray-600 dark:text-gray-300">
-          One-click meeting recording with structured, actionable notes — entirely local, entirely free.
+          One-click meeting recording with structured, actionable notes, fully local and fully free.
         </p>
       </div>
 
-      <div className="pb-6">
-        <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400">
-          Updates
-        </h3>
+      <div className={panelClasses}>
+        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-100">Updates</h3>
 
-        <div className="mt-3 space-y-3">
-          <div className="flex flex-wrap items-center gap-3">
+        <div className="mt-4 space-y-3">
+          <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
               onClick={() => void checkForUpdate()}
               disabled={checkState === 'checking' || installState === 'installing'}
-              className="inline-flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-70 dark:border-gray-700 dark:text-gray-100 dark:hover:bg-gray-700"
+              className="inline-flex items-center gap-2 rounded-xl border border-gray-200/80 bg-white/80 px-3 py-2 text-sm font-medium text-gray-700 transition-all duration-150 hover:border-gray-300 hover:bg-white disabled:cursor-not-allowed disabled:opacity-70 dark:border-gray-700/80 dark:bg-gray-800/70 dark:text-gray-100 dark:hover:border-gray-600 dark:hover:bg-gray-800"
             >
               {checkState === 'checking' ? <Loader2 size={16} className="animate-spin" /> : null}
               Check for updates
@@ -69,7 +77,7 @@ export function AboutSection() {
               <button
                 type="button"
                 onClick={() => void handleInstall()}
-                className="inline-flex items-center gap-2 rounded-lg bg-accent px-3 py-2 text-sm text-white transition hover:bg-accent/90"
+                className="inline-flex items-center gap-2 rounded-xl border border-accent/40 bg-accent px-3 py-2 text-sm font-semibold text-white transition-all duration-150 hover:bg-accent-hover"
               >
                 <Download size={15} />
                 Install & restart
@@ -79,15 +87,13 @@ export function AboutSection() {
 
           {checkState === 'up-to-date' ? (
             <p className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
-              <CheckCircle size={16} className="text-green-600 dark:text-green-400" />
+              <CheckCircle size={16} className="text-emerald-600 dark:text-emerald-400" />
               You&apos;re up to date ({appVersion})
             </p>
           ) : null}
 
           {checkState === 'available' ? (
-            <p className="text-sm text-gray-600 dark:text-gray-300">
-              Update available: v{availableVersion ?? 'unknown'}
-            </p>
+            <p className="text-sm text-gray-600 dark:text-gray-300">Update available: v{availableVersion ?? 'unknown'}</p>
           ) : null}
 
           {checkState === 'error' ? (

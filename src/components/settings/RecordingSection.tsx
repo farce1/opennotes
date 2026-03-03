@@ -11,6 +11,18 @@ const AUDIO_SOURCE_OPTIONS = [
   { value: 'both' as const, label: 'Both' },
 ];
 
+const panelClasses =
+  'rounded-2xl border border-gray-200/80 bg-white/75 p-4 shadow-sm backdrop-blur-sm dark:border-gray-700/80 dark:bg-gray-900/45';
+
+function optionButtonClasses(selected: boolean): string {
+  return [
+    'rounded-xl border px-3 py-2.5 text-sm transition-all duration-150',
+    selected
+      ? 'border-accent/35 bg-accent/10 text-accent shadow-sm dark:border-accent/40 dark:bg-accent/15 dark:text-accent-muted'
+      : 'border-gray-200/80 bg-white/80 text-gray-600 hover:border-gray-300 hover:bg-white dark:border-gray-700/80 dark:bg-gray-800/70 dark:text-gray-200 dark:hover:border-gray-600 dark:hover:bg-gray-800',
+  ].join(' ');
+}
+
 export function RecordingSection() {
   const [preferredMicDevice, updatePreferredMicDevice] = useSetting('preferredMicDevice');
   const [defaultAudioSource, updateDefaultAudioSource] = useSetting('defaultAudioSource');
@@ -45,21 +57,26 @@ export function RecordingSection() {
   }, [devices]);
 
   return (
-    <section className="space-y-4">
-      <div className="flex items-center gap-2 text-gray-700 dark:text-gray-100">
-        <Mic size={20} />
-        <h2 className="text-lg font-semibold">Recording</h2>
+    <section className="space-y-5">
+      <div className="flex items-start gap-3">
+        <span className="rounded-xl border border-gray-200/80 bg-white/80 p-2 text-gray-500 shadow-sm dark:border-gray-700/80 dark:bg-gray-800/70 dark:text-gray-300">
+          <Mic size={18} />
+        </span>
+        <div>
+          <h2 className="text-lg font-semibold tracking-tight text-gray-800 dark:text-gray-50">Recording</h2>
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Set default capture devices and audio source behavior for new sessions.</p>
+        </div>
       </div>
 
-      <div className="border-b border-gray-100 pb-6 dark:border-gray-800">
-        <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400">
-          Microphone Device
-        </h3>
-        <div className="mt-3 flex items-center gap-2">
+      <div className={panelClasses}>
+        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-100">Microphone Device</h3>
+        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Choose a preferred input device, or keep system default fallback.</p>
+
+        <div className="mt-4 flex items-center gap-2">
           <select
             value={selectedMicDevice}
             onChange={(event) => void updatePreferredMicDevice(event.target.value || null)}
-            className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
+            className="w-full rounded-xl border border-gray-200/80 bg-white/80 px-3 py-2.5 text-sm text-gray-700 shadow-sm transition-all duration-150 outline-none hover:border-gray-300 focus:border-accent/40 focus:ring-2 focus:ring-accent/20 dark:border-gray-700/80 dark:bg-gray-800/70 dark:text-gray-100 dark:hover:border-gray-600"
           >
             {deviceOptions.map((device) => (
               <option key={device || 'system-default'} value={device}>
@@ -71,26 +88,27 @@ export function RecordingSection() {
             type="button"
             onClick={() => void loadDevices()}
             disabled={loadingDevices}
-            className="inline-flex items-center rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-70 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:hover:bg-gray-700"
+            className="inline-flex items-center rounded-xl border border-gray-200/80 bg-white/80 px-3 py-2.5 text-sm text-gray-600 shadow-sm transition-all duration-150 hover:border-gray-300 hover:bg-white disabled:cursor-not-allowed disabled:opacity-70 dark:border-gray-700/80 dark:bg-gray-800/70 dark:text-gray-200 dark:hover:border-gray-600 dark:hover:bg-gray-800"
+            aria-label="Refresh microphones"
           >
             <RotateCw size={15} className={loadingDevices ? 'animate-spin' : ''} />
           </button>
         </div>
-        <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-          Device preference applies to new recordings.
-        </p>
+
+        <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">Device preference applies to newly started recordings.</p>
+
         {deviceError ? (
-          <p className="mt-2 rounded-lg border border-amber-300/70 bg-amber-50/70 px-3 py-2 text-xs text-amber-700 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-200">
+          <p className="mt-3 rounded-xl border border-amber-300/70 bg-amber-50/80 px-3 py-2 text-xs text-amber-700 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-200">
             {deviceError}
           </p>
         ) : null}
       </div>
 
-      <div className="pb-6">
-        <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400">
-          Default Audio Source
-        </h3>
-        <div className="mt-3 grid gap-2 sm:grid-cols-3">
+      <div className={panelClasses}>
+        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-100">Default Audio Source</h3>
+        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Pick what openNotes captures when a recording starts.</p>
+
+        <div className="mt-4 grid gap-2 sm:grid-cols-3">
           {AUDIO_SOURCE_OPTIONS.map((option) => {
             const selected = selectedAudioSource === option.value;
 
@@ -99,23 +117,16 @@ export function RecordingSection() {
                 key={option.value}
                 type="button"
                 onClick={() => void updateDefaultAudioSource(option.value)}
-                className={[
-                  'rounded-lg border px-3 py-2 text-sm transition-colors duration-150',
-                  selected
-                    ? 'border-accent bg-accent-subtle text-gray-900 dark:bg-[rgba(59,130,246,0.12)] dark:text-gray-50'
-                    : 'border-gray-200 bg-gray-100 text-gray-700 hover:bg-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:hover:bg-gray-700',
-                ].join(' ')}
+                className={optionButtonClasses(selected)}
               >
                 {option.label}
               </button>
             );
           })}
         </div>
+
         <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-          Choose which audio sources are captured by default when starting a new recording.
-        </p>
-        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-          Maximum recording duration: 4 hours
+          Maximum recording duration remains capped at 4 hours.
         </p>
       </div>
     </section>

@@ -1,4 +1,5 @@
 pub mod detect;
+pub mod setup;
 
 use futures_util::StreamExt;
 use reqwest::Client;

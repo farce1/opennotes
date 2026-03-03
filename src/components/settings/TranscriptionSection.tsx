@@ -14,6 +14,9 @@ type DownloadProgress = {
   extracting: boolean;
 };
 
+const panelClasses =
+  'rounded-2xl border border-gray-200/80 bg-white/75 p-4 shadow-sm backdrop-blur-sm dark:border-gray-700/80 dark:bg-gray-900/45';
+
 export function TranscriptionSection() {
   const [language, updateLanguage] = useSetting('transcriptionLanguage');
   const [modelReady, setModelReady] = useState<boolean>(false);
@@ -131,46 +134,47 @@ export function TranscriptionSection() {
   }, [downloadProgress]);
 
   return (
-    <section className="space-y-4">
-      <div className="flex items-center gap-2 text-gray-700 dark:text-gray-100">
-        <FileText size={20} />
-        <h2 className="text-lg font-semibold">Transcription</h2>
+    <section className="space-y-5">
+      <div className="flex items-start gap-3">
+        <span className="rounded-xl border border-gray-200/80 bg-white/80 p-2 text-gray-500 shadow-sm dark:border-gray-700/80 dark:bg-gray-800/70 dark:text-gray-300">
+          <FileText size={18} />
+        </span>
+        <div>
+          <h2 className="text-lg font-semibold tracking-tight text-gray-800 dark:text-gray-50">Transcription</h2>
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Manage language preferences and local model availability.</p>
+        </div>
       </div>
 
-      <div className="border-b border-gray-100 pb-6 dark:border-gray-800">
-        <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400">
-          Language
-        </h3>
+      <div className={panelClasses}>
+        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-100">Language</h3>
+        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Current release supports English transcription.</p>
+
         <select
           value={language ?? 'en'}
           onChange={(event) => void updateLanguage(event.target.value)}
-          className="mt-3 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
+          className="mt-4 w-full rounded-xl border border-gray-200/80 bg-white/80 px-3 py-2.5 text-sm text-gray-700 shadow-sm transition-all duration-150 outline-none hover:border-gray-300 focus:border-accent/40 focus:ring-2 focus:ring-accent/20 dark:border-gray-700/80 dark:bg-gray-800/70 dark:text-gray-100 dark:hover:border-gray-600"
         >
           <option value="en">English</option>
         </select>
-        <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-          Additional languages may become available in future updates.
-        </p>
       </div>
 
-      <div className="pb-6">
-        <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400">
-          Transcription Model
-        </h3>
+      <div className={panelClasses}>
+        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-100">Transcription Model</h3>
+        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Parakeet TDT runs fully local and powers transcript generation.</p>
 
-        <div className="mt-3 rounded-lg bg-gray-50 p-3 dark:bg-gray-800/50">
+        <div className="mt-4 rounded-xl border border-gray-200/70 bg-white/70 p-3 dark:border-gray-700/70 dark:bg-gray-800/55">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
               <p className="text-sm font-medium text-gray-700 dark:text-gray-100">Parakeet TDT</p>
-              <p className="text-xs text-gray-500 dark:text-gray-400">~640 MB</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">Approx. 640 MB</p>
             </div>
 
             <span
               className={[
-                'rounded-full px-2 py-0.5 text-xs font-medium',
+                'rounded-full px-2.5 py-1 text-[11px] font-medium',
                 modelReady
-                  ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-200'
-                  : 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-200',
+                  ? 'bg-emerald-500/12 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-200'
+                  : 'bg-amber-500/12 text-amber-700 dark:bg-amber-500/20 dark:text-amber-200',
               ].join(' ')}
             >
               {loadingModelState ? 'Checking…' : modelReady ? 'Downloaded' : 'Not Downloaded'}
@@ -182,11 +186,8 @@ export function TranscriptionSection() {
               <p className="text-xs text-gray-500 dark:text-gray-400">
                 {downloadProgress.extracting ? 'Extracting model…' : `Downloading… ${progressPercent}%`}
               </p>
-              <div className="h-1.5 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
-                <div
-                  className="h-full rounded-full bg-accent transition-all"
-                  style={{ width: `${progressPercent}%` }}
-                />
+              <div className="h-1.5 w-full overflow-hidden rounded-full bg-gray-200/80 dark:bg-gray-700/70">
+                <div className="h-full rounded-full bg-accent transition-all duration-150" style={{ width: `${progressPercent}%` }} />
               </div>
             </div>
           ) : null}
@@ -197,7 +198,7 @@ export function TranscriptionSection() {
                 type="button"
                 onClick={() => void handleDeleteModel()}
                 disabled={working}
-                className="rounded-lg border border-red-300/80 px-3 py-2 text-sm text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-70 dark:border-red-500/40 dark:text-red-200 dark:hover:bg-red-500/10"
+                className="rounded-xl border border-red-300/70 bg-white/80 px-3 py-2 text-sm font-medium text-red-700 transition-all duration-150 hover:bg-red-50/80 disabled:cursor-not-allowed disabled:opacity-70 dark:border-red-500/40 dark:bg-red-500/10 dark:text-red-200 dark:hover:bg-red-500/20"
               >
                 Delete Model
               </button>
@@ -206,7 +207,7 @@ export function TranscriptionSection() {
                 type="button"
                 onClick={() => void handleDownloadModel()}
                 disabled={working}
-                className="rounded-lg border border-accent px-3 py-2 text-sm text-accent transition hover:bg-accent-subtle disabled:cursor-not-allowed disabled:opacity-70"
+                className="rounded-xl border border-accent/40 bg-accent/8 px-3 py-2 text-sm font-medium text-accent transition-all duration-150 hover:bg-accent/12 disabled:cursor-not-allowed disabled:opacity-70 dark:border-accent/45 dark:bg-accent/15 dark:text-accent-muted"
               >
                 Download
               </button>
@@ -215,7 +216,7 @@ export function TranscriptionSection() {
         </div>
 
         {errorMessage ? (
-          <p className="mt-3 rounded-lg border border-red-300/70 bg-red-50/70 px-3 py-2 text-xs text-red-700 dark:border-red-500/40 dark:bg-red-500/10 dark:text-red-200">
+          <p className="mt-3 rounded-xl border border-red-300/70 bg-red-50/80 px-3 py-2 text-xs text-red-700 dark:border-red-500/40 dark:bg-red-500/10 dark:text-red-200">
             {errorMessage}
           </p>
         ) : null}

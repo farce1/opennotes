@@ -496,6 +496,17 @@ pub async fn update_recording_shortcut(
 }
 
 #[tauri::command]
+pub async fn auto_setup_ollama(
+    server_url: Option<String>,
+    model: Option<String>,
+    on_event: Channel<llm::setup::OllamaSetupEvent>,
+) -> Result<(), String> {
+    let url = server_url.unwrap_or_else(|| llm::DEFAULT_OLLAMA_URL.to_string());
+    let selected_model = model.unwrap_or_else(|| llm::DEFAULT_MODEL.to_string());
+    llm::setup::auto_setup_ollama(&url, &selected_model, &on_event).await
+}
+
+#[tauri::command]
 pub async fn check_ollama_status(
     server_url: Option<String>,
     model: Option<String>,

@@ -6,6 +6,7 @@ import type { SettingsTab } from '../../types';
 interface Tab {
   id: SettingsTab;
   label: string;
+  description: string;
   icon: LucideIcon;
 }
 
@@ -17,25 +18,28 @@ interface SettingsSidebarProps {
 
 export function SettingsSidebar({ tabs, selectedTab, onSelect }: SettingsSidebarProps) {
   return (
-    <nav className="h-full w-44 shrink-0 border-r border-gray-200 px-2 py-4 dark:border-gray-800">
-      <div className="space-y-1">
-        {tabs.map(({ id, label, icon: Icon }) => (
+    <nav className="flex flex-wrap gap-2" aria-label="Settings sections">
+      {tabs.map(({ id, label, description, icon: Icon }) => {
+        const selected = selectedTab === id;
+
+        return (
           <button
             key={id}
             type="button"
             onClick={() => onSelect(id)}
+            title={description}
             className={clsx(
-              'flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-colors',
-              selectedTab === id
-                ? 'bg-accent-subtle text-accent font-medium dark:bg-[rgba(59,130,246,0.12)] dark:text-accent-muted'
-                : 'text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800',
+              'inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-medium transition-all duration-150',
+              selected
+                ? 'border-accent/35 bg-accent/12 text-accent shadow-sm dark:border-accent/45 dark:bg-accent/18 dark:text-accent-muted'
+                : 'border-gray-200/80 bg-white/75 text-gray-600 hover:border-gray-300 hover:bg-white dark:border-gray-700/80 dark:bg-gray-900/55 dark:text-gray-300 dark:hover:border-gray-600 dark:hover:bg-gray-800/80',
             )}
           >
-            <Icon size={16} />
+            <Icon size={14} />
             <span>{label}</span>
           </button>
-        ))}
-      </div>
+        );
+      })}
     </nav>
   );
 }

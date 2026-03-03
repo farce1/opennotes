@@ -18,6 +18,9 @@ const themeOptions: Array<{ value: AppTheme; label: string; icon: typeof Sun }> 
   { value: 'system', label: 'System', icon: Laptop },
 ];
 
+const panelClasses =
+  'rounded-2xl border border-gray-200/80 bg-white/75 p-4 shadow-sm backdrop-blur-sm dark:border-gray-700/80 dark:bg-gray-900/45';
+
 function buildShortcutFromEvent(event: KeyboardEvent<HTMLButtonElement>): string | null {
   const parts: string[] = [];
 
@@ -44,6 +47,15 @@ function buildShortcutFromEvent(event: KeyboardEvent<HTMLButtonElement>): string
   parts.push(key);
 
   return parts.join('+');
+}
+
+function optionButtonClasses(selected: boolean): string {
+  return [
+    'flex items-center justify-center gap-2 rounded-xl border px-3 py-2.5 text-sm transition-all duration-150',
+    selected
+      ? 'border-accent/35 bg-accent/10 text-accent shadow-sm dark:border-accent/40 dark:bg-accent/15 dark:text-accent-muted'
+      : 'border-gray-200/80 bg-white/80 text-gray-600 hover:border-gray-300 hover:bg-white dark:border-gray-700/80 dark:bg-gray-800/70 dark:text-gray-200 dark:hover:border-gray-600 dark:hover:bg-gray-800',
+  ].join(' ');
 }
 
 export function GeneralSection() {
@@ -145,17 +157,22 @@ export function GeneralSection() {
   }, [capturing]);
 
   return (
-    <section className="space-y-4">
-      <div className="flex items-center gap-2 text-gray-700 dark:text-gray-100">
-        <SlidersHorizontal size={20} />
-        <h2 className="text-lg font-semibold">General</h2>
+    <section className="space-y-5">
+      <div className="flex items-start gap-3">
+        <span className="rounded-xl border border-gray-200/80 bg-white/80 p-2 text-gray-500 shadow-sm dark:border-gray-700/80 dark:bg-gray-800/70 dark:text-gray-300">
+          <SlidersHorizontal size={18} />
+        </span>
+        <div>
+          <h2 className="text-lg font-semibold tracking-tight text-gray-800 dark:text-gray-50">General</h2>
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Appearance, shortcuts, and global behavior for the app.</p>
+        </div>
       </div>
 
-      <div className="border-b border-gray-100 pb-6 dark:border-gray-800">
-        <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400">
-          Appearance
-        </h3>
-        <div className="mt-3 grid gap-2 sm:grid-cols-3">
+      <div className={panelClasses}>
+        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-100">Appearance</h3>
+        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Choose how openNotes looks across the entire workspace.</p>
+
+        <div className="mt-4 grid gap-2 sm:grid-cols-3">
           {themeOptions.map(({ value, label, icon: Icon }) => {
             const selected = theme === value;
 
@@ -164,14 +181,9 @@ export function GeneralSection() {
                 key={value}
                 type="button"
                 onClick={() => void setTheme(value)}
-                className={[
-                  'flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm transition-colors duration-150',
-                  selected
-                    ? 'border-accent bg-accent-subtle text-gray-900 dark:bg-[rgba(59,130,246,0.12)] dark:text-gray-50'
-                    : 'border-gray-200 bg-gray-100 text-gray-700 hover:bg-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:hover:bg-gray-700',
-                ].join(' ')}
+                className={optionButtonClasses(selected)}
               >
-                <Icon size={16} />
+                <Icon size={15} />
                 <span>{label}</span>
               </button>
             );
@@ -179,42 +191,47 @@ export function GeneralSection() {
         </div>
       </div>
 
-      <div className="border-b border-gray-100 pb-6 dark:border-gray-800">
-        <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400">
-          Recording Shortcut
-        </h3>
+      <div className={panelClasses}>
+        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-100">Recording Shortcut</h3>
+        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Set the global hotkey used to start or stop recording instantly.</p>
+
         <button
           ref={shortcutFieldRef}
           type="button"
           onClick={() => void startCapture()}
           onKeyDown={(event) => void handleShortcutKeyDown(event)}
           onBlur={handleShortcutBlur}
-          className="mt-3 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-left text-sm text-gray-700 transition hover:bg-gray-100 focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:hover:bg-gray-700"
+          className={[
+            'mt-4 w-full rounded-xl border px-3 py-2.5 text-left text-sm transition-all duration-150 focus:outline-none',
+            capturing
+              ? 'border-accent/45 bg-accent/8 text-accent ring-2 ring-accent/20 dark:border-accent/50 dark:bg-accent/12 dark:text-accent-muted'
+              : 'border-gray-200/80 bg-white/80 text-gray-700 hover:border-gray-300 hover:bg-white focus:border-accent/45 focus:ring-2 focus:ring-accent/20 dark:border-gray-700/80 dark:bg-gray-800/70 dark:text-gray-100 dark:hover:border-gray-600 dark:hover:bg-gray-800',
+          ].join(' ')}
         >
           {capturing ? 'Press shortcut...' : displayShortcut}
         </button>
+
         <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
           Click to capture a new keyboard combination. Press Escape to cancel.
         </p>
+
         {shortcutError ? (
-          <p className="mt-2 rounded-lg border border-red-300/70 bg-red-50/70 px-3 py-2 text-xs text-red-700 dark:border-red-500/40 dark:bg-red-500/10 dark:text-red-200">
+          <p className="mt-3 rounded-xl border border-red-300/70 bg-red-50/80 px-3 py-2 text-xs text-red-700 dark:border-red-500/40 dark:bg-red-500/10 dark:text-red-200">
             {shortcutError}
           </p>
         ) : null}
       </div>
 
-      <div className="pb-6">
-        <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400">
-          Global Reset
-        </h3>
-        <p className="mt-3 text-sm text-gray-600 dark:text-gray-300">
-          Reset every preference to defaults, including theme, shortcut, model settings, and storage options.
+      <div className="rounded-2xl border border-red-200/70 bg-red-50/70 p-4 shadow-sm dark:border-red-500/30 dark:bg-red-500/8">
+        <h3 className="text-sm font-semibold text-red-700 dark:text-red-200">Global Reset</h3>
+        <p className="mt-1 text-xs text-red-600/90 dark:text-red-200/90">
+          Reset every preference to defaults, including theme, shortcuts, models, and storage behavior.
         </p>
         <button
           type="button"
           onClick={() => void handleResetAll()}
           disabled={resetting}
-          className="mt-3 inline-flex items-center gap-2 rounded-lg border border-red-300/80 px-3 py-2 text-sm text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-70 dark:border-red-500/40 dark:text-red-200 dark:hover:bg-red-500/10"
+          className="mt-4 inline-flex items-center gap-2 rounded-xl border border-red-300/80 bg-white/80 px-3 py-2 text-sm font-medium text-red-700 transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-70 dark:border-red-500/40 dark:bg-red-500/10 dark:text-red-200 dark:hover:bg-red-500/20"
         >
           <RotateCcw size={15} />
           {resetting ? 'Resetting…' : 'Reset all settings'}
