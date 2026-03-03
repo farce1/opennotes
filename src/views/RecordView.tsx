@@ -51,8 +51,9 @@ export function RecordView() {
     permissionHint,
     permissionLoading,
     ensurePermissions,
+    grantMicrophonePermission,
+    grantSystemAudioPermission,
     refreshPermissions,
-    openSystemSettings,
   } = useRecording();
 
   const { modelStatus, checkModelReady } = useModelSetup();
@@ -98,6 +99,7 @@ export function RecordView() {
   const modelReady = modelStatus === 'ready';
   const modelBlocked = modelStatus === 'not_ready' || modelStatus === 'error';
   const isModelChecking = modelStatus === 'checking' || modelStatus === 'unknown';
+  const modelSettingUp = modelStatus === 'downloading' || modelStatus === 'extracting';
 
   useEffect(() => {
     const container = transcriptContainerRef.current;
@@ -172,6 +174,20 @@ export function RecordView() {
       setRecordingError('Stopping the session failed. Please retry from the widget or tray controls.');
     }
   }, [navigateToMeetingComplete, stopSession]);
+
+  const handleGrantMicrophone = useCallback(async () => {
+    setRecordingError(null);
+    await grantMicrophonePermission();
+  }, [grantMicrophonePermission]);
+
+  const handleGrantSystemAudio = useCallback(async () => {
+    setRecordingError(null);
+    await grantSystemAudioPermission();
+  }, [grantSystemAudioPermission]);
+
+  const handleGoToModels = useCallback(() => {
+    navigate('/setup');
+  }, [navigate]);
 
   useEffect(() => {
     if (!sessionActive || !startTime || phase === 'stopping') {
@@ -255,46 +271,85 @@ export function RecordView() {
         </div>
 
         <div className="grid gap-3 rounded-lg bg-gray-50 p-4 text-sm dark:bg-gray-800/50">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-3">
             <span className="flex items-center gap-2 font-medium text-gray-700 dark:text-gray-100">
               <Mic size={16} />
               Microphone
             </span>
-            {permissionStatus.mic === 'granted' ? (
-              <span className="inline-flex items-center gap-1 text-emerald-600">
-                <CheckCircle2 size={15} /> Granted
-              </span>
-            ) : (
-              <span className="inline-flex items-center gap-1 text-red-500">
-                <AlertTriangle size={15} /> Required
-              </span>
-            )}
+            <div className="flex items-center gap-2">
+              {permissionStatus.mic === 'granted' ? (
+                <span className="inline-flex items-center gap-1 text-emerald-600">
+                  <CheckCircle2 size={15} /> Granted
+                </span>
+              ) : (
+                <>
+                  <span className="inline-flex items-center gap-1 text-red-500">
+                    <AlertTriangle size={15} /> Required
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => void handleGrantMicrophone()}
+                    disabled={permissionLoading}
+                    className="rounded-md border border-accent px-2.5 py-1 text-xs font-semibold text-accent transition hover:bg-accent-subtle/30 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {permissionLoading ? 'Granting…' : 'Grant'}
+                  </button>
+                </>
+              )}
+            </div>
           </div>
 
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-3">
             <span className="font-medium text-gray-700 dark:text-gray-100">{systemAudioLabel}</span>
-            {permissionStatus.screenRecording === 'granted' ? (
-              <span className="inline-flex items-center gap-1 text-emerald-600">
-                <CheckCircle2 size={15} /> Granted
-              </span>
-            ) : (
-              <span className="inline-flex items-center gap-1 text-amber-500">
-                <AlertTriangle size={15} /> Setup needed
-              </span>
-            )}
+            <div className="flex items-center gap-2">
+              {permissionStatus.screenRecording === 'granted' ? (
+                <span className="inline-flex items-center gap-1 text-emerald-600">
+                  <CheckCircle2 size={15} /> Granted
+                </span>
+              ) : (
+                <>
+                  <span className="inline-flex items-center gap-1 text-amber-500">
+                    <AlertTriangle size={15} /> Setup needed
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => void handleGrantSystemAudio()}
+                    disabled={permissionLoading}
+                    className="rounded-md border border-accent px-2.5 py-1 text-xs font-semibold text-accent transition hover:bg-accent-subtle/30 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {permissionLoading ? 'Granting…' : 'Grant'}
+                  </button>
+                </>
+              )}
+            </div>
           </div>
 
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-3">
             <span className="font-medium text-gray-700 dark:text-gray-100">Transcription model</span>
-            {modelReady ? (
-              <span className="inline-flex items-center gap-1 text-emerald-600">
-                <CheckCircle2 size={15} /> Ready
-              </span>
-            ) : (
-              <span className="inline-flex items-center gap-1 text-amber-500">
-                <AlertTriangle size={15} /> Setup needed
-              </span>
-            )}
+            <div className="flex items-center gap-2">
+              {modelReady ? (
+                <span className="inline-flex items-center gap-1 text-emerald-600">
+                  <CheckCircle2 size={15} /> Ready
+                </span>
+              ) : modelSettingUp || isModelChecking ? (
+                <span className="inline-flex items-center gap-1 text-gray-500 dark:text-gray-400">
+                  Checking…
+                </span>
+              ) : (
+                <>
+                  <span className="inline-flex items-center gap-1 text-amber-500">
+                    <AlertTriangle size={15} /> Setup needed
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleGoToModels}
+                    className="rounded-md border border-accent px-2.5 py-1 text-xs font-semibold text-accent transition hover:bg-accent-subtle/30 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    Go to Models
+                  </button>
+                </>
+              )}
+            </div>
           </div>
 
           {transcriptionDegraded ? (
@@ -311,26 +366,6 @@ export function RecordView() {
             >
               Refresh Permissions
             </button>
-
-            {macOS && permissionStatus.screenRecording !== 'granted' ? (
-              <button
-                type="button"
-                onClick={() => void openSystemSettings()}
-                className="rounded-lg border border-amber-400 px-3 py-1.5 text-xs font-medium text-amber-700 transition hover:bg-amber-100/70 dark:border-amber-500 dark:text-amber-300 dark:hover:bg-amber-500/10"
-              >
-                Open System Settings
-              </button>
-            ) : null}
-
-            {modelBlocked ? (
-              <button
-                type="button"
-                onClick={() => navigate('/setup')}
-                className="rounded-md border border-accent px-3 py-1.5 text-xs font-medium text-accent transition hover:bg-accent-subtle/30"
-              >
-                Open Models
-              </button>
-            ) : null}
           </div>
 
           {permissionHint ? (

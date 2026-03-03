@@ -193,6 +193,91 @@ export function useRecording() {
     }
   }, []);
 
+  const grantMicrophonePermission = useCallback(async () => {
+    setPermissionLoading(true);
+    setPermissionHint(null);
+
+    try {
+      const os = platform();
+
+      if (os === 'macos') {
+        const macPerms = await import('tauri-plugin-macos-permissions-api');
+
+        let micGranted = await macPerms.checkMicrophonePermission();
+        if (!micGranted) {
+          await macPerms.requestMicrophonePermission();
+          micGranted = await macPerms.checkMicrophonePermission();
+        }
+
+        const screenGranted = await macPerms.checkScreenRecordingPermission();
+        setPermissionStatus({
+          mic: micGranted ? 'granted' : 'denied',
+          screenRecording: screenGranted ? 'granted' : 'denied',
+        });
+
+        if (!micGranted) {
+          setPermissionHint(
+            'Enable Microphone in System Settings > Privacy > Microphone.'
+          );
+          return false;
+        }
+
+        return true;
+      }
+
+      await refreshPermissions();
+      return true;
+    } catch {
+      setPermissionHint('Unable to grant microphone permission automatically.');
+      return false;
+    } finally {
+      setPermissionLoading(false);
+    }
+  }, [refreshPermissions]);
+
+  const grantSystemAudioPermission = useCallback(async () => {
+    setPermissionLoading(true);
+    setPermissionHint(null);
+
+    try {
+      const os = platform();
+
+      if (os === 'macos') {
+        const macPerms = await import('tauri-plugin-macos-permissions-api');
+
+        let screenGranted = await macPerms.checkScreenRecordingPermission();
+        if (!screenGranted) {
+          await macPerms.requestScreenRecordingPermission();
+          screenGranted = await macPerms.checkScreenRecordingPermission();
+        }
+
+        const micGranted = await macPerms.checkMicrophonePermission();
+        setPermissionStatus({
+          mic: micGranted ? 'granted' : 'denied',
+          screenRecording: screenGranted ? 'granted' : 'denied',
+        });
+
+        if (!screenGranted) {
+          setPermissionHint(
+            'Enable Screen Recording in System Settings > Privacy > Screen Recording, then restart openNotes.'
+          );
+          return false;
+        }
+
+        return true;
+      }
+
+      await openSystemSettings();
+      await refreshPermissions();
+      return true;
+    } catch {
+      setPermissionHint('Unable to grant system audio permission automatically.');
+      return false;
+    } finally {
+      setPermissionLoading(false);
+    }
+  }, [openSystemSettings, refreshPermissions]);
+
   useEffect(() => {
     refreshElapsed();
 
@@ -304,6 +389,8 @@ export function useRecording() {
     permissionHint,
     permissionLoading,
     ensurePermissions,
+    grantMicrophonePermission,
+    grantSystemAudioPermission,
     refreshPermissions,
     openSystemSettings,
   };
