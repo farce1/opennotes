@@ -13,7 +13,7 @@ use std::path::{Path, PathBuf};
 use commands::{RecordingStateHandle, SessionHandle, TranscriptionStateHandle};
 use tauri::Emitter;
 use tauri::Manager;
-use tauri_plugin_sql::{Builder as SqlBuilder, Migration, MigrationKind};
+use tauri_plugin_sql::Builder as SqlBuilder;
 #[cfg(desktop)]
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
 
@@ -88,27 +88,6 @@ fn migrate_legacy_data_dir(_data_dir: &Path) {}
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let migrations = vec![
-        Migration {
-            version: 1,
-            description: "initial_schema",
-            sql: include_str!("../migrations/001_initial.sql"),
-            kind: MigrationKind::Up,
-        },
-        Migration {
-            version: 2,
-            description: "phase4_session",
-            sql: include_str!("../migrations/002_phase4_session.sql"),
-            kind: MigrationKind::Up,
-        },
-        Migration {
-            version: 3,
-            description: "phase6_library",
-            sql: include_str!("../migrations/003_phase6_library.sql"),
-            kind: MigrationKind::Up,
-        },
-    ];
-
     let recording_state: RecordingStateHandle =
         std::sync::Arc::new(std::sync::Mutex::new(audio::RecordingState::default()));
     let transcription_state: TranscriptionStateHandle =
@@ -207,7 +186,7 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .plugin(
             SqlBuilder::default()
-                .add_migrations("sqlite:data.db", migrations)
+                .add_migrations("sqlite:data.db", vec![])
                 .build(),
         )
         .plugin(tauri_plugin_window_state::Builder::default().build())
