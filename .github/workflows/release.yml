@@ -37,7 +37,9 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: lts/*
-          cache: "npm"
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
 
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
@@ -64,11 +66,11 @@ jobs:
           workspaces: "./src-tauri -> target"
 
       - name: Install frontend dependencies
-        run: npm install
+        run: bun install
 
       - name: Build frontend and check bundle size
         run: |
-          npm run build
+          bun run build
           node <<'NODE'
           const fs = require('node:fs');
           const path = require('node:path');
