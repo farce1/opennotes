@@ -18,7 +18,7 @@ const CHARS_PER_TOKEN_ESTIMATE: f64 = 3.5;
 const PROMPT_OVERHEAD_TOKENS: u64 = 500;
 
 #[derive(Clone, Serialize)]
-#[serde(rename_all = "camelCase", tag = "event", content = "data")]
+#[serde(rename_all = "camelCase", rename_all_fields = "camelCase", tag = "event", content = "data")]
 pub enum LlmTokenEvent {
     Token { text: String, done: bool },
     Error { message: String },

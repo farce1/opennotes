@@ -33,7 +33,7 @@ pub struct SegmentResult {
 }
 
 #[derive(Clone, Serialize)]
-#[serde(rename_all = "camelCase", tag = "event", content = "data")]
+#[serde(rename_all = "camelCase", rename_all_fields = "camelCase", tag = "event", content = "data")]
 pub enum TranscriptEvent {
     Segment {
         text: String,

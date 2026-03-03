@@ -15,7 +15,7 @@ const PARAKEET_URL: &str = "https://github.com/k2-fsa/sherpa-onnx/releases/downl
 const PROGRESS_EMIT_STEP_BYTES: u64 = 512 * 1024;
 
 #[derive(Clone, Serialize)]
-#[serde(rename_all = "camelCase", tag = "event", content = "data")]
+#[serde(rename_all = "camelCase", rename_all_fields = "camelCase", tag = "event", content = "data")]
 pub enum DownloadEvent {
     Progress {
         downloaded_bytes: u64,

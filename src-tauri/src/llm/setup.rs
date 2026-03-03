@@ -18,7 +18,7 @@ const PROGRESS_EMIT_STEP_BYTES: u64 = 512 * 1024;
 const OLLAMA_START_TIMEOUT_SECS: u64 = 30;
 
 #[derive(Clone, Serialize)]
-#[serde(rename_all = "camelCase", tag = "event", content = "data")]
+#[serde(rename_all = "camelCase", rename_all_fields = "camelCase", tag = "event", content = "data")]
 pub enum OllamaSetupEvent {
     Stage {
         name: String,
