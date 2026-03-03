@@ -84,14 +84,14 @@ export function MeetingRow({
   };
 
   return (
-    <article className="group rounded-lg border border-warm-200/70 bg-white/70 px-3 py-2 transition hover:border-warm-300 dark:border-warm-700/70 dark:bg-warm-900/30">
+    <article className="group rounded-md px-3 py-2 transition hover:bg-gray-50 dark:hover:bg-gray-800/50">
       <div className="flex items-center gap-3">
         <input
           type="checkbox"
           checked={selected}
           onChange={() => onSelect(meeting.id)}
           className={[
-            'h-4 w-4 rounded border-warm-300 accent-accent transition',
+            'h-4 w-4 rounded border-gray-300 accent-accent transition',
             selectionMode ? 'opacity-100' : 'opacity-0 group-hover:opacity-100',
           ].join(' ')}
         />
@@ -103,13 +103,13 @@ export function MeetingRow({
             onChange={(event) => onEditTitleChange(event.target.value)}
             onBlur={onCommitRename}
             onKeyDown={onTitleKeyDown}
-            className="min-w-0 flex-1 rounded-md border border-warm-300 bg-warm-50 px-2 py-1 text-sm font-semibold text-warm-700 outline-none ring-accent transition focus:ring-2 dark:border-warm-600 dark:bg-warm-900 dark:text-warm-100"
+            className="min-w-0 flex-1 rounded-md border border-gray-200 bg-gray-50 px-2 py-1 text-sm font-semibold text-gray-700 outline-none ring-accent transition focus:ring-2 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
           />
         ) : (
           <button
             type="button"
             onClick={() => onClick(meeting.id)}
-            className="min-w-0 flex-1 truncate text-left text-sm font-semibold text-warm-700 transition hover:text-accent dark:text-warm-100"
+            className="min-w-0 flex-1 truncate text-left text-sm font-semibold text-gray-700 transition hover:text-accent dark:text-gray-100"
           >
             {meeting.title}
           </button>
@@ -119,36 +119,36 @@ export function MeetingRow({
           <button
             type="button"
             onClick={() => onStartRename(meeting.id, meeting.title)}
-            className="opacity-0 transition group-hover:opacity-100 rounded-md p-1 text-warm-400 hover:bg-warm-100 hover:text-warm-700 dark:hover:bg-warm-800 dark:hover:text-warm-100"
+            className="opacity-0 transition group-hover:opacity-100 rounded-md p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-100"
             aria-label="Rename meeting"
           >
             <Pencil size={12} />
           </button>
         ) : null}
 
-        <span className="hidden text-xs text-warm-500 dark:text-warm-300 sm:inline">{formatShortDate(meeting.started_at)}</span>
-        <span className="hidden text-xs text-warm-500 dark:text-warm-300 md:inline">{formatDuration(meeting.duration_seconds)}</span>
+        <span className="hidden text-xs text-gray-500 dark:text-gray-400 sm:inline">{formatShortDate(meeting.started_at)}</span>
+        <span className="hidden text-xs text-gray-500 dark:text-gray-400 md:inline">{formatDuration(meeting.duration_seconds)}</span>
 
-        <span className={`rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide ${statusClasses(meeting.status)}`}>
+        <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${statusClasses(meeting.status)}`}>
           {meeting.status}
         </span>
 
-        <span className="text-warm-400 dark:text-warm-300">{sourceIcon(meeting.audio_sources)}</span>
+        <span className="text-gray-400 dark:text-gray-400">{sourceIcon(meeting.audio_sources)}</span>
 
-        <span className="hidden max-w-[220px] truncate text-xs text-warm-500 dark:text-warm-300 lg:inline">
+        <span className="hidden max-w-[220px] truncate text-xs text-gray-500 dark:text-gray-400 lg:inline">
           {meeting.summary_preview?.trim() || 'No summary'}
         </span>
 
         <details className="relative">
-          <summary className="list-none inline-flex cursor-pointer items-center gap-1 rounded-md border border-warm-300 px-2 py-1 text-xs font-medium text-warm-700 transition hover:bg-warm-100 dark:border-warm-600 dark:text-warm-100 dark:hover:bg-warm-800">
+          <summary className="list-none inline-flex cursor-pointer items-center gap-1 rounded-md border border-gray-200 px-2 py-1 text-xs font-medium text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:text-gray-100 dark:hover:bg-gray-800">
             <Download size={11} />
             Export
           </summary>
-          <div className="absolute right-0 z-20 mt-1 min-w-[130px] rounded-lg border border-warm-200 bg-white p-1 shadow-lg dark:border-warm-700 dark:bg-warm-900">
-            <button type="button" onClick={(event) => onExportClick('md', event)} className="block w-full rounded px-2 py-1 text-left text-xs hover:bg-warm-100 dark:hover:bg-warm-800">Markdown</button>
-            <button type="button" onClick={(event) => onExportClick('txt', event)} className="block w-full rounded px-2 py-1 text-left text-xs hover:bg-warm-100 dark:hover:bg-warm-800">Plain Text</button>
-            <button type="button" onClick={(event) => onExportClick('json', event)} className="block w-full rounded px-2 py-1 text-left text-xs hover:bg-warm-100 dark:hover:bg-warm-800">JSON</button>
-            <button type="button" onClick={(event) => onExportClick('pdf', event)} className="block w-full rounded px-2 py-1 text-left text-xs hover:bg-warm-100 dark:hover:bg-warm-800">PDF</button>
+          <div className="absolute right-0 z-20 mt-1 min-w-[130px] rounded-lg border border-gray-200 bg-white p-1 shadow-lg dark:border-gray-700 dark:bg-gray-900">
+            <button type="button" onClick={(event) => onExportClick('md', event)} className="block w-full rounded px-2 py-1 text-left text-xs hover:bg-gray-100 dark:hover:bg-gray-800">Markdown</button>
+            <button type="button" onClick={(event) => onExportClick('txt', event)} className="block w-full rounded px-2 py-1 text-left text-xs hover:bg-gray-100 dark:hover:bg-gray-800">Plain Text</button>
+            <button type="button" onClick={(event) => onExportClick('json', event)} className="block w-full rounded px-2 py-1 text-left text-xs hover:bg-gray-100 dark:hover:bg-gray-800">JSON</button>
+            <button type="button" onClick={(event) => onExportClick('pdf', event)} className="block w-full rounded px-2 py-1 text-left text-xs hover:bg-gray-100 dark:hover:bg-gray-800">PDF</button>
           </div>
         </details>
 

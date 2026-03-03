@@ -23,7 +23,7 @@ export function SettingsView() {
   const [selectedTab, setSelectedTab] = useState<SettingsTab>('general');
 
   return (
-    <div className="flex h-full min-h-[calc(100vh-3rem)] rounded-xl border border-warm-200/80 bg-white/70 shadow-sm dark:border-warm-700/70 dark:bg-warm-800/40">
+    <div className="flex h-full min-h-[calc(100vh-3rem)] rounded-lg bg-white dark:bg-gray-900">
       <SettingsSidebar tabs={TABS} selectedTab={selectedTab} onSelect={setSelectedTab} />
       <div className="flex-1 overflow-auto p-6">
         {selectedTab === 'general' ? <GeneralSection /> : null}

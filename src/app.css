@@ -1,19 +1,27 @@
 @import "tailwindcss";
 
 @theme {
-  --color-warm-50: #faf8f5;
-  --color-warm-100: #f5f0ea;
-  --color-warm-200: #e8e0d4;
-  --color-warm-300: #d4c8b8;
-  --color-warm-400: #b8a694;
-  --color-warm-500: #9c8a78;
-  --color-warm-600: #7d6e5e;
-  --color-warm-700: #5e5347;
-  --color-warm-800: #3f3830;
-  --color-warm-900: #201d19;
-  --color-accent: #e07a5f;
-  --color-accent-hover: #c96a51;
-  --color-accent-light: #f4c5b5;
+  /* Neutral scale (zinc-based, cool undertone) */
+  --color-gray-50:  #fafafa;
+  --color-gray-100: #f4f4f5;
+  --color-gray-200: #e4e4e7;
+  --color-gray-300: #d4d4d8;
+  --color-gray-400: #a1a1aa;
+  --color-gray-500: #71717a;
+  --color-gray-600: #52525b;
+  --color-gray-700: #3f3f46;
+  --color-gray-800: #27272a;
+  --color-gray-850: #1f1f23;
+  --color-gray-900: #18181b;
+  --color-gray-950: #09090b;
+
+  /* Primary accent: Blue */
+  --color-accent:       #3b82f6;
+  --color-accent-hover: #2563eb;
+  --color-accent-muted: #60a5fa;
+  --color-accent-subtle: #eff6ff;
+  --color-accent-subtle-dark: rgba(59, 130, 246, 0.12);
+
   --color-recording: #ef4444;
   --color-processing: #f97316;
   --radius-sm: 0.375rem;
@@ -24,7 +32,7 @@
 
 @layer base {
   body {
-    @apply bg-warm-50 text-warm-900 dark:bg-warm-900 dark:text-warm-50;
+    @apply bg-gray-100 text-gray-900 dark:bg-gray-950 dark:text-gray-50;
     font-family:
       -apple-system,
       BlinkMacSystemFont,

@@ -36,7 +36,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
           <div
             key={toast.id}
             style={{ animation: 'transcriptFade 180ms ease-out' }}
-            className="rounded-lg border border-warm-200/80 bg-warm-50 px-4 py-2.5 text-sm text-warm-700 shadow-lg dark:border-warm-600 dark:bg-warm-800 dark:text-warm-100"
+            className="rounded-lg bg-gray-50 px-4 py-2.5 text-sm text-gray-700 shadow-lg dark:bg-gray-800 dark:text-gray-100"
           >
             {toast.message}
           </div>

@@ -29,7 +29,7 @@ function sourceBadge(meeting: MeetingWithPreview) {
 
   if (source === 'mic') {
     return (
-      <span className="inline-flex items-center gap-1 rounded-full border border-warm-300/80 bg-warm-50/80 px-2 py-0.5 text-[11px] font-medium text-warm-600 dark:border-warm-600 dark:bg-warm-800/70 dark:text-warm-200">
+      <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300">
         <Mic size={11} /> Mic
       </span>
     );
@@ -37,7 +37,7 @@ function sourceBadge(meeting: MeetingWithPreview) {
 
   if (source === 'system') {
     return (
-      <span className="inline-flex items-center gap-1 rounded-full border border-warm-300/80 bg-warm-50/80 px-2 py-0.5 text-[11px] font-medium text-warm-600 dark:border-warm-600 dark:bg-warm-800/70 dark:text-warm-200">
+      <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300">
         <Monitor size={11} /> System
       </span>
     );
@@ -45,7 +45,7 @@ function sourceBadge(meeting: MeetingWithPreview) {
 
   if (source === 'both') {
     return (
-      <span className="inline-flex items-center gap-1 rounded-full border border-warm-300/80 bg-warm-50/80 px-2 py-0.5 text-[11px] font-medium text-warm-600 dark:border-warm-600 dark:bg-warm-800/70 dark:text-warm-200">
+      <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300">
         <AudioLines size={11} /> Both
       </span>
     );
@@ -97,7 +97,7 @@ export function MeetingCard({
   };
 
   return (
-    <article className="group rounded-xl border border-warm-200/70 bg-white/70 p-4 shadow-sm transition hover:border-warm-300 dark:border-warm-700/70 dark:bg-warm-900/30">
+    <article className="group rounded-lg p-4 transition hover:bg-gray-50 dark:hover:bg-gray-800/50">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex items-start gap-2">
           <input
@@ -105,7 +105,7 @@ export function MeetingCard({
             checked={selected}
             onChange={() => onSelect(meeting.id)}
             className={[
-              'mt-1 h-4 w-4 rounded border-warm-300 accent-accent transition',
+              'mt-1 h-4 w-4 rounded border-gray-300 accent-accent transition',
               selectionMode ? 'opacity-100' : 'opacity-0 group-hover:opacity-100',
             ].join(' ')}
           />
@@ -119,13 +119,13 @@ export function MeetingCard({
                   onChange={(event) => onEditTitleChange(event.target.value)}
                   onBlur={onCommitRename}
                   onKeyDown={onTitleKeyDown}
-                  className="w-full rounded-md border border-warm-300 bg-warm-50 px-2 py-1 text-base font-semibold text-warm-700 outline-none ring-accent transition focus:ring-2 dark:border-warm-600 dark:bg-warm-900 dark:text-warm-100"
+                  className="w-full rounded-md border border-gray-200 bg-gray-50 px-2 py-1 text-base font-semibold text-gray-700 outline-none ring-accent transition focus:ring-2 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
                 />
               ) : (
                 <button
                   type="button"
                   onClick={() => onClick(meeting.id)}
-                  className="text-left text-base font-semibold text-warm-700 transition hover:text-accent dark:text-warm-100"
+                  className="text-left text-base font-semibold text-gray-700 transition hover:text-accent dark:text-gray-100"
                 >
                   {meeting.title}
                 </button>
@@ -135,7 +135,7 @@ export function MeetingCard({
                 <button
                   type="button"
                   onClick={() => onStartRename(meeting.id, meeting.title)}
-                  className="opacity-0 transition group-hover:opacity-100 rounded-md p-1 text-warm-400 hover:bg-warm-100 hover:text-warm-700 dark:hover:bg-warm-800 dark:hover:text-warm-100"
+                  className="opacity-0 transition group-hover:opacity-100 rounded-md p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-100"
                   aria-label="Rename meeting"
                 >
                   <Pencil size={13} />
@@ -143,40 +143,40 @@ export function MeetingCard({
               ) : null}
             </div>
 
-            <p className="mt-1 text-xs text-warm-500 dark:text-warm-300">
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
               {formatDate(meeting.started_at)} • {formatDuration(meeting.duration_seconds)}
             </p>
           </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <span className={`rounded-full border px-2 py-0.5 text-[11px] font-medium uppercase tracking-wide ${statusClasses(meeting.status)}`}>
+          <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${statusClasses(meeting.status)}`}>
             {meeting.status}
           </span>
           {sourceBadge(meeting)}
         </div>
       </div>
 
-      <p className="mt-3 line-clamp-2 text-sm text-warm-600 dark:text-warm-200">
+      <p className="mt-3 line-clamp-2 text-sm text-gray-600 dark:text-gray-300">
         {meeting.summary_preview?.trim() || 'No summary available yet.'}
       </p>
 
-      <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-warm-500 dark:text-warm-300">
+      <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
         <span>{meeting.segment_count} segments</span>
         <span>•</span>
         <span>{words} preview words</span>
 
         <div className="ml-auto flex items-center gap-2">
           <details className="relative">
-            <summary className="list-none inline-flex cursor-pointer items-center gap-1 rounded-lg border border-warm-300 px-2.5 py-1 text-xs font-medium text-warm-700 transition hover:bg-warm-100 dark:border-warm-600 dark:text-warm-100 dark:hover:bg-warm-800">
+            <summary className="list-none inline-flex cursor-pointer items-center gap-1 rounded-md border border-gray-200 px-2.5 py-1 text-xs font-medium text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:text-gray-100 dark:hover:bg-gray-800">
               <Download size={12} />
               Export
             </summary>
-            <div className="absolute right-0 z-20 mt-1 min-w-[150px] rounded-lg border border-warm-200 bg-white p-1 shadow-lg dark:border-warm-700 dark:bg-warm-900">
-              <button type="button" onClick={(event) => onExportClick('md', event)} className="block w-full rounded px-2 py-1 text-left text-xs hover:bg-warm-100 dark:hover:bg-warm-800">Markdown</button>
-              <button type="button" onClick={(event) => onExportClick('txt', event)} className="block w-full rounded px-2 py-1 text-left text-xs hover:bg-warm-100 dark:hover:bg-warm-800">Plain Text</button>
-              <button type="button" onClick={(event) => onExportClick('json', event)} className="block w-full rounded px-2 py-1 text-left text-xs hover:bg-warm-100 dark:hover:bg-warm-800">JSON</button>
-              <button type="button" onClick={(event) => onExportClick('pdf', event)} className="block w-full rounded px-2 py-1 text-left text-xs hover:bg-warm-100 dark:hover:bg-warm-800">PDF</button>
+            <div className="absolute right-0 z-20 mt-1 min-w-[150px] rounded-lg border border-gray-200 bg-white p-1 shadow-lg dark:border-gray-700 dark:bg-gray-900">
+              <button type="button" onClick={(event) => onExportClick('md', event)} className="block w-full rounded px-2 py-1 text-left text-xs hover:bg-gray-100 dark:hover:bg-gray-800">Markdown</button>
+              <button type="button" onClick={(event) => onExportClick('txt', event)} className="block w-full rounded px-2 py-1 text-left text-xs hover:bg-gray-100 dark:hover:bg-gray-800">Plain Text</button>
+              <button type="button" onClick={(event) => onExportClick('json', event)} className="block w-full rounded px-2 py-1 text-left text-xs hover:bg-gray-100 dark:hover:bg-gray-800">JSON</button>
+              <button type="button" onClick={(event) => onExportClick('pdf', event)} className="block w-full rounded px-2 py-1 text-left text-xs hover:bg-gray-100 dark:hover:bg-gray-800">PDF</button>
             </div>
           </details>
 

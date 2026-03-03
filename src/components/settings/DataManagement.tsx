@@ -67,13 +67,13 @@ export function DataManagement() {
   };
 
   return (
-    <article className="rounded-xl border border-warm-200/80 bg-warm-50 p-4 shadow-sm dark:border-warm-700/60 dark:bg-warm-800/70">
-      <div className="flex items-center gap-2 text-warm-700 dark:text-warm-100">
+    <div className="pb-6">
+      <div className="flex items-center gap-2 text-gray-700 dark:text-gray-100">
         <Database size={16} />
-        <h2 className="text-xs font-medium uppercase tracking-wide text-warm-500 dark:text-warm-300">Data Management</h2>
+        <h2 className="text-sm font-medium text-gray-500 dark:text-gray-400">Data Management</h2>
       </div>
 
-      <p className="mt-3 text-sm text-warm-700 dark:text-warm-100">
+      <p className="mt-3 text-sm text-gray-700 dark:text-gray-100">
         Backup your entire library including recordings, transcripts, and summaries. Restore from a previous backup archive when needed.
       </p>
 
@@ -92,7 +92,7 @@ export function DataManagement() {
           type="button"
           onClick={() => void onRestore()}
           disabled={backupStatus === 'backing_up' || restoreStatus === 'restoring'}
-          className="inline-flex items-center gap-2 rounded-lg border border-warm-300 bg-white/70 px-3 py-2 text-sm font-semibold text-warm-700 transition hover:bg-warm-100 disabled:cursor-not-allowed disabled:opacity-70 dark:border-warm-600 dark:bg-warm-700/60 dark:text-warm-100 dark:hover:bg-warm-700"
+          className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white/70 px-3 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-70 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:hover:bg-gray-700"
         >
           <Upload size={14} />
           {restoreStatus === 'restoring' ? 'Restoring...' : 'Restore from Backup'}
@@ -115,6 +115,6 @@ export function DataManagement() {
           {statusMessage}
         </p>
       ) : null}
-    </article>
+    </div>
   );
 }

@@ -238,25 +238,25 @@ export function RecordView() {
   }, [handleStartRecording, navigateToMeetingComplete, phase, stopSession]);
 
   return (
-    <section className="flex h-full min-h-[calc(100vh-3rem)] items-center justify-center rounded-xl border border-warm-200/80 bg-white/60 px-6 py-10 shadow-sm dark:border-warm-700/70 dark:bg-warm-800/40">
-      <div className="w-full max-w-4xl space-y-6">
+    <section className="flex h-full min-h-[calc(100vh-3rem)] items-center justify-center px-6 py-10">
+      <div className="w-full max-w-2xl space-y-6">
         <div className="text-center">
           <Circle
-            className={`mx-auto ${isRecording ? 'text-red-500' : 'text-warm-300'}`}
+            className={`mx-auto ${isRecording ? 'text-red-500' : 'text-gray-300'}`}
             size={54}
             strokeWidth={1.8}
           />
-          <h1 className="mt-4 text-2xl font-semibold text-warm-700 dark:text-warm-100">{stateLabel}</h1>
-          <p className="mt-1 text-sm text-warm-500 dark:text-warm-300">
+          <h1 className="mt-4 text-2xl font-semibold text-gray-700 dark:text-gray-100">{stateLabel}</h1>
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
             {sessionActive
               ? `Elapsed: ${formatElapsed(elapsedMs)} — session and transcription are coordinated automatically.`
               : `Press ${shortcutHint}, use the tray menu, or start recording here.`}
           </p>
         </div>
 
-        <div className="grid gap-3 rounded-xl border border-warm-200/70 bg-warm-50/70 p-4 text-sm dark:border-warm-700/70 dark:bg-warm-900/30">
+        <div className="grid gap-3 rounded-lg bg-gray-50 p-4 text-sm dark:bg-gray-800/50">
           <div className="flex items-center justify-between">
-            <span className="flex items-center gap-2 font-medium text-warm-700 dark:text-warm-100">
+            <span className="flex items-center gap-2 font-medium text-gray-700 dark:text-gray-100">
               <Mic size={16} />
               Microphone
             </span>
@@ -272,7 +272,7 @@ export function RecordView() {
           </div>
 
           <div className="flex items-center justify-between">
-            <span className="font-medium text-warm-700 dark:text-warm-100">{systemAudioLabel}</span>
+            <span className="font-medium text-gray-700 dark:text-gray-100">{systemAudioLabel}</span>
             {permissionStatus.screenRecording === 'granted' ? (
               <span className="inline-flex items-center gap-1 text-emerald-600">
                 <CheckCircle2 size={15} /> Granted
@@ -285,7 +285,7 @@ export function RecordView() {
           </div>
 
           <div className="flex items-center justify-between">
-            <span className="font-medium text-warm-700 dark:text-warm-100">Transcription model</span>
+            <span className="font-medium text-gray-700 dark:text-gray-100">Transcription model</span>
             {modelReady ? (
               <span className="inline-flex items-center gap-1 text-emerald-600">
                 <CheckCircle2 size={15} /> Ready
@@ -298,7 +298,7 @@ export function RecordView() {
           </div>
 
           {transcriptionDegraded ? (
-            <p className="rounded-lg border border-amber-300/70 bg-amber-50/70 px-3 py-2 text-xs text-amber-700 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-200">
+            <p className="rounded-md bg-amber-50/70 px-3 py-2 text-xs text-amber-700 dark:bg-amber-500/10 dark:text-amber-200">
               Transcription encountered an issue during this session. Audio recording is still active.
             </p>
           ) : null}
@@ -307,7 +307,7 @@ export function RecordView() {
             <button
               type="button"
               onClick={() => void refreshPermissions()}
-              className="rounded-lg border border-warm-300 px-3 py-1.5 text-xs font-medium text-warm-700 transition hover:bg-warm-100 dark:border-warm-600 dark:text-warm-100 dark:hover:bg-warm-800"
+              className="rounded-md border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-700 transition hover:bg-gray-100 dark:border-gray-600 dark:text-gray-100 dark:hover:bg-gray-800"
             >
               Refresh Permissions
             </button>
@@ -326,7 +326,7 @@ export function RecordView() {
               <button
                 type="button"
                 onClick={() => navigate('/setup')}
-                className="rounded-lg border border-accent px-3 py-1.5 text-xs font-medium text-accent transition hover:bg-accent-light/30"
+                className="rounded-md border border-accent px-3 py-1.5 text-xs font-medium text-accent transition hover:bg-accent-subtle/30"
               >
                 Open Setup
               </button>
@@ -334,39 +334,39 @@ export function RecordView() {
           </div>
 
           {permissionHint ? (
-            <p className="rounded-lg border border-amber-300/70 bg-amber-50/70 px-3 py-2 text-xs text-amber-700 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-200">
+            <p className="rounded-md bg-amber-50/70 px-3 py-2 text-xs text-amber-700 dark:bg-amber-500/10 dark:text-amber-200">
               {permissionHint}
             </p>
           ) : null}
 
           {recordingError ? (
-            <p className="rounded-lg border border-red-300/70 bg-red-50/70 px-3 py-2 text-xs text-red-700 dark:border-red-500/40 dark:bg-red-500/10 dark:text-red-200">
+            <p className="rounded-md bg-red-50/70 px-3 py-2 text-xs text-red-700 dark:bg-red-500/10 dark:text-red-200">
               {recordingError}
             </p>
           ) : null}
 
           {modelBlocked ? (
-            <p className="rounded-lg border border-accent-light bg-accent-light/35 px-3 py-2 text-xs text-warm-700 dark:border-accent/40 dark:bg-accent/10 dark:text-warm-100">
+            <p className="rounded-md bg-accent-subtle/35 px-3 py-2 text-xs text-gray-700 dark:bg-accent/10 dark:text-gray-100">
               Transcription model not set up. Go to Setup to download it before recording.
             </p>
           ) : null}
 
           {isModelChecking ? (
-            <p className="rounded-lg border border-warm-300/70 bg-white/70 px-3 py-2 text-xs text-warm-600 dark:border-warm-600 dark:bg-warm-800/60 dark:text-warm-200">
+            <p className="rounded-md bg-white/70 px-3 py-2 text-xs text-gray-600 dark:bg-gray-800/60 dark:text-gray-200">
               Checking transcription model status…
             </p>
           ) : null}
         </div>
 
-        <div className="rounded-xl border border-warm-200/70 bg-white/70 p-4 dark:border-warm-700/70 dark:bg-warm-900/30">
-          <div className="mb-3 flex items-center justify-between text-xs uppercase tracking-wide text-warm-500 dark:text-warm-300">
+        <div className="rounded-lg p-4">
+          <div className="mb-3 flex items-center justify-between text-xs font-medium text-gray-500 dark:text-gray-400">
             <span>Live Transcript</span>
             <span>{isTranscribing ? 'Transcribing' : 'Idle'}</span>
           </div>
 
           <div
             ref={transcriptContainerRef}
-            className={`h-56 rounded-lg border border-warm-200/70 bg-warm-50/50 p-3 dark:border-warm-700/70 dark:bg-warm-900/40 ${
+            className={`h-56 rounded-lg bg-gray-50 p-3 dark:bg-gray-800/50 ${
               sessionActive ? 'overflow-y-hidden' : 'overflow-y-auto'
             }`}
           >
@@ -377,13 +377,13 @@ export function RecordView() {
                     key={segment.index}
                     className="grid grid-cols-[auto_1fr] gap-x-3 rounded-md border border-transparent px-1 py-1.5 animate-[transcriptFade_0.3s_ease-out]"
                   >
-                    <span className="font-mono text-xs text-warm-500 dark:text-warm-300">{formatElapsed(segment.elapsedMs)}</span>
-                    <p className="text-sm leading-relaxed text-warm-700 dark:text-warm-100">{segment.text}</p>
+                    <span className="font-mono text-xs text-gray-500 dark:text-gray-400">{formatElapsed(segment.elapsedMs)}</span>
+                    <p className="text-sm leading-relaxed text-gray-700 dark:text-gray-100">{segment.text}</p>
                   </article>
                 ))}
               </div>
             ) : (
-              <p className="text-sm text-warm-500 dark:text-warm-300">{transcriptHint}</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">{transcriptHint}</p>
             )}
           </div>
         </div>
@@ -394,7 +394,7 @@ export function RecordView() {
               type="button"
               onClick={() => void handleStartRecording()}
               disabled={permissionLoading || !modelReady}
-              className="rounded-xl bg-accent px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-60"
+              className="rounded-md bg-accent px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-60"
             >
               {permissionLoading ? 'Checking permissions…' : 'Start Recording'}
             </button>
@@ -404,7 +404,7 @@ export function RecordView() {
                 type="button"
                 onClick={() => void (isPaused ? resumeSession() : pauseSession())}
                 disabled={phase === 'stopping' || isSaving}
-                className="rounded-xl border border-warm-300 px-5 py-2.5 text-sm font-semibold text-warm-700 transition hover:bg-warm-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-warm-600 dark:text-warm-100 dark:hover:bg-warm-800"
+                className="rounded-md border border-gray-200 px-5 py-2.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-600 dark:text-gray-100 dark:hover:bg-gray-800"
               >
                 {isPaused ? 'Resume' : 'Pause'}
               </button>
@@ -413,7 +413,7 @@ export function RecordView() {
                 type="button"
                 onClick={() => void handleStopRecording()}
                 disabled={phase === 'stopping' || isSaving}
-                className="inline-flex items-center gap-2 rounded-xl bg-red-500 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-red-600 disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex items-center gap-2 rounded-md bg-red-500 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-red-600 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <Square size={13} />
                 {isSaving || phase === 'stopping' ? 'Saving…' : 'Stop Recording'}
@@ -423,7 +423,7 @@ export function RecordView() {
         </div>
 
         {typeof meetingId === 'number' && phase === 'idle' ? (
-          <p className="text-center text-xs text-warm-500 dark:text-warm-300">Last saved meeting ID: {meetingId}</p>
+          <p className="text-center text-xs text-gray-500 dark:text-gray-400">Last saved meeting ID: {meetingId}</p>
         ) : null}
       </div>
     </section>

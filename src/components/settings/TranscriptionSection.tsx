@@ -132,37 +132,37 @@ export function TranscriptionSection() {
 
   return (
     <section className="space-y-4">
-      <div className="flex items-center gap-2 text-warm-700 dark:text-warm-100">
+      <div className="flex items-center gap-2 text-gray-700 dark:text-gray-100">
         <FileText size={20} />
         <h2 className="text-lg font-semibold">Transcription</h2>
       </div>
 
-      <article className="rounded-xl border border-warm-200/80 bg-warm-50 p-4 shadow-sm dark:border-warm-700/60 dark:bg-warm-800/70">
-        <h3 className="text-xs font-medium uppercase tracking-wide text-warm-500 dark:text-warm-300">
+      <div className="border-b border-gray-100 pb-6 dark:border-gray-800">
+        <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400">
           Language
         </h3>
         <select
           value={language ?? 'en'}
           onChange={(event) => void updateLanguage(event.target.value)}
-          className="mt-3 w-full rounded-lg border border-warm-200 bg-white px-3 py-2 text-sm text-warm-700 dark:border-warm-600 dark:bg-warm-700/70 dark:text-warm-100"
+          className="mt-3 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
         >
           <option value="en">English</option>
         </select>
-        <p className="mt-2 text-xs text-warm-500 dark:text-warm-300">
+        <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
           Additional languages may become available in future updates.
         </p>
-      </article>
+      </div>
 
-      <article className="rounded-xl border border-warm-200/80 bg-warm-50 p-4 shadow-sm dark:border-warm-700/60 dark:bg-warm-800/70">
-        <h3 className="text-xs font-medium uppercase tracking-wide text-warm-500 dark:text-warm-300">
+      <div className="pb-6">
+        <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400">
           Transcription Model
         </h3>
 
-        <div className="mt-3 rounded-lg border border-warm-200/80 bg-white/70 p-3 dark:border-warm-600/80 dark:bg-warm-700/40">
+        <div className="mt-3 rounded-lg bg-gray-50 p-3 dark:bg-gray-800/50">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
-              <p className="text-sm font-medium text-warm-700 dark:text-warm-100">Parakeet TDT</p>
-              <p className="text-xs text-warm-500 dark:text-warm-300">~640 MB</p>
+              <p className="text-sm font-medium text-gray-700 dark:text-gray-100">Parakeet TDT</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">~640 MB</p>
             </div>
 
             <span
@@ -179,10 +179,10 @@ export function TranscriptionSection() {
 
           {downloadProgress ? (
             <div className="mt-3 space-y-2">
-              <p className="text-xs text-warm-500 dark:text-warm-300">
+              <p className="text-xs text-gray-500 dark:text-gray-400">
                 {downloadProgress.extracting ? 'Extracting model…' : `Downloading… ${progressPercent}%`}
               </p>
-              <div className="h-1.5 w-full overflow-hidden rounded-full bg-warm-200 dark:bg-warm-700">
+              <div className="h-1.5 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
                 <div
                   className="h-full rounded-full bg-accent transition-all"
                   style={{ width: `${progressPercent}%` }}
@@ -206,7 +206,7 @@ export function TranscriptionSection() {
                 type="button"
                 onClick={() => void handleDownloadModel()}
                 disabled={working}
-                className="rounded-lg border border-accent px-3 py-2 text-sm text-accent transition hover:bg-accent-light/30 disabled:cursor-not-allowed disabled:opacity-70"
+                className="rounded-lg border border-accent px-3 py-2 text-sm text-accent transition hover:bg-accent-subtle disabled:cursor-not-allowed disabled:opacity-70"
               >
                 Download
               </button>
@@ -219,7 +219,7 @@ export function TranscriptionSection() {
             {errorMessage}
           </p>
         ) : null}
-      </article>
+      </div>
     </section>
   );
 }

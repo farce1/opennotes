@@ -207,9 +207,9 @@ export function LibraryView() {
   const noSearchResults = !loading && searchResults !== null && searchResults.length === 0;
 
   return (
-    <section className="h-full min-h-[calc(100vh-3rem)] rounded-xl border border-warm-200/80 bg-white/60 p-6 shadow-sm dark:border-warm-700/70 dark:bg-warm-800/40">
+    <section className="h-full min-h-[calc(100vh-3rem)] p-6">
       <header className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-semibold text-warm-700 dark:text-warm-100">{showTrash ? 'Trash' : 'Meeting Library'}</h1>
+        <h1 className="text-2xl font-semibold text-gray-700 dark:text-gray-100">{showTrash ? 'Trash' : 'Meeting Library'}</h1>
 
         {showTrash && meetings.length > 0 ? (
           <button
@@ -239,7 +239,7 @@ export function LibraryView() {
         onToggleTrash={toggleTrash}
       />
 
-      {loading ? <p className="mt-6 text-sm text-warm-500 dark:text-warm-300">Loading meetings…</p> : null}
+      {loading ? <p className="mt-6 text-sm text-gray-500 dark:text-gray-400">Loading meetings…</p> : null}
 
       {error ? (
         <p className="mt-4 rounded-lg border border-red-300/70 bg-red-50/70 px-3 py-2 text-sm text-red-700 dark:border-red-500/40 dark:bg-red-500/10 dark:text-red-200">
@@ -260,19 +260,19 @@ export function LibraryView() {
               key={result.id}
               type="button"
               onClick={() => onOpenMeeting(result.id)}
-              className="w-full rounded-xl border border-warm-200/70 bg-white/70 p-4 text-left shadow-sm transition hover:border-warm-300 dark:border-warm-700/70 dark:bg-warm-900/30"
+              className="w-full rounded-lg p-4 text-left transition hover:bg-gray-50 dark:hover:bg-gray-800/50"
             >
               <div className="flex flex-wrap items-center gap-2">
-                <h2 className="text-sm font-semibold text-warm-700 dark:text-warm-100">{result.title}</h2>
-                <span className={`rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide ${statusClasses(result.status)}`}>
+                <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-100">{result.title}</h2>
+                <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${statusClasses(result.status)}`}>
                   {result.status}
                 </span>
               </div>
-              <p className="mt-1 text-xs text-warm-500 dark:text-warm-300">
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                 {formatDate(result.started_at)} • {formatDuration(result.duration_seconds)}
               </p>
               <p
-                className="mt-2 text-sm text-warm-600 [&_mark]:rounded [&_mark]:bg-accent-light/70 [&_mark]:px-0.5 [&_mark]:text-warm-900 dark:text-warm-200 dark:[&_mark]:bg-accent/30 dark:[&_mark]:text-warm-50"
+                className="mt-2 text-sm text-gray-600 [&_mark]:rounded [&_mark]:bg-accent-subtle/70 [&_mark]:px-0.5 [&_mark]:text-gray-900 dark:text-gray-200 dark:[&_mark]:bg-accent/30 dark:[&_mark]:text-gray-50"
                 dangerouslySetInnerHTML={renderSearchSnippet(result.snippet)}
               />
             </button>
@@ -309,32 +309,32 @@ export function LibraryView() {
             </div>
           ))}
           {meetings.length > 0 ? (
-            <p className="pt-2 text-xs text-warm-500 dark:text-warm-300">Trash is auto-purged after 30 days.</p>
+            <p className="pt-2 text-xs text-gray-500 dark:text-gray-400">Trash is auto-purged after 30 days.</p>
           ) : null}
         </div>
       ) : null}
 
       {noMeetings && !showTrash ? (
-        <div className="mt-12 flex flex-col items-center justify-center gap-3 text-center text-warm-400 dark:text-warm-300">
+        <div className="mt-12 flex flex-col items-center justify-center gap-3 text-center text-gray-400 dark:text-gray-400">
           <BookOpen size={52} strokeWidth={1.8} />
           <p className="text-lg font-medium">No meetings yet</p>
-          <p className="text-sm text-warm-500 dark:text-warm-400">Your recorded meetings will appear here</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400">Your recorded meetings will appear here</p>
         </div>
       ) : null}
 
       {noMeetings && showTrash ? (
-        <div className="mt-12 flex flex-col items-center justify-center gap-3 text-center text-warm-400 dark:text-warm-300">
+        <div className="mt-12 flex flex-col items-center justify-center gap-3 text-center text-gray-400 dark:text-gray-400">
           <Trash2 size={52} strokeWidth={1.8} />
           <p className="text-lg font-medium">Trash is empty</p>
-          <p className="text-sm text-warm-500 dark:text-warm-400">Soft-deleted meetings will appear here.</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400">Soft-deleted meetings will appear here.</p>
         </div>
       ) : null}
 
       {noSearchResults ? (
-        <div className="mt-12 flex flex-col items-center justify-center gap-3 text-center text-warm-400 dark:text-warm-300">
+        <div className="mt-12 flex flex-col items-center justify-center gap-3 text-center text-gray-400 dark:text-gray-400">
           <SearchX size={52} strokeWidth={1.8} />
           <p className="text-lg font-medium">No meetings match your search</p>
-          <p className="text-sm text-warm-500 dark:text-warm-400">Try fewer keywords or clear filters.</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400">Try fewer keywords or clear filters.</p>
         </div>
       ) : null}
 

@@ -31,9 +31,9 @@ export function AppLayout() {
       <SummaryGenerationProvider>
         <ToastProvider>
           <EventToastBridge />
-          <div className="flex h-screen min-h-[400px] min-w-[600px] bg-warm-50 dark:bg-warm-900">
+          <div className="flex h-screen min-h-[560px] min-w-[860px] bg-gray-100 dark:bg-gray-950">
             <Sidebar />
-            <main className="flex-1 overflow-auto p-6 text-warm-900 dark:text-warm-50">
+            <main className="flex-1 overflow-auto p-6 text-gray-900 dark:text-gray-50">
               <Outlet />
             </main>
           </div>

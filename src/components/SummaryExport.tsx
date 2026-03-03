@@ -64,7 +64,7 @@ export function SummaryExport({ summaryText, meetingTitle }: SummaryExportProps)
         type="button"
         onClick={() => void onCopy()}
         disabled={disabled}
-        className="inline-flex items-center gap-2 rounded-lg border border-warm-300 px-3 py-1.5 text-xs font-semibold text-warm-700 transition hover:bg-warm-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-warm-600 dark:text-warm-100 dark:hover:bg-warm-800"
+        className="inline-flex items-center gap-2 rounded-md border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
       >
         <Copy size={13} />
         {copyState === 'copied' ? 'Copied!' : 'Copy'}
@@ -74,7 +74,7 @@ export function SummaryExport({ summaryText, meetingTitle }: SummaryExportProps)
         type="button"
         onClick={onExportMarkdown}
         disabled={disabled}
-        className="inline-flex items-center gap-2 rounded-lg border border-warm-300 px-3 py-1.5 text-xs font-semibold text-warm-700 transition hover:bg-warm-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-warm-600 dark:text-warm-100 dark:hover:bg-warm-800"
+        className="inline-flex items-center gap-2 rounded-md border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
       >
         <Download size={13} />
         Export Markdown
@@ -84,7 +84,7 @@ export function SummaryExport({ summaryText, meetingTitle }: SummaryExportProps)
         type="button"
         onClick={() => void onExportPdf()}
         disabled={disabled || creatingPdf}
-        className="inline-flex items-center gap-2 rounded-lg border border-warm-300 px-3 py-1.5 text-xs font-semibold text-warm-700 transition hover:bg-warm-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-warm-600 dark:text-warm-100 dark:hover:bg-warm-800"
+        className="inline-flex items-center gap-2 rounded-md border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
       >
         <FileText size={13} />
         {pdfError ? 'Export failed' : creatingPdf ? 'Generating PDF…' : 'Export PDF'}

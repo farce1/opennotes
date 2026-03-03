@@ -39,18 +39,18 @@ export function formatDuration(durationSeconds: number | null): string {
 
 export function statusClasses(status: Meeting['status']): string {
   if (status === 'completed') {
-    return 'border-emerald-300/80 bg-emerald-100/70 text-emerald-700 dark:border-emerald-500/50 dark:bg-emerald-500/10 dark:text-emerald-200';
+    return 'bg-emerald-100/70 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-200';
   }
 
   if (status === 'recovered') {
-    return 'border-amber-300/80 bg-amber-100/70 text-amber-700 dark:border-amber-500/50 dark:bg-amber-500/10 dark:text-amber-200';
+    return 'bg-amber-100/70 text-amber-700 dark:bg-amber-500/10 dark:text-amber-200';
   }
 
   if (status === 'failed') {
-    return 'border-red-300/80 bg-red-100/70 text-red-700 dark:border-red-500/50 dark:bg-red-500/10 dark:text-red-200';
+    return 'bg-red-100/70 text-red-700 dark:bg-red-500/10 dark:text-red-200';
   }
 
-  return 'border-warm-300/70 bg-white/70 text-warm-700 dark:border-warm-600 dark:bg-warm-800/70 dark:text-warm-100';
+  return 'bg-gray-100/70 text-gray-700 dark:bg-gray-800/70 dark:text-gray-100';
 }
 
 export function normalizeAudioSource(value: string | null): 'mic' | 'system' | 'both' | null {

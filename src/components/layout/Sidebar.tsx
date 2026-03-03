@@ -13,29 +13,30 @@ export function Sidebar() {
   const { updateAvailable } = useUpdate();
 
   return (
-    <aside className="h-screen w-14 bg-warm-50 dark:bg-warm-900 border-r border-warm-200/80 dark:border-warm-800/80 flex items-center justify-center">
-      <nav className="flex flex-col items-center gap-3" aria-label="Primary">
+    <aside className="flex h-screen w-[200px] shrink-0 flex-col bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800">
+      <div data-tauri-drag-region className="h-12 shrink-0" />
+
+      <nav className="flex flex-col gap-1 px-3" aria-label="Primary">
         {navItems.map(({ to, label, icon: Icon }) => (
           <NavLink
             key={to}
             to={to}
             className={({ isActive }) =>
               clsx(
-                'flex h-10 w-10 items-center justify-center rounded-lg transition-colors duration-150',
+                'flex items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium transition-colors duration-150',
                 isActive
-                  ? 'bg-accent text-white shadow-sm'
-                  : 'text-warm-600 dark:text-warm-300 hover:bg-warm-100 dark:hover:bg-warm-800',
+                  ? 'bg-accent-subtle text-accent dark:bg-[rgba(59,130,246,0.12)] dark:text-accent-muted'
+                  : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800',
               )
             }
-            aria-label={label}
-            title={label}
           >
             <span className="relative">
-              <Icon size={21} strokeWidth={2.2} />
+              <Icon size={18} strokeWidth={2} />
               {to === '/settings' && updateAvailable ? (
                 <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-accent" />
               ) : null}
             </span>
+            <span>{label}</span>
           </NavLink>
         ))}
       </nav>

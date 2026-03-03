@@ -146,13 +146,13 @@ export function GeneralSection() {
 
   return (
     <section className="space-y-4">
-      <div className="flex items-center gap-2 text-warm-700 dark:text-warm-100">
+      <div className="flex items-center gap-2 text-gray-700 dark:text-gray-100">
         <SlidersHorizontal size={20} />
         <h2 className="text-lg font-semibold">General</h2>
       </div>
 
-      <article className="rounded-xl border border-warm-200/80 bg-warm-50 p-4 shadow-sm dark:border-warm-700/60 dark:bg-warm-800/70">
-        <h3 className="text-xs font-medium uppercase tracking-wide text-warm-500 dark:text-warm-300">
+      <div className="border-b border-gray-100 pb-6 dark:border-gray-800">
+        <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400">
           Appearance
         </h3>
         <div className="mt-3 grid gap-2 sm:grid-cols-3">
@@ -167,8 +167,8 @@ export function GeneralSection() {
                 className={[
                   'flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm transition-colors duration-150',
                   selected
-                    ? 'border-accent bg-accent-light/60 text-warm-900 dark:text-warm-50'
-                    : 'border-warm-200 bg-warm-100 text-warm-700 hover:bg-warm-200 dark:border-warm-600 dark:bg-warm-700/70 dark:text-warm-100 dark:hover:bg-warm-700',
+                    ? 'border-accent bg-accent-subtle text-gray-900 dark:bg-[rgba(59,130,246,0.12)] dark:text-gray-50'
+                    : 'border-gray-200 bg-gray-100 text-gray-700 hover:bg-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:hover:bg-gray-700',
                 ].join(' ')}
               >
                 <Icon size={16} />
@@ -177,10 +177,10 @@ export function GeneralSection() {
             );
           })}
         </div>
-      </article>
+      </div>
 
-      <article className="rounded-xl border border-warm-200/80 bg-warm-50 p-4 shadow-sm dark:border-warm-700/60 dark:bg-warm-800/70">
-        <h3 className="text-xs font-medium uppercase tracking-wide text-warm-500 dark:text-warm-300">
+      <div className="border-b border-gray-100 pb-6 dark:border-gray-800">
+        <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400">
           Recording Shortcut
         </h3>
         <button
@@ -189,11 +189,11 @@ export function GeneralSection() {
           onClick={() => void startCapture()}
           onKeyDown={(event) => void handleShortcutKeyDown(event)}
           onBlur={handleShortcutBlur}
-          className="mt-3 w-full rounded-lg border border-warm-200 bg-white px-3 py-2 text-left text-sm text-warm-700 transition hover:bg-warm-100 focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30 dark:border-warm-600 dark:bg-warm-700/70 dark:text-warm-100 dark:hover:bg-warm-700"
+          className="mt-3 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-left text-sm text-gray-700 transition hover:bg-gray-100 focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:hover:bg-gray-700"
         >
           {capturing ? 'Press shortcut...' : displayShortcut}
         </button>
-        <p className="mt-2 text-xs text-warm-500 dark:text-warm-300">
+        <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
           Click to capture a new keyboard combination. Press Escape to cancel.
         </p>
         {shortcutError ? (
@@ -201,13 +201,13 @@ export function GeneralSection() {
             {shortcutError}
           </p>
         ) : null}
-      </article>
+      </div>
 
-      <article className="rounded-xl border border-warm-200/80 bg-warm-50 p-4 shadow-sm dark:border-warm-700/60 dark:bg-warm-800/70">
-        <h3 className="text-xs font-medium uppercase tracking-wide text-warm-500 dark:text-warm-300">
+      <div className="pb-6">
+        <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400">
           Global Reset
         </h3>
-        <p className="mt-3 text-sm text-warm-600 dark:text-warm-200">
+        <p className="mt-3 text-sm text-gray-600 dark:text-gray-300">
           Reset every preference to defaults, including theme, shortcut, model settings, and storage options.
         </p>
         <button
@@ -219,7 +219,7 @@ export function GeneralSection() {
           <RotateCcw size={15} />
           {resetting ? 'Resetting…' : 'Reset all settings'}
         </button>
-      </article>
+      </div>
     </section>
   );
 }

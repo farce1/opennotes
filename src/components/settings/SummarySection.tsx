@@ -194,13 +194,13 @@ export function SummarySection() {
 
   return (
     <section className="space-y-4">
-      <div className="flex items-center gap-2 text-warm-700 dark:text-warm-100">
+      <div className="flex items-center gap-2 text-gray-700 dark:text-gray-100">
         <Sparkles size={20} />
         <h2 className="text-lg font-semibold">Summary</h2>
       </div>
 
-      <article className="rounded-xl border border-warm-200/80 bg-warm-50 p-4 shadow-sm dark:border-warm-700/60 dark:bg-warm-800/70">
-        <h3 className="text-xs font-medium uppercase tracking-wide text-warm-500 dark:text-warm-300">
+      <div className="border-b border-gray-100 pb-6 dark:border-gray-800">
+        <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400">
           Ollama Model for Summaries
         </h3>
         <div className="mt-3 flex items-center gap-2">
@@ -208,7 +208,7 @@ export function SummarySection() {
             value={currentModel}
             onChange={(event) => void updateOllamaModel(event.target.value)}
             disabled={globalGenerating}
-            className={`w-full rounded-lg border border-warm-200 bg-white px-3 py-2 text-sm text-warm-700 dark:border-warm-600 dark:bg-warm-700/70 dark:text-warm-100 ${globalGenerating ? 'cursor-not-allowed opacity-60' : ''}`}
+            className={`w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 ${globalGenerating ? 'cursor-not-allowed opacity-60' : ''}`}
           >
             {modelOptions.map((model) => (
               <option key={model.name} value={model.name}>
@@ -220,22 +220,22 @@ export function SummarySection() {
             type="button"
             onClick={() => void refreshAll(currentServerUrl)}
             disabled={loading}
-            className="rounded-lg border border-warm-200 bg-white px-3 py-2 text-sm text-warm-700 transition hover:bg-warm-100 disabled:cursor-not-allowed disabled:opacity-70 dark:border-warm-600 dark:bg-warm-700/70 dark:text-warm-100 dark:hover:bg-warm-700"
+            className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-70 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:hover:bg-gray-700"
             title="Refresh models"
           >
             <RotateCw size={15} className={loading ? 'animate-spin' : ''} />
           </button>
-          {globalGenerating ? <Loader2 size={15} className="animate-spin text-warm-500" /> : null}
+          {globalGenerating ? <Loader2 size={15} className="animate-spin text-gray-500" /> : null}
         </div>
         {!models.length ? (
-          <p className="mt-2 text-xs text-warm-500 dark:text-warm-300">
+          <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
             No models found. Ensure Ollama is running, then pull a model below.
           </p>
         ) : null}
-      </article>
+      </div>
 
-      <article className="rounded-xl border border-warm-200/80 bg-warm-50 p-4 shadow-sm dark:border-warm-700/60 dark:bg-warm-800/70">
-        <h3 className="text-xs font-medium uppercase tracking-wide text-warm-500 dark:text-warm-300">
+      <div className="border-b border-gray-100 pb-6 dark:border-gray-800">
+        <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400">
           Auto-Summary
         </h3>
         <div className="mt-3 grid gap-2 sm:grid-cols-2">
@@ -245,8 +245,8 @@ export function SummarySection() {
             className={[
               'rounded-lg border px-3 py-2 text-sm transition-colors duration-150',
               isAutoSummary
-                ? 'border-accent bg-accent-light/60 text-warm-900 dark:text-warm-50'
-                : 'border-warm-200 bg-warm-100 text-warm-700 hover:bg-warm-200 dark:border-warm-600 dark:bg-warm-700/70 dark:text-warm-100 dark:hover:bg-warm-700',
+                ? 'border-accent bg-accent-subtle text-gray-900 dark:bg-[rgba(59,130,246,0.12)] dark:text-gray-50'
+                : 'border-gray-200 bg-gray-100 text-gray-700 hover:bg-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:hover:bg-gray-700',
             ].join(' ')}
           >
             Auto
@@ -257,25 +257,25 @@ export function SummarySection() {
             className={[
               'rounded-lg border px-3 py-2 text-sm transition-colors duration-150',
               !isAutoSummary
-                ? 'border-accent bg-accent-light/60 text-warm-900 dark:text-warm-50'
-                : 'border-warm-200 bg-warm-100 text-warm-700 hover:bg-warm-200 dark:border-warm-600 dark:bg-warm-700/70 dark:text-warm-100 dark:hover:bg-warm-700',
+                ? 'border-accent bg-accent-subtle text-gray-900 dark:bg-[rgba(59,130,246,0.12)] dark:text-gray-50'
+                : 'border-gray-200 bg-gray-100 text-gray-700 hover:bg-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:hover:bg-gray-700',
             ].join(' ')}
           >
             Manual
           </button>
         </div>
-        <p className="mt-2 text-xs text-warm-500 dark:text-warm-300">
+        <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
           When enabled, summaries are generated automatically after each recording.
         </p>
-      </article>
+      </div>
 
-      <article className="rounded-xl border border-warm-200/80 bg-warm-50 p-4 shadow-sm dark:border-warm-700/60 dark:bg-warm-800/70">
-        <h3 className="text-xs font-medium uppercase tracking-wide text-warm-500 dark:text-warm-300">
+      <div className="pb-6">
+        <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400">
           Ollama Management
         </h3>
 
-        <div className="mt-3 rounded-lg border border-warm-200/80 bg-white/70 p-3 dark:border-warm-600/80 dark:bg-warm-700/40">
-          <div className="flex items-center gap-2 text-sm text-warm-700 dark:text-warm-100">
+        <div className="mt-3 rounded-lg bg-gray-50 p-3 dark:bg-gray-800/50">
+          <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-100">
             <span
               className={[
                 'inline-block h-2 w-2 rounded-full',
@@ -291,26 +291,26 @@ export function SummarySection() {
               onChange={(event) => setServerUrlInput(event.target.value)}
               onBlur={() => void persistServerUrl()}
               placeholder="http://localhost:11434"
-              className="w-full rounded-lg border border-warm-200 bg-white px-3 py-2 text-sm text-warm-700 dark:border-warm-600 dark:bg-warm-700/70 dark:text-warm-100"
+              className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
             />
             <button
               type="button"
               onClick={() => void testConnection()}
-              className="rounded-lg border border-accent px-3 py-2 text-sm text-accent transition hover:bg-accent-light/30"
+              className="rounded-lg border border-accent px-3 py-2 text-sm text-accent transition hover:bg-accent-subtle"
             >
               Test Connection
             </button>
           </div>
 
           <div className="mt-4 space-y-2">
-            <p className="text-xs font-medium uppercase tracking-wide text-warm-500 dark:text-warm-300">
+            <p className="text-sm font-medium text-gray-500 dark:text-gray-400">
               Installed Models
             </p>
             {models.length ? (
-              <ul className="divide-y divide-warm-200/70 rounded-lg border border-warm-200/70 bg-white/60 dark:divide-warm-600/70 dark:border-warm-600/70 dark:bg-warm-700/30">
+              <ul className="divide-y divide-gray-200 rounded-lg border border-gray-200 bg-white/60 dark:divide-gray-700 dark:border-gray-700 dark:bg-gray-800/30">
                 {models.map((model) => (
                   <li key={model.name} className="flex items-center justify-between px-3 py-2">
-                    <span className="text-sm text-warm-700 dark:text-warm-100">{model.name}</span>
+                    <span className="text-sm text-gray-700 dark:text-gray-100">{model.name}</span>
                     <button
                       type="button"
                       onClick={() => void handleDeleteModel(model.name)}
@@ -323,12 +323,12 @@ export function SummarySection() {
                 ))}
               </ul>
             ) : (
-              <p className="text-xs text-warm-500 dark:text-warm-300">No installed models.</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">No installed models.</p>
             )}
           </div>
 
           <div className="mt-4 space-y-2">
-            <p className="text-xs font-medium uppercase tracking-wide text-warm-500 dark:text-warm-300">
+            <p className="text-sm font-medium text-gray-500 dark:text-gray-400">
               Pull New Model
             </p>
             <div className="flex flex-col gap-2 sm:flex-row">
@@ -336,13 +336,13 @@ export function SummarySection() {
                 value={pullModelName}
                 onChange={(event) => setPullModelName(event.target.value)}
                 placeholder="e.g. llama3.2:3b"
-                className="w-full rounded-lg border border-warm-200 bg-white px-3 py-2 text-sm text-warm-700 dark:border-warm-600 dark:bg-warm-700/70 dark:text-warm-100"
+                className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
               />
               <button
                 type="button"
                 onClick={() => void handlePullModel()}
                 disabled={pulling}
-                className="rounded-lg border border-accent px-3 py-2 text-sm text-accent transition hover:bg-accent-light/30 disabled:cursor-not-allowed disabled:opacity-70"
+                className="rounded-lg border border-accent px-3 py-2 text-sm text-accent transition hover:bg-accent-subtle disabled:cursor-not-allowed disabled:opacity-70"
               >
                 {pulling ? 'Pulling…' : 'Pull'}
               </button>
@@ -350,10 +350,10 @@ export function SummarySection() {
 
             {pullProgress ? (
               <div className="space-y-1">
-                <p className="text-xs text-warm-500 dark:text-warm-300">
+                <p className="text-xs text-gray-500 dark:text-gray-400">
                   {pullProgress.status} {pullProgress.total ? `(${pullPercent}%)` : ''}
                 </p>
-                <div className="h-1.5 w-full overflow-hidden rounded-full bg-warm-200 dark:bg-warm-700">
+                <div className="h-1.5 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
                   <div className="h-full rounded-full bg-accent transition-all" style={{ width: `${pullPercent}%` }} />
                 </div>
               </div>
@@ -366,7 +366,7 @@ export function SummarySection() {
             {errorMessage}
           </p>
         ) : null}
-      </article>
+      </div>
     </section>
   );
 }

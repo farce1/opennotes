@@ -17,7 +17,7 @@ interface SettingsSidebarProps {
 
 export function SettingsSidebar({ tabs, selectedTab, onSelect }: SettingsSidebarProps) {
   return (
-    <nav className="h-full w-44 shrink-0 border-r border-warm-200/80 px-2 py-4 dark:border-warm-700/60">
+    <nav className="h-full w-44 shrink-0 border-r border-gray-200 px-2 py-4 dark:border-gray-800">
       <div className="space-y-1">
         {tabs.map(({ id, label, icon: Icon }) => (
           <button
@@ -27,8 +27,8 @@ export function SettingsSidebar({ tabs, selectedTab, onSelect }: SettingsSidebar
             className={clsx(
               'flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-colors',
               selectedTab === id
-                ? 'bg-accent-light/60 font-medium text-warm-900 dark:text-warm-50'
-                : 'text-warm-600 hover:bg-warm-100 dark:text-warm-300 dark:hover:bg-warm-800',
+                ? 'bg-accent-subtle text-accent font-medium dark:bg-[rgba(59,130,246,0.12)] dark:text-accent-muted'
+                : 'text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800',
             )}
           >
             <Icon size={16} />

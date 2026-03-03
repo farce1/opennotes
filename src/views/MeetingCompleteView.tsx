@@ -242,17 +242,17 @@ export function MeetingCompleteView() {
 
   if (!meetingId) {
     return (
-      <section className="flex h-full min-h-[calc(100vh-3rem)] items-center justify-center rounded-xl border border-warm-200/80 bg-white/60 p-6 shadow-sm dark:border-warm-700/70 dark:bg-warm-800/40">
+      <section className="flex h-full min-h-[calc(100vh-3rem)] items-center justify-center p-6">
         <div className="max-w-md space-y-4 text-center">
           <TriangleAlert className="mx-auto text-amber-500" size={34} />
-          <h1 className="text-xl font-semibold text-warm-700 dark:text-warm-50">No transcript available</h1>
-          <p className="text-sm text-warm-500 dark:text-warm-300">
+          <h1 className="text-xl font-semibold text-gray-700 dark:text-gray-50">No transcript available</h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400">
             Start a recording and complete a session before opening this view.
           </p>
           <button
             type="button"
             onClick={() => navigate('/record')}
-            className="rounded-xl bg-accent px-4 py-2 text-sm font-semibold text-white transition hover:bg-accent-hover"
+            className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-white transition hover:bg-accent-hover"
           >
             Go to Record
           </button>
@@ -263,23 +263,23 @@ export function MeetingCompleteView() {
 
   if (loading) {
     return (
-      <section className="flex h-full min-h-[calc(100vh-3rem)] items-center justify-center rounded-xl border border-warm-200/80 bg-white/60 p-6 shadow-sm dark:border-warm-700/70 dark:bg-warm-800/40">
-        <p className="text-sm text-warm-600 dark:text-warm-200">Loading meeting transcript…</p>
+      <section className="flex h-full min-h-[calc(100vh-3rem)] items-center justify-center p-6">
+        <p className="text-sm text-gray-600 dark:text-gray-300">Loading meeting transcript…</p>
       </section>
     );
   }
 
   if (loadError || !meeting) {
     return (
-      <section className="flex h-full min-h-[calc(100vh-3rem)] items-center justify-center rounded-xl border border-warm-200/80 bg-white/60 p-6 shadow-sm dark:border-warm-700/70 dark:bg-warm-800/40">
+      <section className="flex h-full min-h-[calc(100vh-3rem)] items-center justify-center p-6">
         <div className="max-w-md space-y-4 text-center">
           <TriangleAlert className="mx-auto text-amber-500" size={34} />
-          <h1 className="text-xl font-semibold text-warm-700 dark:text-warm-50">Unable to load transcript</h1>
-          <p className="text-sm text-warm-500 dark:text-warm-300">{loadError ?? 'Meeting data could not be loaded.'}</p>
+          <h1 className="text-xl font-semibold text-gray-700 dark:text-gray-50">Unable to load transcript</h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400">{loadError ?? 'Meeting data could not be loaded.'}</p>
           <button
             type="button"
             onClick={() => navigate('/library')}
-            className="rounded-xl bg-accent px-4 py-2 text-sm font-semibold text-white transition hover:bg-accent-hover"
+            className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-white transition hover:bg-accent-hover"
           >
             Open Library
           </button>
@@ -289,7 +289,7 @@ export function MeetingCompleteView() {
   }
 
   return (
-    <section className="flex h-full min-h-[calc(100vh-3rem)] flex-col rounded-xl border border-warm-200/80 bg-white/70 p-6 shadow-sm dark:border-warm-700/70 dark:bg-warm-800/40">
+    <section className="flex h-full min-h-[calc(100vh-3rem)] flex-col p-6">
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div className="space-y-2">
           <div className="flex flex-wrap items-center gap-2">
@@ -297,33 +297,33 @@ export function MeetingCompleteView() {
               value={titleInput}
               onChange={(event) => setTitleInput(event.target.value)}
               onBlur={() => void onSaveTitle()}
-              className="rounded-lg border border-transparent bg-transparent px-1 text-2xl font-semibold text-warm-700 outline-none ring-accent transition focus:border-warm-300 focus:ring-2 dark:text-warm-50 dark:focus:border-warm-500"
+              className="rounded-lg border border-transparent bg-transparent px-1 text-2xl font-semibold text-gray-700 outline-none ring-accent transition focus:border-gray-200 focus:ring-2 dark:text-gray-50 dark:focus:border-gray-700"
             />
             {meeting.status === 'recovered' ? (
-              <span className="rounded-full border border-amber-300/80 bg-amber-100/70 px-2 py-0.5 text-xs font-medium uppercase tracking-wide text-amber-700 dark:border-amber-500/50 dark:bg-amber-500/10 dark:text-amber-200">
+              <span className="rounded-full bg-amber-100/70 px-2 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-500/10 dark:text-amber-200">
                 Recovered
               </span>
             ) : null}
           </div>
 
-          <p className="text-sm text-warm-500 dark:text-warm-300">
+          <p className="text-sm text-gray-500 dark:text-gray-400">
             Meeting complete. Summary and transcript are loaded from local storage.
           </p>
 
-          {titleSaveState === 'saving' ? <p className="text-xs text-warm-500 dark:text-warm-300">Saving title…</p> : null}
+          {titleSaveState === 'saving' ? <p className="text-xs text-gray-500 dark:text-gray-400">Saving title…</p> : null}
           {titleSaveState === 'saved' ? <p className="text-xs text-emerald-600 dark:text-emerald-300">Title saved.</p> : null}
           {titleSaveState === 'error' ? <p className="text-xs text-red-600 dark:text-red-300">Title save failed.</p> : null}
         </div>
       </header>
 
-      <div className="mt-4 flex items-center gap-2 border-b border-warm-200 dark:border-warm-700">
+      <div className="mt-4 flex items-center gap-2 border-b border-gray-200 dark:border-gray-800">
         <button
           type="button"
           onClick={() => setActiveTab('summary')}
           className={`px-3 py-2 text-sm transition ${
             activeTab === 'summary'
               ? 'border-b-2 border-accent font-semibold text-accent'
-              : 'text-warm-500 hover:text-warm-700 dark:text-warm-300 dark:hover:text-warm-100'
+              : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-100'
           }`}
         >
           Summary
@@ -335,7 +335,7 @@ export function MeetingCompleteView() {
           className={`px-3 py-2 text-sm transition ${
             activeTab === 'transcript'
               ? 'border-b-2 border-accent font-semibold text-accent'
-              : 'text-warm-500 hover:text-warm-700 dark:text-warm-300 dark:hover:text-warm-100'
+              : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-100'
           }`}
         >
           Transcript
@@ -346,7 +346,7 @@ export function MeetingCompleteView() {
         {activeTab === 'summary' ? (
           <div className="space-y-3">
             {summaryLoading && !summaryText ? (
-              <p className="text-sm text-warm-500 dark:text-warm-300">Loading saved summary…</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">Loading saved summary…</p>
             ) : null}
 
             {summaryError ? (
@@ -389,18 +389,18 @@ export function MeetingCompleteView() {
           </div>
         ) : (
           <div className="space-y-4">
-            <div className="rounded-xl border border-warm-200/80 bg-warm-50/70 p-4 dark:border-warm-700/70 dark:bg-warm-900/30">
+            <div className="rounded-lg bg-gray-50 p-4 dark:bg-gray-800/50">
               {segments.length ? (
                 <div className="space-y-3">
                   {segments.map((segment) => (
                     <article key={segment.index} className="grid grid-cols-[auto_1fr] gap-x-4">
-                      <span className="font-mono text-xs text-warm-500 dark:text-warm-300">{formatElapsed(segment.elapsedMs)}</span>
-                      <p className="text-sm leading-relaxed text-warm-700 dark:text-warm-100">{segment.text}</p>
+                      <span className="font-mono text-xs text-gray-500 dark:text-gray-400">{formatElapsed(segment.elapsedMs)}</span>
+                      <p className="text-sm leading-relaxed text-gray-700 dark:text-gray-100">{segment.text}</p>
                     </article>
                   ))}
                 </div>
               ) : (
-                <p className="text-sm text-warm-500 dark:text-warm-300">No transcript segments were saved for this meeting.</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400">No transcript segments were saved for this meeting.</p>
               )}
             </div>
 
@@ -409,7 +409,7 @@ export function MeetingCompleteView() {
                 type="button"
                 onClick={() => void onCopyTranscript()}
                 disabled={!segments.length}
-                className="inline-flex items-center gap-2 rounded-lg border border-warm-300 px-3 py-1.5 text-xs font-semibold text-warm-700 transition hover:bg-warm-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-warm-600 dark:text-warm-100 dark:hover:bg-warm-800"
+                className="inline-flex items-center gap-2 rounded-md border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
               >
                 <Copy size={13} />
                 {copyState === 'copied' ? 'Copied' : 'Copy'}
@@ -419,7 +419,7 @@ export function MeetingCompleteView() {
                 type="button"
                 onClick={onExportTranscript}
                 disabled={!segments.length}
-                className="inline-flex items-center gap-2 rounded-lg border border-warm-300 px-3 py-1.5 text-xs font-semibold text-warm-700 transition hover:bg-warm-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-warm-600 dark:text-warm-100 dark:hover:bg-warm-800"
+                className="inline-flex items-center gap-2 rounded-md border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
               >
                 <Download size={13} />
                 Export Markdown
@@ -447,7 +447,7 @@ export function MeetingCompleteView() {
         <button
           type="button"
           onClick={() => navigate('/record')}
-          className="inline-flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white transition hover:bg-accent-hover"
+          className="inline-flex items-center gap-2 rounded-md bg-accent px-4 py-2 text-sm font-semibold text-white transition hover:bg-accent-hover"
         >
           <Plus size={15} />
           New Recording

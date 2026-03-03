@@ -16,12 +16,9 @@ type FilterBarProps = {
 };
 
 function chipClasses(active: boolean): string {
-  return [
-    'rounded-full border px-2.5 py-1 text-xs font-medium transition',
-    active
-      ? 'border-accent bg-accent-light/60 text-warm-900 dark:border-accent dark:bg-accent/20 dark:text-warm-50'
-      : 'border-warm-300/80 bg-white/70 text-warm-600 hover:bg-warm-100 dark:border-warm-600 dark:bg-warm-800/60 dark:text-warm-200 dark:hover:bg-warm-700',
-  ].join(' ');
+  return active
+    ? 'rounded-full bg-accent-subtle px-2.5 py-1 text-xs font-medium text-accent dark:bg-[rgba(59,130,246,0.12)] dark:text-accent-muted'
+    : 'rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700';
 }
 
 function toInputDate(value: Date): string {
@@ -89,22 +86,22 @@ export function FilterBar({
   };
 
   return (
-    <div className="mt-4 space-y-3 rounded-xl border border-warm-200/80 bg-white/70 p-3 dark:border-warm-700/70 dark:bg-warm-900/30">
+    <div className="mt-4 space-y-3 border-b border-gray-200 pb-4 dark:border-gray-800">
       <div className="flex flex-wrap items-center gap-2">
         <label className="relative min-w-[220px] flex-1">
-          <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-warm-400 dark:text-warm-400" />
+          <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-400" />
           <input
             value={filters.search}
             onChange={(event) => onFilterChange('search', event.target.value)}
             placeholder="Search meetings..."
-            className="w-full rounded-lg border border-warm-300/80 bg-warm-50/80 py-2 pl-9 pr-3 text-sm text-warm-700 outline-none ring-accent transition focus:ring-2 dark:border-warm-600 dark:bg-warm-900/70 dark:text-warm-100"
+            className="w-full rounded-md border border-gray-200 bg-gray-50 py-2 pl-9 pr-3 text-sm text-gray-700 outline-none ring-accent transition focus:ring-2 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
           />
         </label>
 
         <select
           value={filters.status}
           onChange={(event) => onFilterChange('status', event.target.value as LibraryFilters['status'])}
-          className="rounded-full border border-warm-300/80 bg-white/80 px-3 py-1.5 text-xs font-medium text-warm-700 outline-none ring-accent transition focus:ring-2 dark:border-warm-600 dark:bg-warm-800/70 dark:text-warm-100"
+          className="rounded-md border border-gray-200 bg-white/80 px-3 py-1.5 text-xs font-medium text-gray-700 outline-none ring-accent transition focus:ring-2 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
         >
           <option value="">All statuses</option>
           <option value="completed">Completed</option>
@@ -206,13 +203,13 @@ export function FilterBar({
               type="date"
               value={filters.dateFrom}
               onChange={(event) => onFilterChange('dateFrom', event.target.value)}
-              className="rounded-full border border-warm-300/80 bg-white/80 px-3 py-1 text-xs text-warm-700 outline-none ring-accent transition focus:ring-2 dark:border-warm-600 dark:bg-warm-800/70 dark:text-warm-100"
+              className="rounded-md border border-gray-200 bg-white/80 px-3 py-1 text-xs text-gray-700 outline-none ring-accent transition focus:ring-2 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
             />
             <input
               type="date"
               value={filters.dateTo}
               onChange={(event) => onFilterChange('dateTo', event.target.value)}
-              className="rounded-full border border-warm-300/80 bg-white/80 px-3 py-1 text-xs text-warm-700 outline-none ring-accent transition focus:ring-2 dark:border-warm-600 dark:bg-warm-800/70 dark:text-warm-100"
+              className="rounded-md border border-gray-200 bg-white/80 px-3 py-1 text-xs text-gray-700 outline-none ring-accent transition focus:ring-2 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
             />
           </div>
         )}
@@ -224,7 +221,7 @@ export function FilterBar({
               const [field, direction] = event.target.value.split(':') as [SortField, SortDirection];
               onSortChange(field, direction);
             }}
-            className="rounded-full border border-warm-300/80 bg-white/80 px-3 py-1.5 text-xs font-medium text-warm-700 outline-none ring-accent transition focus:ring-2 dark:border-warm-600 dark:bg-warm-800/70 dark:text-warm-100"
+            className="rounded-md border border-gray-200 bg-white/80 px-3 py-1.5 text-xs font-medium text-gray-700 outline-none ring-accent transition focus:ring-2 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
           >
             {sortOptions.map((option) => (
               <option key={`${option.field}-${option.direction}`} value={`${option.field}:${option.direction}`}>
@@ -233,13 +230,13 @@ export function FilterBar({
             ))}
           </select>
 
-          <div className="inline-flex items-center rounded-full border border-warm-300/80 bg-white/70 p-0.5 dark:border-warm-600 dark:bg-warm-800/70">
+          <div className="inline-flex items-center rounded-md bg-gray-100 p-0.5 dark:bg-gray-800">
             <button
               type="button"
               onClick={() => onViewModeChange('card')}
               className={[
-                'rounded-full px-2 py-1 transition',
-                viewMode === 'card' ? 'bg-accent text-white' : 'text-warm-500 hover:text-warm-700 dark:text-warm-300',
+                'rounded-md px-2 py-1 transition',
+                viewMode === 'card' ? 'bg-accent-subtle text-accent dark:bg-[rgba(59,130,246,0.12)] dark:text-accent-muted' : 'text-gray-500 hover:text-gray-700 dark:text-gray-300',
               ].join(' ')}
               aria-label="Card view"
             >
@@ -249,8 +246,8 @@ export function FilterBar({
               type="button"
               onClick={() => onViewModeChange('compact')}
               className={[
-                'rounded-full px-2 py-1 transition',
-                viewMode === 'compact' ? 'bg-accent text-white' : 'text-warm-500 hover:text-warm-700 dark:text-warm-300',
+                'rounded-md px-2 py-1 transition',
+                viewMode === 'compact' ? 'bg-accent-subtle text-accent dark:bg-[rgba(59,130,246,0.12)] dark:text-accent-muted' : 'text-gray-500 hover:text-gray-700 dark:text-gray-300',
               ].join(' ')}
               aria-label="Compact view"
             >
@@ -262,10 +259,10 @@ export function FilterBar({
             type="button"
             onClick={onToggleTrash}
             className={[
-              'inline-flex items-center gap-1 rounded-full border px-3 py-1.5 text-xs font-semibold transition',
+              'inline-flex items-center gap-1 rounded-md px-3 py-1.5 text-xs font-semibold transition',
               showTrash
-                ? 'border-red-300 bg-red-100/80 text-red-700 dark:border-red-500/60 dark:bg-red-500/20 dark:text-red-200'
-                : 'border-warm-300/80 bg-white/80 text-warm-700 hover:bg-warm-100 dark:border-warm-600 dark:bg-warm-800/70 dark:text-warm-100',
+                ? 'border border-red-300 bg-red-100/80 text-red-700 dark:border-red-500/60 dark:bg-red-500/20 dark:text-red-200'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-100',
             ].join(' ')}
           >
             <Trash2 size={13} />
@@ -276,7 +273,7 @@ export function FilterBar({
             <button
               type="button"
               onClick={onClearFilters}
-              className="rounded-full border border-warm-300/80 bg-white/80 px-3 py-1.5 text-xs font-semibold text-warm-600 transition hover:bg-warm-100 dark:border-warm-600 dark:bg-warm-800/70 dark:text-warm-200"
+              className="rounded-md bg-gray-100 px-3 py-1.5 text-xs font-semibold text-gray-600 transition hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-200"
             >
               Clear Filters
             </button>
@@ -285,7 +282,7 @@ export function FilterBar({
       </div>
 
       {hasActiveFilters ? (
-        <div className="flex flex-wrap items-center gap-2 text-xs text-warm-500 dark:text-warm-300">
+        <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
           <span>Active:</span>
           {filters.status ? (
             <button type="button" onClick={() => onFilterChange('status', '')} className={chipClasses(true)}>
