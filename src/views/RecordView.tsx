@@ -125,7 +125,7 @@ export function RecordView() {
 
     const ready = await checkModelReady();
     if (!ready) {
-      setRecordingError('Transcription model not set up. Open Setup to download it before recording.');
+      setRecordingError('Transcription model not set up. Open Models to download it before recording.');
       return false;
     }
 
@@ -135,11 +135,11 @@ export function RecordView() {
         serverUrl: serverUrl || undefined,
       });
       if (!ollamaStatus.modelReady) {
-        setRecordingError('AI notes model not ready. Open Setup to finish Ollama setup before recording.');
+        setRecordingError('AI notes model not ready. Open Models to finish Ollama configuration before recording.');
         return false;
       }
     } catch {
-      setRecordingError('Unable to verify AI notes model readiness. Open Setup and retry.');
+      setRecordingError('Unable to verify AI notes model readiness. Open Models and retry.');
       return false;
     }
 
@@ -328,7 +328,7 @@ export function RecordView() {
                 onClick={() => navigate('/setup')}
                 className="rounded-md border border-accent px-3 py-1.5 text-xs font-medium text-accent transition hover:bg-accent-subtle/30"
               >
-                Open Setup
+                Open Models
               </button>
             ) : null}
           </div>
@@ -347,7 +347,7 @@ export function RecordView() {
 
           {modelBlocked ? (
             <p className="rounded-md bg-accent-subtle/35 px-3 py-2 text-xs text-gray-700 dark:bg-accent/10 dark:text-gray-100">
-              Transcription model not set up. Go to Setup to download it before recording.
+              Transcription model not set up. Go to Models to download it before recording.
             </p>
           ) : null}
 

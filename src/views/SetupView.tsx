@@ -119,7 +119,7 @@ export function SetupView() {
   return (
     <section className="flex h-full min-h-[calc(100vh-3rem)] items-center justify-center px-6 py-10">
       <div className="w-full max-w-3xl p-8">
-        <h1 className="text-2xl font-semibold text-gray-700 dark:text-gray-50">Set Up Local Models</h1>
+        <h1 className="text-2xl font-semibold text-gray-700 dark:text-gray-50">Local Models</h1>
         <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
           Configure both local models before recording. Transcription and AI notes run entirely on your machine.
         </p>
@@ -175,7 +175,7 @@ export function SetupView() {
 
             {modelStatus === 'error' ? (
               <div className="mt-4 space-y-3 rounded-lg border border-red-200 bg-red-50/80 p-4 text-sm dark:border-red-500/40 dark:bg-red-500/10">
-                <p className="text-red-700 dark:text-red-200">{modelErrorMessage ?? 'Model setup failed. Please retry.'}</p>
+                <p className="text-red-700 dark:text-red-200">{modelErrorMessage ?? 'Model download failed. Please retry.'}</p>
                 <button
                   type="button"
                   onClick={() => void startDownload()}
@@ -301,7 +301,7 @@ export function SetupView() {
 
             {setupPhase === 'error' ? (
               <div className="mt-4 space-y-3 rounded-lg border border-red-200 bg-red-50/80 p-4 text-sm dark:border-red-500/40 dark:bg-red-500/10">
-                <p className="text-red-700 dark:text-red-200">{ollamaErrorMessage ?? 'Ollama setup failed. Please retry.'}</p>
+                <p className="text-red-700 dark:text-red-200">{ollamaErrorMessage ?? 'Ollama model setup failed. Please retry.'}</p>
                 <button
                   type="button"
                   onClick={onRetryOllama}

@@ -1,7 +1,7 @@
 use chrono::{DateTime, Local, Utc};
 use serde::Serialize;
 use sqlx::SqlitePool;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::sync::{Arc, Mutex};
 use tauri::ipc::Channel;
 use tauri::{AppHandle, Emitter};
@@ -27,10 +27,8 @@ pub enum SessionPhase {
 #[derive(Clone, Debug)]
 pub struct ActiveSession {
     pub meeting_id: i64,
-    pub audio_path: PathBuf,
     pub started_at: DateTime<Utc>,
     pub transcription_degraded: bool,
-    pub segment_index: u32,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -181,10 +179,8 @@ impl SessionCoordinator {
         self.phase = SessionPhase::Recording;
         self.active = Some(ActiveSession {
             meeting_id,
-            audio_path: output_path,
             started_at,
             transcription_degraded: false,
-            segment_index: 0,
         });
 
         let _ = set_tray_start_stop_label(app, true);

@@ -209,13 +209,13 @@ export function LibraryView() {
   return (
     <section className="h-full min-h-[calc(100vh-3rem)] p-6">
       <header className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-semibold text-gray-700 dark:text-gray-100">{showTrash ? 'Trash' : 'Meeting Library'}</h1>
+        <h1 className="text-xl font-semibold tracking-tight text-gray-800 dark:text-gray-50">{showTrash ? 'Trash' : 'Meeting Library'}</h1>
 
         {showTrash && meetings.length > 0 ? (
           <button
             type="button"
             onClick={() => void onEmptyTrash()}
-            className="inline-flex items-center gap-2 rounded-lg border border-red-300 bg-red-100/70 px-3 py-2 text-xs font-semibold text-red-700 transition hover:bg-red-200/80 dark:border-red-500/60 dark:bg-red-500/20 dark:text-red-200"
+            className="inline-flex cursor-pointer items-center gap-2 rounded-xl bg-red-500/10 px-4 py-2 text-xs font-semibold text-red-600 transition-all duration-150 hover:bg-red-500/20 dark:text-red-300 dark:hover:bg-red-500/20"
           >
             <Trash2 size={14} />
             Empty Trash
@@ -239,40 +239,40 @@ export function LibraryView() {
         onToggleTrash={toggleTrash}
       />
 
-      {loading ? <p className="mt-6 text-sm text-gray-500 dark:text-gray-400">Loading meetings…</p> : null}
+      {loading ? <p className="mt-6 text-sm text-gray-400 dark:text-gray-500">Loading meetings...</p> : null}
 
       {error ? (
-        <p className="mt-4 rounded-lg border border-red-300/70 bg-red-50/70 px-3 py-2 text-sm text-red-700 dark:border-red-500/40 dark:bg-red-500/10 dark:text-red-200">
+        <p className="mt-4 rounded-xl bg-red-500/8 px-4 py-2.5 text-sm text-red-600 dark:bg-red-500/10 dark:text-red-300">
           {error}
         </p>
       ) : null}
 
       {actionMessage ? (
-        <p className="mt-4 rounded-lg border border-amber-300/70 bg-amber-50/70 px-3 py-2 text-sm text-amber-700 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-200">
+        <p className="mt-4 rounded-xl bg-amber-500/8 px-4 py-2.5 text-sm text-amber-600 dark:bg-amber-500/10 dark:text-amber-300">
           {actionMessage}
         </p>
       ) : null}
 
       {searchResults !== null ? (
-        <div className="mt-6 space-y-2">
+        <div className="mt-6 space-y-1">
           {searchResults.map((result) => (
             <button
               key={result.id}
               type="button"
               onClick={() => onOpenMeeting(result.id)}
-              className="w-full rounded-lg p-4 text-left transition hover:bg-gray-50 dark:hover:bg-gray-800/50"
+              className="w-full cursor-pointer rounded-xl p-4 text-left transition-all duration-150 hover:bg-white/60 dark:hover:bg-gray-800/40"
             >
               <div className="flex flex-wrap items-center gap-2">
                 <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-100">{result.title}</h2>
-                <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${statusClasses(result.status)}`}>
+                <span className={`rounded-lg px-2 py-0.5 text-[10px] font-medium ${statusClasses(result.status)}`}>
                   {result.status}
                 </span>
               </div>
-              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                {formatDate(result.started_at)} • {formatDuration(result.duration_seconds)}
+              <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
+                {formatDate(result.started_at)} &middot; {formatDuration(result.duration_seconds)}
               </p>
               <p
-                className="mt-2 text-sm text-gray-600 [&_mark]:rounded [&_mark]:bg-accent-subtle/70 [&_mark]:px-0.5 [&_mark]:text-gray-900 dark:text-gray-200 dark:[&_mark]:bg-accent/30 dark:[&_mark]:text-gray-50"
+                className="mt-2 text-sm leading-relaxed text-gray-600 [&_mark]:rounded-md [&_mark]:bg-accent/10 [&_mark]:px-0.5 [&_mark]:text-accent dark:text-gray-300 dark:[&_mark]:bg-accent/20 dark:[&_mark]:text-accent-muted"
                 dangerouslySetInnerHTML={renderSearchSnippet(result.snippet)}
               />
             </button>
@@ -292,15 +292,15 @@ export function LibraryView() {
       ) : null}
 
       {searchResults === null && showTrash ? (
-        <div className="mt-6 space-y-2">
+        <div className="mt-6 space-y-1">
           {meetings.map((meeting) => (
-            <div key={meeting.id} className="space-y-2">
+            <div key={meeting.id} className="space-y-1">
               {renderMeeting(meeting)}
-              <div className="flex justify-end">
+              <div className="flex justify-end pr-4">
                 <button
                   type="button"
                   onClick={() => void onDeletePermanently(meeting.id)}
-                  className="inline-flex items-center gap-1 rounded-lg border border-red-300 bg-red-100/70 px-3 py-1.5 text-xs font-semibold text-red-700 transition hover:bg-red-200/80 dark:border-red-500/60 dark:bg-red-500/20 dark:text-red-200"
+                  className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-red-500 transition-all duration-150 hover:bg-red-500/10 dark:text-red-300 dark:hover:bg-red-500/10"
                 >
                   <Trash2 size={12} />
                   Delete Permanently
@@ -309,32 +309,38 @@ export function LibraryView() {
             </div>
           ))}
           {meetings.length > 0 ? (
-            <p className="pt-2 text-xs text-gray-500 dark:text-gray-400">Trash is auto-purged after 30 days.</p>
+            <p className="pt-3 text-xs text-gray-400 dark:text-gray-500">Trash is auto-purged after 30 days.</p>
           ) : null}
         </div>
       ) : null}
 
       {noMeetings && !showTrash ? (
-        <div className="mt-12 flex flex-col items-center justify-center gap-3 text-center text-gray-400 dark:text-gray-400">
-          <BookOpen size={52} strokeWidth={1.8} />
-          <p className="text-lg font-medium">No meetings yet</p>
-          <p className="text-sm text-gray-500 dark:text-gray-400">Your recorded meetings will appear here</p>
+        <div className="mt-16 flex flex-col items-center justify-center gap-3 text-center">
+          <div className="rounded-2xl bg-gray-100/50 p-4 dark:bg-gray-800/30">
+            <BookOpen size={40} strokeWidth={1.5} className="text-gray-300 dark:text-gray-600" />
+          </div>
+          <p className="text-base font-medium text-gray-500 dark:text-gray-400">No meetings yet</p>
+          <p className="text-sm text-gray-400 dark:text-gray-500">Your recorded meetings will appear here</p>
         </div>
       ) : null}
 
       {noMeetings && showTrash ? (
-        <div className="mt-12 flex flex-col items-center justify-center gap-3 text-center text-gray-400 dark:text-gray-400">
-          <Trash2 size={52} strokeWidth={1.8} />
-          <p className="text-lg font-medium">Trash is empty</p>
-          <p className="text-sm text-gray-500 dark:text-gray-400">Soft-deleted meetings will appear here.</p>
+        <div className="mt-16 flex flex-col items-center justify-center gap-3 text-center">
+          <div className="rounded-2xl bg-gray-100/50 p-4 dark:bg-gray-800/30">
+            <Trash2 size={40} strokeWidth={1.5} className="text-gray-300 dark:text-gray-600" />
+          </div>
+          <p className="text-base font-medium text-gray-500 dark:text-gray-400">Trash is empty</p>
+          <p className="text-sm text-gray-400 dark:text-gray-500">Soft-deleted meetings will appear here.</p>
         </div>
       ) : null}
 
       {noSearchResults ? (
-        <div className="mt-12 flex flex-col items-center justify-center gap-3 text-center text-gray-400 dark:text-gray-400">
-          <SearchX size={52} strokeWidth={1.8} />
-          <p className="text-lg font-medium">No meetings match your search</p>
-          <p className="text-sm text-gray-500 dark:text-gray-400">Try fewer keywords or clear filters.</p>
+        <div className="mt-16 flex flex-col items-center justify-center gap-3 text-center">
+          <div className="rounded-2xl bg-gray-100/50 p-4 dark:bg-gray-800/30">
+            <SearchX size={40} strokeWidth={1.5} className="text-gray-300 dark:text-gray-600" />
+          </div>
+          <p className="text-base font-medium text-gray-500 dark:text-gray-400">No meetings match your search</p>
+          <p className="text-sm text-gray-400 dark:text-gray-500">Try fewer keywords or clear filters.</p>
         </div>
       ) : null}
 

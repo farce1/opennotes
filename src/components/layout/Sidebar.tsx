@@ -6,7 +6,7 @@ import { useUpdate } from '../../contexts/UpdateContext';
 const navItems = [
   { to: '/record', label: 'Record', icon: Circle },
   { to: '/library', label: 'Library', icon: BookOpen },
-  { to: '/setup', label: 'Setup', icon: Cpu },
+  { to: '/setup', label: 'Models', icon: Cpu },
   { to: '/settings', label: 'Settings', icon: Settings },
 ];
 

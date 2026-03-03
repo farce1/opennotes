@@ -406,7 +406,7 @@ pub fn list_audio_input_devices() -> Result<Vec<String>, String> {
         .input_devices()
         .map_err(|err| format!("failed to enumerate input devices: {err}"))?;
 
-    Ok(devices.filter_map(|device| device.name().ok()).collect())
+    Ok(devices.filter_map(|device| device.description().ok().map(|desc| desc.name().to_string())).collect())
 }
 
 #[tauri::command]

@@ -127,9 +127,9 @@ pub fn build_mic_stream(
         let found = host.input_devices().ok().and_then(|mut devices| {
             devices.find(|device| {
                 device
-                    .name()
+                    .description()
                     .ok()
-                    .map(|device_name| device_name.trim().eq_ignore_ascii_case(name.trim()))
+                    .map(|desc| desc.name().trim().eq_ignore_ascii_case(name.trim()))
                     .unwrap_or(false)
             })
         });
@@ -382,8 +382,8 @@ pub fn build_loopback_stream(tx: mpsc::SyncSender<Vec<f32>>) -> Option<BuiltStre
     let host = cpal::default_host();
     let device = host.input_devices().ok()?.find(|device| {
         device
-            .name()
-            .map(|name| name.to_lowercase().contains("monitor"))
+            .description()
+            .map(|desc| desc.name().to_lowercase().contains("monitor"))
             .unwrap_or(false)
     })?;
 
