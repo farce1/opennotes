@@ -233,7 +233,8 @@ async fn run_generate_stream(
             "prompt": prompt,
             "stream": true,
             "options": {
-                "num_ctx": num_ctx
+                "num_ctx": num_ctx,
+                "num_predict": -1
             }
         }))
         .send()
@@ -302,7 +303,8 @@ async fn run_generate_non_stream(
             "prompt": prompt,
             "stream": false,
             "options": {
-                "num_ctx": num_ctx
+                "num_ctx": num_ctx,
+                "num_predict": -1
             }
         }))
         .send()
@@ -444,7 +446,7 @@ pub async fn pull_model(
 
 fn build_summary_prompt(transcript: &str) -> String {
     format!(
-        "You are a meeting notes assistant. Given the following meeting transcript, produce structured meeting notes in Markdown with exactly these four sections:\n\n## Overview\n[A detailed paragraph (5-8 sentences) covering the main topics discussed, participants mentioned, and key conclusions reached.]\n\n## Key Points\n[Bullet list of the most important facts, insights, or information shared.]\n\n## Decisions Made\n[Bullet list of decisions that were made during the meeting. If none, write \"None identified.\"]\n\n## Action Items\n[List each action item as: - @[person]: [task] by [deadline]. If no deadlines were mentioned, omit the \"by\" clause. If no action items, write \"None identified.\"]\n\nAlso generate a concise meeting title (max 10 words) on the very first line as: TITLE: [title]\n\nTranscript:\n{}",
+        "You are a meeting notes assistant. Given the following meeting transcript, produce structured meeting notes in Markdown with exactly these four sections:\n\n## Overview\n[For short meetings (under 20 minutes), write 3-5 sentences. For longer meetings, write 8-12 sentences. Cover the main topics discussed, participants mentioned, and key conclusions reached.]\n\n## Key Points\n[Bullet list of the most important facts, insights, or information shared.]\n\n## Decisions Made\n[Bullet list of decisions that were made during the meeting. State each decision concisely without rationale. Example: \"Decided to use PostgreSQL\". Do NOT include \"because...\" reasoning. If none, write \"None identified.\"]\n\n## Action Items\n[List ALL action items as: - @[person]: [task] by [deadline]. Do not skip any. If a person is assigned a task, it MUST appear here. If no deadlines were mentioned, omit the \"by\" clause. If no action items, write \"None identified.\"]\n\nIMPORTANT: You MUST capture every single action item mentioned in the transcript. Review your output before finishing to verify no action items were missed.\n\nAlso generate a concise meeting title (max 10 words) on the very first line as: TITLE: [title]\n\nTranscript:\n{}",
         transcript
     )
 }
@@ -518,7 +520,7 @@ pub async fn generate_summary_chunked(
         .join("\n\n");
 
     let synthesis_prompt = format!(
-        "You are given partial meeting summaries from consecutive sections. Synthesize them into a single coherent summary with the same four-section structure.\n\nReturn the result in Markdown with:\n- First line as TITLE: [concise title]\n- ## Overview\n- ## Key Points\n- ## Decisions Made\n- ## Action Items\n\nPartial summaries:\n\n{}",
+        "You are given partial meeting summaries from consecutive sections. Synthesize them into a single coherent summary with the same four-section structure.\n\nYou MUST include every action item from every section below. Do not merge, summarize, or drop any @person assignments. Each action item from each section must appear in the final Action Items list.\n\nThe Overview should be 8-12 sentences since this is a long meeting.\n\nReturn the result in Markdown with:\n- First line as TITLE: [concise title]\n- ## Overview\n- ## Key Points\n- ## Decisions Made\n- ## Action Items\n\nPartial summaries:\n\n{}",
         stitched
     );
 
