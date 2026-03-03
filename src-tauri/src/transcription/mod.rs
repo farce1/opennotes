@@ -79,7 +79,9 @@ pub fn start_transcription_worker(
     on_worker_disconnected: Option<Arc<dyn Fn() + Send + Sync>>,
     language: Option<String>,
 ) -> Result<(), String> {
-    if !model::check_model_ready(data_dir.as_path()) {
+    let normalized_language = model::normalize_language(language.as_deref());
+
+    if !model::check_model_ready(data_dir.as_path(), Some(normalized_language.as_str())) {
         return Err("transcription model is not ready; download required model files first".to_string());
     }
 
@@ -89,18 +91,30 @@ pub fn start_transcription_worker(
 
     let (command_tx, command_rx) = mpsc::channel::<WorkerCommand>();
     let (result_tx, result_rx) = mpsc::channel::<SegmentResult>();
-    let parakeet_dir = model::parakeet_model_dir(data_dir.as_path());
     let vad_model = model::vad_model_path(data_dir.as_path());
+    let resolved_model = model::resolve_model(data_dir.as_path(), Some(normalized_language.as_str()));
 
     let config = worker::WorkerConfig {
+        backend: resolved_model.backend,
         vad_model: vad_model.to_string_lossy().to_string(),
-        asr_encoder: parakeet_dir.join("encoder.int8.onnx").to_string_lossy().to_string(),
-        asr_decoder: parakeet_dir.join("decoder.int8.onnx").to_string_lossy().to_string(),
-        asr_joiner: parakeet_dir.join("joiner.int8.onnx").to_string_lossy().to_string(),
-        asr_tokens: parakeet_dir.join("tokens.txt").to_string_lossy().to_string(),
+        asr_encoder: resolved_model
+            .encoder_path
+            .to_string_lossy()
+            .to_string(),
+        asr_decoder: resolved_model
+            .decoder_path
+            .to_string_lossy()
+            .to_string(),
+        asr_joiner: resolved_model
+            .joiner_path
+            .map(|path| path.to_string_lossy().to_string()),
+        asr_tokens: resolved_model
+            .tokens_path
+            .to_string_lossy()
+            .to_string(),
         recording_start_ms: 0,
         result_tx,
-        language: language.unwrap_or_else(|| "en".to_string()),
+        language: normalized_language,
     };
 
     let worker_shutdown = Arc::new(AtomicBool::new(false));

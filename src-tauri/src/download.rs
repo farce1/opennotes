@@ -12,6 +12,8 @@ use crate::transcription::model;
 const VAD_URL: &str =
     "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/silero_vad.onnx";
 const PARAKEET_URL: &str = "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-nemo-parakeet-tdt-0.6b-v2-int8.tar.bz2";
+const WHISPER_TINY_URL: &str =
+    "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-whisper-tiny.tar.bz2";
 const PROGRESS_EMIT_STEP_BYTES: u64 = 512 * 1024;
 
 #[derive(Clone, Serialize)]
@@ -101,99 +103,141 @@ async fn download_to_file(
     Ok(downloaded)
 }
 
-pub async fn download_model(on_event: Channel<DownloadEvent>, models_dir: PathBuf) -> Result<(), String> {
+fn model_archive_url(kind: model::TranscriptionModelKind) -> &'static str {
+    match kind {
+        model::TranscriptionModelKind::ParakeetTdt => PARAKEET_URL,
+        model::TranscriptionModelKind::WhisperTiny => WHISPER_TINY_URL,
+    }
+}
+
+fn model_archive_tmp_name(kind: model::TranscriptionModelKind) -> &'static str {
+    match kind {
+        model::TranscriptionModelKind::ParakeetTdt => "parakeet-model.tar.bz2.tmp",
+        model::TranscriptionModelKind::WhisperTiny => "whisper-model.tar.bz2.tmp",
+    }
+}
+
+pub async fn download_model(
+    on_event: Channel<DownloadEvent>,
+    models_dir: PathBuf,
+    transcription_language: Option<String>,
+) -> Result<(), String> {
     std::fs::create_dir_all(&models_dir)
         .map_err(|_| format!("Failed to create models directory: {}", models_dir.display()))?;
 
     let data_dir = models_dir
         .parent()
         .ok_or_else(|| "invalid models directory path".to_string())?;
+    let normalized_language = model::normalize_language(transcription_language.as_deref());
+    let selected_model = model::resolve_model(data_dir, Some(normalized_language.as_str()));
 
-    if model::check_model_ready(data_dir) {
+    if model::check_model_ready(data_dir, Some(normalized_language.as_str())) {
         let _ = on_event.send(DownloadEvent::Complete);
         return Ok(());
     }
 
     let client = Client::new();
+    let needs_vad = !model::vad_model_path(data_dir).exists();
+    let needs_transcription_assets =
+        !model::check_transcription_assets_ready(data_dir, Some(normalized_language.as_str()));
+    let selected_archive_url = model_archive_url(selected_model.kind);
 
-    let vad_total = content_length(&client, VAD_URL).await;
-    let parakeet_total = content_length(&client, PARAKEET_URL).await;
-    let total_bytes = vad_total.saturating_add(parakeet_total);
+    let vad_total = if needs_vad {
+        content_length(&client, VAD_URL).await
+    } else {
+        0
+    };
+    let model_total = if needs_transcription_assets {
+        content_length(&client, selected_archive_url).await
+    } else {
+        0
+    };
+    let total_bytes = vad_total.saturating_add(model_total);
+    let mut downloaded_so_far = 0u64;
 
-    let vad_tmp = models_dir.join("silero_vad.onnx.tmp");
-    let vad_final = model::vad_model_path(data_dir);
-    cleanup_tmp(&vad_tmp);
+    if needs_vad {
+        let vad_tmp = models_dir.join("silero_vad.onnx.tmp");
+        let vad_final = model::vad_model_path(data_dir);
+        cleanup_tmp(&vad_tmp);
 
-    let vad_downloaded = match download_to_file(&client, VAD_URL, &vad_tmp, total_bytes, 0, &on_event).await {
-        Ok(bytes) => bytes,
-        Err(err) => {
+        let vad_downloaded =
+            match download_to_file(&client, VAD_URL, &vad_tmp, total_bytes, 0, &on_event).await {
+                Ok(bytes) => bytes,
+                Err(err) => {
+                    cleanup_tmp(&vad_tmp);
+                    send_error(
+                        &on_event,
+                        "Unable to download voice activity detector model. Please retry.",
+                    );
+                    return Err(err);
+                }
+            };
+
+        if let Err(err) = std::fs::rename(&vad_tmp, &vad_final) {
             cleanup_tmp(&vad_tmp);
-            send_error(&on_event, "Unable to download voice activity detector model. Please retry.");
+            send_error(&on_event, "Unable to finalize downloaded VAD model file.");
+            return Err(format!("failed to move VAD model into place: {err}"));
+        }
+
+        downloaded_so_far = downloaded_so_far.saturating_add(vad_downloaded);
+    }
+
+    if needs_transcription_assets {
+        let model_archive_tmp = models_dir.join(model_archive_tmp_name(selected_model.kind));
+        cleanup_tmp(&model_archive_tmp);
+
+        if let Err(err) = download_to_file(
+            &client,
+            selected_archive_url,
+            &model_archive_tmp,
+            total_bytes,
+            downloaded_so_far,
+            &on_event,
+        )
+        .await
+        {
+            cleanup_tmp(&model_archive_tmp);
+            send_error(
+                &on_event,
+                "Unable to download transcription model archive. Please retry.",
+            );
             return Err(err);
         }
-    };
 
-    if let Err(err) = std::fs::rename(&vad_tmp, &vad_final) {
-        cleanup_tmp(&vad_tmp);
-        send_error(&on_event, "Unable to finalize downloaded VAD model file.");
-        return Err(format!("failed to move VAD model into place: {err}"));
+        let _ = on_event.send(DownloadEvent::Extracting);
+
+        let tar_status = std::process::Command::new("tar")
+            .arg("-xjf")
+            .arg(&model_archive_tmp)
+            .arg("-C")
+            .arg(&models_dir)
+            .status()
+            .map_err(|err| format!("failed to run tar extraction: {err}"))?;
+
+        if !tar_status.success() {
+            cleanup_tmp(&model_archive_tmp);
+            send_error(
+                &on_event,
+                "Failed to extract transcription model archive. Please retry.",
+            );
+            return Err("tar extraction failed for transcription model archive".to_string());
+        }
+
+        cleanup_tmp(&model_archive_tmp);
+
+        if !selected_model.model_dir.exists() {
+            send_error(
+                &on_event,
+                "Model extraction did not produce expected files. Please retry.",
+            );
+            return Err(format!(
+                "extracted model directory not found: {}",
+                selected_model.model_dir.display()
+            ));
+        }
     }
 
-    let parakeet_tmp = models_dir.join("parakeet-model.tar.bz2.tmp");
-    cleanup_tmp(&parakeet_tmp);
-
-    if let Err(err) = download_to_file(
-        &client,
-        PARAKEET_URL,
-        &parakeet_tmp,
-        total_bytes,
-        vad_downloaded,
-        &on_event,
-    )
-    .await
-    {
-        cleanup_tmp(&parakeet_tmp);
-        send_error(
-            &on_event,
-            "Unable to download transcription model archive. Please retry.",
-        );
-        return Err(err);
-    }
-
-    let _ = on_event.send(DownloadEvent::Extracting);
-
-    let tar_status = std::process::Command::new("tar")
-        .arg("-xjf")
-        .arg(&parakeet_tmp)
-        .arg("-C")
-        .arg(&models_dir)
-        .status()
-        .map_err(|err| format!("failed to run tar extraction: {err}"))?;
-
-    if !tar_status.success() {
-        cleanup_tmp(&parakeet_tmp);
-        send_error(
-            &on_event,
-            "Failed to extract transcription model archive. Please retry.",
-        );
-        return Err("tar extraction failed for transcription model archive".to_string());
-    }
-
-    cleanup_tmp(&parakeet_tmp);
-
-    let extracted_dir: PathBuf = model::parakeet_model_dir(data_dir);
-    if !extracted_dir.exists() {
-        send_error(
-            &on_event,
-            "Model extraction did not produce expected files. Please retry.",
-        );
-        return Err(format!(
-            "extracted model directory not found: {}",
-            extracted_dir.display()
-        ));
-    }
-
-    if !model::check_model_ready(data_dir) {
+    if !model::check_model_ready(data_dir, Some(normalized_language.as_str())) {
         send_error(
             &on_event,
             "Model files are incomplete after download. Please retry.",

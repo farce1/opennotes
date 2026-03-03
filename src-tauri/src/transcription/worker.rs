@@ -4,24 +4,41 @@ use std::time::Duration;
 
 use sherpa_rs::silero_vad::{SileroVad, SileroVadConfig};
 use sherpa_rs::transducer::{TransducerConfig, TransducerRecognizer};
+use sherpa_rs::whisper::{WhisperConfig, WhisperRecognizer};
 
+use super::model::AsrBackend;
 use super::resampler::{AudioResampler, RingAccumulator};
 use super::{SegmentResult, WorkerCommand};
 
 pub struct WorkerConfig {
+    pub backend: AsrBackend,
     pub vad_model: String,
     pub asr_encoder: String,
     pub asr_decoder: String,
-    pub asr_joiner: String,
+    pub asr_joiner: Option<String>,
     pub asr_tokens: String,
     pub recording_start_ms: u64,
     pub result_tx: mpsc::Sender<SegmentResult>,
     pub language: String,
 }
 
+enum TranscriptionRecognizer {
+    Transducer(TransducerRecognizer),
+    Whisper(WhisperRecognizer),
+}
+
+impl TranscriptionRecognizer {
+    fn transcribe(&mut self, sample_rate: u32, samples: &[f32]) -> String {
+        match self {
+            Self::Transducer(recognizer) => recognizer.transcribe(sample_rate, samples),
+            Self::Whisper(recognizer) => recognizer.transcribe(sample_rate, samples).text,
+        }
+    }
+}
+
 fn process_completed_segments(
     vad: &mut SileroVad,
-    recognizer: &mut TransducerRecognizer,
+    recognizer: &mut TranscriptionRecognizer,
     result_tx: &mpsc::Sender<SegmentResult>,
     recording_start_ms: u64,
 ) {
@@ -45,7 +62,10 @@ pub fn run_worker(
     config: WorkerConfig,
     shutdown: Arc<AtomicBool>,
 ) {
-    eprintln!("[transcription] worker started, language={}", config.language);
+    eprintln!(
+        "[transcription] worker started, backend={:?}, language={}",
+        config.backend, config.language
+    );
 
     let mut resampler = match AudioResampler::new(48_000, 16_000, 1_536) {
         Ok(resampler) => resampler,
@@ -76,24 +96,48 @@ pub fn run_worker(
         }
     };
 
-    let mut recognizer = match TransducerRecognizer::new(TransducerConfig {
-        decoder: config.asr_decoder.clone(),
-        encoder: config.asr_encoder.clone(),
-        joiner: config.asr_joiner.clone(),
-        tokens: config.asr_tokens.clone(),
-        // NOTE: Parakeet TDT is English-only; language is currently tracked in WorkerConfig
-        // for future model support and observability, not consumed by TransducerConfig.
-        model_type: "nemo_transducer".to_string(),
-        num_threads: 2,
-        sample_rate: 16_000,
-        feature_dim: 80,
-        ..Default::default()
-    }) {
-        Ok(recognizer) => recognizer,
-        Err(err) => {
-            eprintln!("failed to initialize transducer recognizer: {err}");
-            return;
+    let mut recognizer = match config.backend {
+        AsrBackend::ParakeetTransducer => {
+            let joiner = match &config.asr_joiner {
+                Some(path) => path.clone(),
+                None => {
+                    eprintln!("missing joiner model path for parakeet transducer backend");
+                    return;
+                }
+            };
+
+            match TransducerRecognizer::new(TransducerConfig {
+                decoder: config.asr_decoder.clone(),
+                encoder: config.asr_encoder.clone(),
+                joiner,
+                tokens: config.asr_tokens.clone(),
+                model_type: "nemo_transducer".to_string(),
+                num_threads: 2,
+                sample_rate: 16_000,
+                feature_dim: 80,
+                ..Default::default()
+            }) {
+                Ok(recognizer) => TranscriptionRecognizer::Transducer(recognizer),
+                Err(err) => {
+                    eprintln!("failed to initialize transducer recognizer: {err}");
+                    return;
+                }
+            }
         }
+        AsrBackend::Whisper => match WhisperRecognizer::new(WhisperConfig {
+            encoder: config.asr_encoder.clone(),
+            decoder: config.asr_decoder.clone(),
+            tokens: config.asr_tokens.clone(),
+            language: config.language.clone(),
+            num_threads: Some(2),
+            ..Default::default()
+        }) {
+            Ok(recognizer) => TranscriptionRecognizer::Whisper(recognizer),
+            Err(err) => {
+                eprintln!("failed to initialize whisper recognizer: {err}");
+                return;
+            }
+        },
     };
 
     while !shutdown.load(Ordering::Relaxed) {

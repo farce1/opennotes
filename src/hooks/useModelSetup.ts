@@ -1,6 +1,7 @@
 import { Channel, invoke } from '@tauri-apps/api/core';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { getSetting } from '../lib/settings';
 import type { DownloadEvent, ModelStatus } from '../types';
 
 type DownloadProgress = {
@@ -18,7 +19,10 @@ export function useModelSetup() {
     setModelStatus('checking');
 
     try {
-      const ready = await invoke<boolean>('check_model_ready');
+      const transcriptionLanguage = await getSetting('transcriptionLanguage');
+      const ready = await invoke<boolean>('check_model_ready', {
+        transcriptionLanguage: transcriptionLanguage || undefined,
+      });
       setModelStatus(ready ? 'ready' : 'not_ready');
       return ready;
     } catch {
@@ -32,6 +36,7 @@ export function useModelSetup() {
     setModelStatus('downloading');
     setErrorMessage(null);
     setDownloadProgress({ downloaded: 0, total: 0 });
+    const transcriptionLanguage = await getSetting('transcriptionLanguage');
 
     const channel = new Channel<DownloadEvent>();
     channel.onmessage = (event) => {
@@ -65,7 +70,10 @@ export function useModelSetup() {
     downloadChannelRef.current = channel;
 
     try {
-      await invoke('download_model', { onEvent: channel });
+      await invoke('download_model', {
+        onEvent: channel,
+        transcriptionLanguage: transcriptionLanguage || undefined,
+      });
     } catch {
       setModelStatus('error');
       setErrorMessage('Model download failed. Please retry.');

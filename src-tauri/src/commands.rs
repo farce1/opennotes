@@ -385,16 +385,28 @@ pub async fn stop_transcription(
 }
 
 #[tauri::command]
-pub async fn check_model_ready(data_dir: tauri::State<'_, DataDir>) -> Result<bool, String> {
-    Ok(transcription::model::check_model_ready(data_dir.inner().0.as_path()))
+pub async fn check_model_ready(
+    data_dir: tauri::State<'_, DataDir>,
+    transcription_language: Option<String>,
+) -> Result<bool, String> {
+    Ok(transcription::model::check_model_ready(
+        data_dir.inner().0.as_path(),
+        transcription_language.as_deref(),
+    ))
 }
 
 #[tauri::command]
 pub async fn download_model(
     data_dir: tauri::State<'_, DataDir>,
     on_event: Channel<crate::download::DownloadEvent>,
+    transcription_language: Option<String>,
 ) -> Result<(), String> {
-    crate::download::download_model(on_event, data_dir.inner().0.join("models")).await
+    crate::download::download_model(
+        on_event,
+        data_dir.inner().0.join("models"),
+        transcription_language,
+    )
+    .await
 }
 
 #[tauri::command]

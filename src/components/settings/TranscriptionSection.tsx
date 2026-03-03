@@ -18,7 +18,10 @@ type DownloadProgress = {
 const panelClasses =
   'relative z-0 rounded-2xl border border-gray-200/80 bg-white/75 p-4 shadow-sm backdrop-blur-sm focus-within:z-20 dark:border-gray-700/80 dark:bg-gray-900/45';
 
-const LANGUAGE_OPTIONS = [{ value: 'en', label: 'English' }];
+const LANGUAGE_OPTIONS = [
+  { value: 'en', label: 'English' },
+  { value: 'pl', label: 'Polish' },
+];
 
 export function TranscriptionSection() {
   const [language, updateLanguage] = useSetting('transcriptionLanguage');
@@ -28,19 +31,25 @@ export function TranscriptionSection() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [downloadProgress, setDownloadProgress] = useState<DownloadProgress | null>(null);
 
+  const activeLanguage = language ?? 'en';
+  const activeModel = activeLanguage === 'pl' ? 'Whisper Tiny (Multilingual)' : 'Parakeet TDT';
+  const activeModelSize = activeLanguage === 'pl' ? 'Download size ~111 MB' : 'Download size ~460 MB';
+
   const refreshModelState = useCallback(async () => {
     setLoadingModelState(true);
     setErrorMessage(null);
 
     try {
-      const ready = await invoke<boolean>('check_model_ready');
+      const ready = await invoke<boolean>('check_model_ready', {
+        transcriptionLanguage: activeLanguage,
+      });
       setModelReady(ready);
     } catch {
       setErrorMessage('Unable to check transcription model status.');
     } finally {
       setLoadingModelState(false);
     }
-  }, []);
+  }, [activeLanguage]);
 
   useEffect(() => {
     void refreshModelState();
@@ -115,7 +124,10 @@ export function TranscriptionSection() {
     };
 
     try {
-      await invoke('download_model', { onEvent: channel });
+      await invoke('download_model', {
+        onEvent: channel,
+        transcriptionLanguage: activeLanguage,
+      });
       await refreshModelState();
     } catch {
       setErrorMessage('Unable to start model download.');
@@ -123,7 +135,7 @@ export function TranscriptionSection() {
       setWorking(false);
       setDownloadProgress(null);
     }
-  }, [refreshModelState]);
+  }, [activeLanguage, refreshModelState]);
 
   const progressPercent = useMemo(() => {
     if (!downloadProgress || !downloadProgress.totalBytes) {
@@ -150,12 +162,14 @@ export function TranscriptionSection() {
 
       <div className={panelClasses}>
         <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-100">Language</h3>
-        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Current release supports English transcription.</p>
+        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Current release supports English and Polish transcription.</p>
 
         <Dropdown
-          value={language ?? 'en'}
+          value={activeLanguage}
           options={LANGUAGE_OPTIONS}
-          onChange={(value) => void updateLanguage(value)}
+          onChange={(value) => {
+            void updateLanguage(value);
+          }}
           size="regular"
           fullWidth
           className="mt-4 w-full"
@@ -164,13 +178,13 @@ export function TranscriptionSection() {
 
       <div className={panelClasses}>
         <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-100">Transcription Model</h3>
-        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Parakeet TDT runs fully local and powers transcript generation.</p>
+        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{activeModel} runs fully local and powers transcript generation.</p>
 
         <div className="mt-4 rounded-xl border border-gray-200/70 bg-white/70 p-3 dark:border-gray-700/70 dark:bg-gray-800/55">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
-              <p className="text-sm font-medium text-gray-700 dark:text-gray-100">Parakeet TDT</p>
-              <p className="text-xs text-gray-500 dark:text-gray-400">Approx. 640 MB</p>
+              <p className="text-sm font-medium text-gray-700 dark:text-gray-100">{activeModel}</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">{activeModelSize}</p>
             </div>
 
             <span
@@ -213,7 +227,7 @@ export function TranscriptionSection() {
                 disabled={working}
                 className="rounded-xl border border-accent/40 bg-accent/8 px-3 py-2 text-sm font-medium text-accent transition-all duration-150 hover:bg-accent/12 disabled:cursor-not-allowed disabled:opacity-70 dark:border-accent/45 dark:bg-accent/15 dark:text-accent-muted"
               >
-                Download
+                Download {activeModel}
               </button>
             )}
           </div>
