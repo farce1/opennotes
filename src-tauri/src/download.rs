@@ -1,6 +1,8 @@
 use std::fs::File;
 use std::io::Write;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 
 use futures_util::StreamExt;
 use reqwest::Client;
@@ -8,6 +10,8 @@ use serde::Serialize;
 use tauri::ipc::Channel;
 
 use crate::transcription::model;
+
+pub type DownloadCancelFlag = Arc<AtomicBool>;
 
 const VAD_URL: &str =
     "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/silero_vad.onnx";
@@ -25,6 +29,7 @@ pub enum DownloadEvent {
     },
     Extracting,
     Complete,
+    Cancelled,
     Error {
         message: String,
     },
@@ -63,6 +68,7 @@ async fn download_to_file(
     total_bytes: u64,
     base_downloaded: u64,
     on_event: &Channel<DownloadEvent>,
+    cancel_flag: &DownloadCancelFlag,
 ) -> Result<u64, String> {
     let response = client
         .get(url)
@@ -77,6 +83,13 @@ async fn download_to_file(
         ));
     }
 
+    let response_content_length = response.content_length().unwrap_or(0);
+    let effective_total = if total_bytes > 0 {
+        total_bytes
+    } else {
+        base_downloaded.saturating_add(response_content_length)
+    };
+
     let mut stream = response.bytes_stream();
     let mut file = File::create(destination_tmp)
         .map_err(|_| format!("Failed to create temporary download file: {}", destination_tmp.display()))?;
@@ -85,13 +98,17 @@ async fn download_to_file(
     let mut last_emitted = 0u64;
 
     while let Some(chunk) = stream.next().await {
+        if cancel_flag.load(Ordering::SeqCst) {
+            return Err("cancelled".to_string());
+        }
+
         let chunk = chunk.map_err(|_| "Download stream was interrupted".to_string())?;
         file.write_all(&chunk)
             .map_err(|_| "Failed writing downloaded model bytes to disk".to_string())?;
 
         downloaded = downloaded.saturating_add(chunk.len() as u64);
         if downloaded.saturating_sub(last_emitted) >= PROGRESS_EMIT_STEP_BYTES {
-            send_progress(on_event, base_downloaded.saturating_add(downloaded), total_bytes);
+            send_progress(on_event, base_downloaded.saturating_add(downloaded), effective_total);
             last_emitted = downloaded;
         }
     }
@@ -99,7 +116,7 @@ async fn download_to_file(
     file.flush()
         .map_err(|_| "Failed to flush downloaded model file to disk".to_string())?;
 
-    send_progress(on_event, base_downloaded.saturating_add(downloaded), total_bytes);
+    send_progress(on_event, base_downloaded.saturating_add(downloaded), effective_total);
     Ok(downloaded)
 }
 
@@ -121,7 +138,9 @@ pub async fn download_model(
     on_event: Channel<DownloadEvent>,
     models_dir: PathBuf,
     transcription_language: Option<String>,
+    cancel_flag: DownloadCancelFlag,
 ) -> Result<(), String> {
+    cancel_flag.store(false, Ordering::SeqCst);
     std::fs::create_dir_all(&models_dir)
         .map_err(|_| format!("Failed to create models directory: {}", models_dir.display()))?;
 
@@ -161,8 +180,13 @@ pub async fn download_model(
         cleanup_tmp(&vad_tmp);
 
         let vad_downloaded =
-            match download_to_file(&client, VAD_URL, &vad_tmp, total_bytes, 0, &on_event).await {
+            match download_to_file(&client, VAD_URL, &vad_tmp, total_bytes, 0, &on_event, &cancel_flag).await {
                 Ok(bytes) => bytes,
+                Err(err) if err == "cancelled" => {
+                    cleanup_tmp(&vad_tmp);
+                    let _ = on_event.send(DownloadEvent::Cancelled);
+                    return Err(err);
+                }
                 Err(err) => {
                     cleanup_tmp(&vad_tmp);
                     send_error(
@@ -186,22 +210,31 @@ pub async fn download_model(
         let model_archive_tmp = models_dir.join(model_archive_tmp_name(selected_model.kind));
         cleanup_tmp(&model_archive_tmp);
 
-        if let Err(err) = download_to_file(
+        match download_to_file(
             &client,
             selected_archive_url,
             &model_archive_tmp,
             total_bytes,
             downloaded_so_far,
             &on_event,
+            &cancel_flag,
         )
         .await
         {
-            cleanup_tmp(&model_archive_tmp);
-            send_error(
-                &on_event,
-                "Unable to download transcription model archive. Please retry.",
-            );
-            return Err(err);
+            Err(err) if err == "cancelled" => {
+                cleanup_tmp(&model_archive_tmp);
+                let _ = on_event.send(DownloadEvent::Cancelled);
+                return Err(err);
+            }
+            Err(err) => {
+                cleanup_tmp(&model_archive_tmp);
+                send_error(
+                    &on_event,
+                    "Unable to download transcription model archive. Please retry.",
+                );
+                return Err(err);
+            }
+            Ok(_) => {}
         }
 
         let _ = on_event.send(DownloadEvent::Extracting);

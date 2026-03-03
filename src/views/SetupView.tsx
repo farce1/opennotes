@@ -9,6 +9,7 @@ import {
   RefreshCw,
   ShieldCheck,
   Sparkles,
+  X,
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
@@ -78,7 +79,8 @@ function Notice({
 export function SetupView() {
   const navigate = useNavigate();
   const [transcriptionLanguage] = useSetting('transcriptionLanguage');
-  const { modelStatus, downloadProgress, errorMessage: modelErrorMessage, startDownload } = useModelSetup();
+  const { modelStatus, downloadProgress, errorMessage: modelErrorMessage, startDownload, cancelDownload } =
+    useModelSetup();
   const {
     setupPhase,
     pullProgress,
@@ -250,7 +252,17 @@ export function SetupView() {
                 <div className="space-y-2.5 rounded-xl border border-gray-200 bg-gray-50/90 p-3.5 dark:border-gray-700 dark:bg-gray-800/70">
                   <div className="flex items-center justify-between text-sm font-medium text-gray-700 dark:text-gray-100">
                     <span>Downloading model...</span>
-                    <span>{Math.round(progressPercent)}%</span>
+                    <div className="flex items-center gap-2">
+                      <span>{Math.round(progressPercent)}%</span>
+                      <button
+                        type="button"
+                        onClick={() => void cancelDownload()}
+                        className="inline-flex items-center justify-center rounded-md p-0.5 text-gray-400 transition hover:bg-gray-200 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-200"
+                        title="Cancel download"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
                   </div>
                   <div className="h-2 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
                     <div

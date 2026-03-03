@@ -89,6 +89,7 @@ export type ModelStatus =
   | 'downloading'
   | 'extracting'
   | 'ready'
+  | 'cancelled'
   | 'error';
 
 export type TranscriptEvent =
@@ -99,6 +100,7 @@ export type DownloadEvent =
   | { event: 'progress'; data: { downloadedBytes: number; totalBytes: number } }
   | { event: 'extracting' }
   | { event: 'complete' }
+  | { event: 'cancelled' }
   | { event: 'error'; data: { message: string } };
 
 export interface OllamaStatus {

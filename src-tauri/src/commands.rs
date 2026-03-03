@@ -8,7 +8,7 @@ use sqlx::SqlitePool;
 use tauri::ipc::Channel;
 use tauri::{AppHandle, Emitter, Manager};
 
-use crate::{audio, llm, session, transcription, tray::TrayMenuHandles, widget, DataDir};
+use crate::{audio, download, llm, session, transcription, tray::TrayMenuHandles, widget, DataDir};
 
 pub type RecordingStateHandle = Arc<Mutex<audio::RecordingState>>;
 pub type TranscriptionStateHandle = Arc<Mutex<transcription::TranscriptionState>>;
@@ -398,6 +398,7 @@ pub async fn check_model_ready(
 #[tauri::command]
 pub async fn download_model(
     data_dir: tauri::State<'_, DataDir>,
+    cancel_flag: tauri::State<'_, download::DownloadCancelFlag>,
     on_event: Channel<crate::download::DownloadEvent>,
     transcription_language: Option<String>,
 ) -> Result<(), String> {
@@ -405,8 +406,29 @@ pub async fn download_model(
         on_event,
         data_dir.inner().0.join("models"),
         transcription_language,
+        cancel_flag.inner().clone(),
     )
     .await
+}
+
+#[tauri::command]
+pub async fn cancel_download(
+    data_dir: tauri::State<'_, DataDir>,
+    cancel_flag: tauri::State<'_, download::DownloadCancelFlag>,
+) -> Result<(), String> {
+    cancel_flag.store(true, Ordering::SeqCst);
+
+    let models_dir = data_dir.inner().0.join("models");
+    if let Ok(entries) = std::fs::read_dir(&models_dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.extension().and_then(|e| e.to_str()) == Some("tmp") {
+                let _ = std::fs::remove_file(&path);
+            }
+        }
+    }
+
+    Ok(())
 }
 
 #[tauri::command]

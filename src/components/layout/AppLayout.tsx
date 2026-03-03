@@ -1,6 +1,7 @@
 import { listen } from '@tauri-apps/api/event';
 import { useEffect } from 'react';
 import { Outlet } from 'react-router';
+import { ModelSetupProvider } from '../../contexts/ModelSetupContext';
 import { SummaryGenerationProvider } from '../../contexts/SummaryGenerationContext';
 import { ToastProvider, useToast } from '../../contexts/ToastContext';
 import { UpdateProvider } from '../../contexts/UpdateContext';
@@ -28,8 +29,9 @@ export function AppLayout() {
 
   return (
     <UpdateProvider>
-      <SummaryGenerationProvider>
-        <ToastProvider>
+      <ModelSetupProvider>
+        <SummaryGenerationProvider>
+          <ToastProvider>
           <EventToastBridge />
           <div className="flex h-screen min-h-[560px] min-w-[860px] bg-gray-100 dark:bg-gray-950">
             <Sidebar />
@@ -37,8 +39,9 @@ export function AppLayout() {
               <Outlet />
             </main>
           </div>
-        </ToastProvider>
-      </SummaryGenerationProvider>
+          </ToastProvider>
+        </SummaryGenerationProvider>
+      </ModelSetupProvider>
     </UpdateProvider>
   );
 }

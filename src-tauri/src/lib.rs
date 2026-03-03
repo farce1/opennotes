@@ -92,6 +92,8 @@ pub fn run() {
         std::sync::Arc::new(std::sync::Mutex::new(audio::RecordingState::default()));
     let transcription_state: TranscriptionStateHandle =
         std::sync::Arc::new(std::sync::Mutex::new(transcription::TranscriptionState::default()));
+    let download_cancel_flag: download::DownloadCancelFlag =
+        std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
 
     let mut builder = tauri::Builder::default()
         .setup(|app| {
@@ -196,6 +198,7 @@ pub fn run() {
         .plugin(tauri_plugin_process::init())
         .manage(recording_state)
         .manage(transcription_state)
+        .manage(download_cancel_flag)
         .invoke_handler(tauri::generate_handler![
             commands::update_tray_icon,
             commands::start_session,
@@ -213,6 +216,7 @@ pub fn run() {
             commands::stop_transcription,
             commands::check_model_ready,
             commands::download_model,
+            commands::cancel_download,
             commands::list_audio_input_devices,
             commands::list_ollama_models,
             commands::delete_ollama_model,
