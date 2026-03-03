@@ -15,6 +15,13 @@
     "sql:default",
     "store:default",
     "shell:default",
+    {
+      "identifier": "shell:allow-open",
+      "allow": [
+        { "url": "x-apple.systempreferences:*" },
+        { "url": "ms-settings:*" }
+      ]
+    },
     "dialog:default",
     "fs:default",
     "os:default",
