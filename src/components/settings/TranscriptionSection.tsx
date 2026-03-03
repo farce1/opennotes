@@ -7,6 +7,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSetting } from '../../hooks/useSettings';
 import { getDataDirectory } from '../../lib/constants';
 import type { DownloadEvent } from '../../types';
+import { Dropdown } from '../ui/Dropdown';
 
 type DownloadProgress = {
   downloadedBytes: number;
@@ -15,7 +16,9 @@ type DownloadProgress = {
 };
 
 const panelClasses =
-  'rounded-2xl border border-gray-200/80 bg-white/75 p-4 shadow-sm backdrop-blur-sm dark:border-gray-700/80 dark:bg-gray-900/45';
+  'relative z-0 rounded-2xl border border-gray-200/80 bg-white/75 p-4 shadow-sm backdrop-blur-sm focus-within:z-20 dark:border-gray-700/80 dark:bg-gray-900/45';
+
+const LANGUAGE_OPTIONS = [{ value: 'en', label: 'English' }];
 
 export function TranscriptionSection() {
   const [language, updateLanguage] = useSetting('transcriptionLanguage');
@@ -149,13 +152,14 @@ export function TranscriptionSection() {
         <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-100">Language</h3>
         <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Current release supports English transcription.</p>
 
-        <select
+        <Dropdown
           value={language ?? 'en'}
-          onChange={(event) => void updateLanguage(event.target.value)}
-          className="mt-4 w-full rounded-xl border border-gray-200/80 bg-white/80 px-3 py-2.5 text-sm text-gray-700 shadow-sm transition-all duration-150 outline-none hover:border-gray-300 focus:border-accent/40 focus:ring-2 focus:ring-accent/20 dark:border-gray-700/80 dark:bg-gray-800/70 dark:text-gray-100 dark:hover:border-gray-600"
-        >
-          <option value="en">English</option>
-        </select>
+          options={LANGUAGE_OPTIONS}
+          onChange={(value) => void updateLanguage(value)}
+          size="regular"
+          fullWidth
+          className="mt-4 w-full"
+        />
       </div>
 
       <div className={panelClasses}>

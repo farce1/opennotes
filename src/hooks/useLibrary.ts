@@ -101,6 +101,7 @@ export function useLibrary(options: UseLibraryOptions = {}) {
   const [viewMode, setViewModeState] = useState<ViewMode>('card');
   const [showTrash, setShowTrash] = useState(initialShowTrash);
   const [loading, setLoading] = useState(true);
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -169,6 +170,7 @@ export function useLibrary(options: UseLibraryOptions = {}) {
       setError('Failed to load meetings from local database.');
     } finally {
       setLoading(false);
+      setHasLoadedOnce(true);
     }
   }, [filters.audioSource, filters.dateFrom, filters.dateTo, filters.durationRange, filters.status, sortDirection, sortField]);
 
@@ -212,6 +214,7 @@ export function useLibrary(options: UseLibraryOptions = {}) {
       setError('Failed to load trash from local database.');
     } finally {
       setLoading(false);
+      setHasLoadedOnce(true);
     }
   }, []);
 
@@ -252,6 +255,7 @@ export function useLibrary(options: UseLibraryOptions = {}) {
       setSearchResults([]);
     } finally {
       setLoading(false);
+      setHasLoadedOnce(true);
     }
   }, [loadMeetings]);
 
@@ -455,6 +459,7 @@ export function useLibrary(options: UseLibraryOptions = {}) {
     viewMode,
     showTrash,
     loading,
+    hasLoadedOnce,
     error,
     selectedIds,
     isSelectionMode,

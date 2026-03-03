@@ -6,6 +6,7 @@ import { useSummaryGeneration } from '../../contexts/SummaryGenerationContext';
 import { useSetting } from '../../hooks/useSettings';
 import { DEFAULT_SETTINGS } from '../../lib/constants';
 import type { OllamaModelInfo, OllamaPullEvent, OllamaStatus } from '../../types';
+import { Dropdown } from '../ui/Dropdown';
 
 type PullProgress = {
   status: string;
@@ -14,7 +15,7 @@ type PullProgress = {
 };
 
 const panelClasses =
-  'rounded-2xl border border-gray-200/80 bg-white/75 p-4 shadow-sm backdrop-blur-sm dark:border-gray-700/80 dark:bg-gray-900/45';
+  'relative z-0 rounded-2xl border border-gray-200/80 bg-white/75 p-4 shadow-sm backdrop-blur-sm focus-within:z-20 dark:border-gray-700/80 dark:bg-gray-900/45';
 
 function optionButtonClasses(selected: boolean): string {
   return [
@@ -192,6 +193,15 @@ export function SummarySection() {
     return [{ name: currentModel, parameterSize: null }, ...models];
   }, [currentModel, models]);
 
+  const modelDropdownOptions = useMemo(
+    () =>
+      modelOptions.map((model) => ({
+        value: model.name,
+        label: formatModelLabel(model),
+      })),
+    [modelOptions],
+  );
+
   const connectionOnline = status?.running ?? false;
   const connectionLabel = connectionOnline
     ? `Connected to ${currentServerUrl}`
@@ -221,18 +231,15 @@ export function SummarySection() {
         <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Pick which installed model generates post-meeting summaries.</p>
 
         <div className="mt-4 flex items-center gap-2">
-          <select
+          <Dropdown
             value={currentModel}
-            onChange={(event) => void updateOllamaModel(event.target.value)}
+            options={modelDropdownOptions}
+            onChange={(value) => void updateOllamaModel(value)}
             disabled={globalGenerating}
-            className={`w-full rounded-xl border border-gray-200/80 bg-white/80 px-3 py-2.5 text-sm text-gray-700 shadow-sm transition-all duration-150 outline-none hover:border-gray-300 focus:border-accent/40 focus:ring-2 focus:ring-accent/20 dark:border-gray-700/80 dark:bg-gray-800/70 dark:text-gray-100 dark:hover:border-gray-600 ${globalGenerating ? 'cursor-not-allowed opacity-60' : ''}`}
-          >
-            {modelOptions.map((model) => (
-              <option key={model.name} value={model.name}>
-                {formatModelLabel(model)}
-              </option>
-            ))}
-          </select>
+            size="regular"
+            fullWidth
+            className="w-full"
+          />
 
           <button
             type="button"

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { useSetting } from '../../hooks/useSettings';
 import { DEFAULT_SETTINGS } from '../../lib/constants';
+import { Dropdown } from '../ui/Dropdown';
 
 const AUDIO_SOURCE_OPTIONS = [
   { value: 'mic' as const, label: 'Mic Only' },
@@ -12,7 +13,7 @@ const AUDIO_SOURCE_OPTIONS = [
 ];
 
 const panelClasses =
-  'rounded-2xl border border-gray-200/80 bg-white/75 p-4 shadow-sm backdrop-blur-sm dark:border-gray-700/80 dark:bg-gray-900/45';
+  'relative z-0 rounded-2xl border border-gray-200/80 bg-white/75 p-4 shadow-sm backdrop-blur-sm focus-within:z-20 dark:border-gray-700/80 dark:bg-gray-900/45';
 
 function optionButtonClasses(selected: boolean): string {
   return [
@@ -56,6 +57,15 @@ export function RecordingSection() {
     return ['', ...devices];
   }, [devices]);
 
+  const micDropdownOptions = useMemo(
+    () =>
+      deviceOptions.map((device) => ({
+        value: device,
+        label: device || 'System Default',
+      })),
+    [deviceOptions],
+  );
+
   return (
     <section className="space-y-5">
       <div className="flex items-start gap-3">
@@ -73,17 +83,14 @@ export function RecordingSection() {
         <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Choose a preferred input device, or keep system default fallback.</p>
 
         <div className="mt-4 flex items-center gap-2">
-          <select
+          <Dropdown
             value={selectedMicDevice}
-            onChange={(event) => void updatePreferredMicDevice(event.target.value || null)}
-            className="w-full rounded-xl border border-gray-200/80 bg-white/80 px-3 py-2.5 text-sm text-gray-700 shadow-sm transition-all duration-150 outline-none hover:border-gray-300 focus:border-accent/40 focus:ring-2 focus:ring-accent/20 dark:border-gray-700/80 dark:bg-gray-800/70 dark:text-gray-100 dark:hover:border-gray-600"
-          >
-            {deviceOptions.map((device) => (
-              <option key={device || 'system-default'} value={device}>
-                {device || 'System Default'}
-              </option>
-            ))}
-          </select>
+            options={micDropdownOptions}
+            onChange={(value) => void updatePreferredMicDevice(value || null)}
+            size="regular"
+            fullWidth
+            className="w-full"
+          />
           <button
             type="button"
             onClick={() => void loadDevices()}

@@ -87,6 +87,7 @@ export function LibraryView({ scope = 'library' }: LibraryViewProps) {
     viewMode,
     showTrash,
     loading,
+    hasLoadedOnce,
     error,
     selectedIds,
     isSelectionMode,
@@ -264,8 +265,8 @@ export function LibraryView({ scope = 'library' }: LibraryViewProps) {
   const noMeetings = !loading && meetings.length === 0 && searchResults === null;
   const noSearchResults = !loading && searchResults !== null && searchResults.length === 0;
   const hasVisibleContent = searchResults !== null ? searchResults.length > 0 : meetings.length > 0;
-  const showLoadingSkeleton = loading && !error && !hasVisibleContent;
-  const showRefreshingHint = loading && hasVisibleContent;
+  const showLoadingSkeleton = loading && !error && !hasVisibleContent && !hasLoadedOnce;
+  const showRefreshingHint = loading && hasLoadedOnce && hasVisibleContent;
 
   return (
     <section className="relative h-full min-h-[calc(100vh-3rem)] overflow-hidden rounded-[1.75rem] border border-gray-200/70 bg-gradient-to-br from-white/80 via-white/60 to-gray-100/70 p-3 shadow-[0_28px_80px_-50px_rgba(15,23,42,0.45)] dark:border-gray-800/70 dark:from-gray-900/90 dark:via-gray-900/70 dark:to-gray-950/80">
