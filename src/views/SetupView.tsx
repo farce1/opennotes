@@ -121,15 +121,17 @@ export function SetupView() {
       <div className="w-full max-w-3xl p-8">
         <h1 className="text-2xl font-semibold text-gray-700 dark:text-gray-50">Local Models</h1>
         <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
-          Configure both local models before recording. Transcription and AI notes run entirely on your machine.
+          Two models run locally on your Mac to power transcription and AI notes. Nothing leaves your device.
         </p>
-        <p className="mt-1 text-xs text-gray-400 dark:text-gray-400">Optimized for your Mac</p>
 
         <div className="mt-6 space-y-5">
           <div className="rounded-lg bg-gray-50 p-5 dark:bg-gray-800/50">
-            <h2 className="text-base font-semibold text-gray-700 dark:text-gray-100">Transcription Model</h2>
+            <div className="flex items-center justify-between">
+              <h2 className="text-base font-semibold text-gray-700 dark:text-gray-100">Speech-to-Text</h2>
+              <span className="rounded-md bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-500 dark:bg-gray-700 dark:text-gray-400">Parakeet TDT 0.6B</span>
+            </div>
             <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-              Download the speech recognition model to enable local meeting transcription.
+              Converts meeting audio into text in real time. Runs on-device using NVIDIA&apos;s Parakeet speech recognition model.
             </p>
 
             {modelStatus === 'checking' || modelStatus === 'unknown' ? (
@@ -145,13 +147,13 @@ export function SetupView() {
                 className="mt-4 inline-flex items-center gap-2 rounded-md bg-accent px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-accent-hover"
               >
                 <Download size={16} />
-                Download Model
+                Download Parakeet TDT 0.6B
               </button>
             ) : null}
 
             {modelStatus === 'downloading' && downloadProgress ? (
               <div className="mt-4 space-y-3">
-                <p className="text-sm font-medium text-gray-700 dark:text-gray-100">Downloading transcription model…</p>
+                <p className="text-sm font-medium text-gray-700 dark:text-gray-100">Downloading Parakeet TDT 0.6B…</p>
                 <div className="h-2.5 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
                   <div
                     className="h-full rounded-full bg-accent transition-[width] duration-300"
@@ -189,18 +191,21 @@ export function SetupView() {
 
             {modelStatus === 'ready' ? (
               <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50/80 px-4 py-3 text-sm font-medium text-emerald-700 dark:border-emerald-500/40 dark:bg-emerald-500/10 dark:text-emerald-200">
-                Transcription model is ready.
+                Parakeet TDT 0.6B is ready.
               </div>
             ) : null}
           </div>
 
           <div className="rounded-lg bg-gray-50 p-5 dark:bg-gray-800/50">
-            <div className="flex items-center gap-2">
-              <Bot size={17} className="text-accent" />
-              <h2 className="text-base font-semibold text-gray-700 dark:text-gray-100">Set Up AI Notes</h2>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Bot size={17} className="text-accent" />
+                <h2 className="text-base font-semibold text-gray-700 dark:text-gray-100">AI Notes</h2>
+              </div>
+              <span className="rounded-md bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-500 dark:bg-gray-700 dark:text-gray-400">Phi-4 Mini via Ollama</span>
             </div>
             <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-              Configure local AI model for generating meeting summaries.
+              Generates meeting summaries and action items after recording. Powered by Microsoft&apos;s Phi-4 Mini running through Ollama.
             </p>
 
             {setupPhase === 'checking' ? (
@@ -212,7 +217,7 @@ export function SetupView() {
             {setupPhase === 'not_installed' ? (
               <div className="mt-4 space-y-3">
                 <p className="text-sm text-gray-600 dark:text-gray-300">
-                  Ollama is required for local AI summarization. It runs entirely on your machine and transcripts never leave this device.
+                  Ollama is required to run Phi-4 Mini locally. It runs entirely on your machine and transcripts never leave this device.
                 </p>
                 <button
                   type="button"
@@ -262,7 +267,7 @@ export function SetupView() {
             {setupPhase === 'model_not_pulled' ? (
               <div className="mt-4 space-y-3">
                 <p className="text-sm text-gray-600 dark:text-gray-300">
-                  Ollama is running. Download the AI notes model (`phi4-mini`, about 2.5 GB).
+                  Ollama is running. Download Phi-4 Mini (~2.5 GB) to enable AI-generated meeting summaries.
                 </p>
                 <button
                   type="button"
@@ -270,14 +275,14 @@ export function SetupView() {
                   className="inline-flex items-center gap-2 rounded-md bg-accent px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-accent-hover"
                 >
                   <Download size={16} />
-                  Download Model
+                  Download Phi-4 Mini
                 </button>
               </div>
             ) : null}
 
             {setupPhase === 'pulling' && pullProgress ? (
               <div className="mt-4 space-y-3">
-                <p className="text-sm font-medium text-gray-700 dark:text-gray-100">Downloading AI model…</p>
+                <p className="text-sm font-medium text-gray-700 dark:text-gray-100">Downloading Phi-4 Mini…</p>
                 <div className="h-2.5 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
                   <div
                     className="h-full rounded-full bg-accent transition-[width] duration-300"
@@ -295,7 +300,7 @@ export function SetupView() {
 
             {setupPhase === 'ready' ? (
               <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50/80 px-4 py-3 text-sm font-medium text-emerald-700 dark:border-emerald-500/40 dark:bg-emerald-500/10 dark:text-emerald-200">
-                AI notes model is ready.
+                Phi-4 Mini is ready.
               </div>
             ) : null}
 
@@ -318,7 +323,7 @@ export function SetupView() {
         {allReady ? (
           <div className="mt-6 space-y-3 rounded-md border border-emerald-200 bg-emerald-50/80 p-4 dark:border-emerald-500/40 dark:bg-emerald-500/10">
             <p className="text-sm font-medium text-emerald-700 dark:text-emerald-200">
-              All set. Transcription and AI notes are ready.
+              Both models are ready. You can start recording.
             </p>
             <button
               type="button"
