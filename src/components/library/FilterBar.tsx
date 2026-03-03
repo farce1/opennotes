@@ -20,6 +20,8 @@ type FilterBarProps = {
   sortDirection: SortDirection;
   viewMode: ViewMode;
   showTrash: boolean;
+  showScopeToggle?: boolean;
+  showViewModeToggle?: boolean;
   onFilterChange: <K extends keyof LibraryFilters>(key: K, value: LibraryFilters[K]) => void;
   onClearFilters: () => void;
   onSortChange: (field: SortField, direction: SortDirection) => void;
@@ -76,6 +78,8 @@ export function FilterBar({
   sortDirection,
   viewMode,
   showTrash,
+  showScopeToggle = true,
+  showViewModeToggle = true,
   onFilterChange,
   onClearFilters,
   onSortChange,
@@ -270,48 +274,52 @@ export function FilterBar({
             placeholder="Sort by"
           />
 
-          <div className="inline-flex items-center rounded-lg bg-gray-100/50 p-0.5 dark:bg-gray-800/40">
-            <button
-              type="button"
-              onClick={() => onViewModeChange('card')}
-              className={[
-                'rounded-md px-2 py-1.5 transition-all duration-150 cursor-pointer',
-                viewMode === 'card'
-                  ? 'bg-white text-accent shadow-sm dark:bg-gray-700/80 dark:text-accent-muted'
-                  : 'text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300',
-              ].join(' ')}
-              aria-label="Card view"
-            >
-              <LayoutGrid size={14} />
-            </button>
-            <button
-              type="button"
-              onClick={() => onViewModeChange('compact')}
-              className={[
-                'rounded-md px-2 py-1.5 transition-all duration-150 cursor-pointer',
-                viewMode === 'compact'
-                  ? 'bg-white text-accent shadow-sm dark:bg-gray-700/80 dark:text-accent-muted'
-                  : 'text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300',
-              ].join(' ')}
-              aria-label="Compact view"
-            >
-              <List size={14} />
-            </button>
-          </div>
+          {showViewModeToggle ? (
+            <div className="inline-flex items-center rounded-lg bg-gray-100/50 p-0.5 dark:bg-gray-800/40">
+              <button
+                type="button"
+                onClick={() => onViewModeChange('card')}
+                className={[
+                  'rounded-md px-2 py-1.5 transition-all duration-150 cursor-pointer',
+                  viewMode === 'card'
+                    ? 'bg-white text-accent shadow-sm dark:bg-gray-700/80 dark:text-accent-muted'
+                    : 'text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300',
+                ].join(' ')}
+                aria-label="Card view"
+              >
+                <LayoutGrid size={14} />
+              </button>
+              <button
+                type="button"
+                onClick={() => onViewModeChange('compact')}
+                className={[
+                  'rounded-md px-2 py-1.5 transition-all duration-150 cursor-pointer',
+                  viewMode === 'compact'
+                    ? 'bg-white text-accent shadow-sm dark:bg-gray-700/80 dark:text-accent-muted'
+                    : 'text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300',
+                ].join(' ')}
+                aria-label="Compact view"
+              >
+                <List size={14} />
+              </button>
+            </div>
+          ) : null}
 
-          <button
-            type="button"
-            onClick={onToggleTrash}
-            className={[
-              'inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all duration-150 cursor-pointer',
-              showTrash
-                ? 'bg-red-500/10 text-red-600 ring-1 ring-red-500/20 dark:bg-red-500/15 dark:text-red-300 dark:ring-red-500/25'
-                : 'bg-gray-100/50 text-gray-500 hover:bg-gray-200/70 hover:text-gray-700 dark:bg-gray-800/40 dark:text-gray-400 dark:hover:bg-gray-700/60 dark:hover:text-gray-200',
-            ].join(' ')}
-          >
-            <Trash2 size={13} />
-            Trash
-          </button>
+          {showScopeToggle ? (
+            <button
+              type="button"
+              onClick={onToggleTrash}
+              className={[
+                'inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all duration-150 cursor-pointer',
+                showTrash
+                  ? 'bg-red-500/10 text-red-600 ring-1 ring-red-500/20 dark:bg-red-500/15 dark:text-red-300 dark:ring-red-500/25'
+                  : 'bg-gray-100/50 text-gray-500 hover:bg-gray-200/70 hover:text-gray-700 dark:bg-gray-800/40 dark:text-gray-400 dark:hover:bg-gray-700/60 dark:hover:text-gray-200',
+              ].join(' ')}
+            >
+              <Trash2 size={13} />
+              Trash
+            </button>
+          ) : null}
 
           {hasActiveFilters && (
             <button

@@ -86,14 +86,20 @@ export function groupByDateSection(meetings: MeetingWithPreview[]): DateSection[
   return Array.from(sections.entries()).map(([label, items]) => ({ label, items }));
 }
 
-export function useLibrary() {
+type UseLibraryOptions = {
+  initialShowTrash?: boolean;
+  lockScope?: boolean;
+};
+
+export function useLibrary(options: UseLibraryOptions = {}) {
+  const { initialShowTrash = false, lockScope = false } = options;
   const [meetings, setMeetings] = useState<MeetingWithPreview[]>([]);
   const [searchResults, setSearchResults] = useState<SearchResult[] | null>(null);
   const [filters, setFilters] = useState<LibraryFilters>(DEFAULT_FILTERS);
   const [sortField, setSortFieldState] = useState<SortField>('date');
   const [sortDirection, setSortDirectionState] = useState<SortDirection>('desc');
   const [viewMode, setViewModeState] = useState<ViewMode>('card');
-  const [showTrash, setShowTrash] = useState(false);
+  const [showTrash, setShowTrash] = useState(initialShowTrash);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
@@ -303,6 +309,10 @@ export function useLibrary() {
   }, []);
 
   const toggleTrash = useCallback(() => {
+    if (lockScope) {
+      return;
+    }
+
     setShowTrash((previous) => !previous);
     setFilters((previous) => ({
       ...previous,
@@ -310,7 +320,7 @@ export function useLibrary() {
     }));
     setSearchResults(null);
     deselectAll();
-  }, [deselectAll]);
+  }, [deselectAll, lockScope]);
 
   const toggleSelect = useCallback((id: number) => {
     setSelectedIds((previous) => {
