@@ -15,6 +15,7 @@ import { useNavigate } from 'react-router';
 
 import { useModelSetup } from '../hooks/useModelSetup';
 import { useOllamaSetup } from '../hooks/useOllamaSetup';
+import { useSetting } from '../hooks/useSettings';
 
 function formatBytes(bytes: number): string {
   const mb = bytes / (1024 * 1024);
@@ -74,62 +75,9 @@ function Notice({
   );
 }
 
-function StatusChip({
-  label,
-  value,
-  ready,
-}: {
-  label: string;
-  value: string;
-  ready: boolean;
-}) {
-  return (
-    <div
-      className={clsx(
-        'rounded-xl border px-3 py-2',
-        ready
-          ? 'border-emerald-200/90 bg-emerald-50/80 dark:border-emerald-500/40 dark:bg-emerald-500/10'
-          : 'border-gray-200/90 bg-white/70 dark:border-gray-700/80 dark:bg-gray-900/45',
-      )}
-    >
-      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-gray-500 dark:text-gray-400">{label}</p>
-      <p
-        className={clsx(
-          'mt-1 text-sm font-medium',
-          ready ? 'text-emerald-700 dark:text-emerald-200' : 'text-gray-700 dark:text-gray-200',
-        )}
-      >
-        {value}
-      </p>
-    </div>
-  );
-}
-
-function modelStateLabel(modelStatus: ReturnType<typeof useModelSetup>['modelStatus']): string {
-  if (modelStatus === 'ready') return 'Ready';
-  if (modelStatus === 'downloading') return 'Downloading';
-  if (modelStatus === 'extracting') return 'Extracting';
-  if (modelStatus === 'error') return 'Needs attention';
-  if (modelStatus === 'not_ready') return 'Not installed';
-  return 'Checking';
-}
-
-function notesStateLabel(setupPhase: ReturnType<typeof useOllamaSetup>['setupPhase']): string {
-  if (setupPhase === 'ready') return 'Ready';
-  if (setupPhase === 'error') return 'Needs attention';
-  if (setupPhase === 'not_installed') return 'Not installed';
-  if (setupPhase === 'not_running') return 'Not running';
-  if (setupPhase === 'model_not_pulled') return 'Model required';
-  if (setupPhase === 'pulling') return 'Downloading model';
-  if (setupPhase === 'downloading_ollama') return 'Downloading Ollama';
-  if (setupPhase === 'extracting_ollama') return 'Extracting Ollama';
-  if (setupPhase === 'installing_ollama') return 'Installing Ollama';
-  if (setupPhase === 'starting_ollama') return 'Starting Ollama';
-  return 'Checking';
-}
-
 export function SetupView() {
   const navigate = useNavigate();
+  const [transcriptionLanguage] = useSetting('transcriptionLanguage');
   const { modelStatus, downloadProgress, errorMessage: modelErrorMessage, startDownload } = useModelSetup();
   const {
     setupPhase,
@@ -237,6 +185,9 @@ export function SetupView() {
   }, [ollamaDownloadProgress, ollamaDownloadStartedAt, tick]);
 
   const allReady = modelStatus === 'ready' && setupPhase === 'ready';
+  const activeLanguage = transcriptionLanguage ?? 'en';
+  const sttModelName = activeLanguage === 'pl' ? 'Whisper Tiny (Multilingual)' : 'Parakeet TDT 0.6B';
+  const sttDownloadLabel = activeLanguage === 'pl' ? 'Download Whisper Model' : 'Download Parakeet Model';
 
   return (
     <section className="relative h-full min-h-[calc(100vh-3rem)] overflow-hidden rounded-[1.75rem] border border-gray-200/70 bg-gradient-to-br from-white/85 via-white/70 to-gray-100/70 p-4 shadow-[0_28px_80px_-50px_rgba(15,23,42,0.45)] dark:border-gray-800/70 dark:from-gray-900/90 dark:via-gray-900/70 dark:to-gray-950/80 sm:p-5 lg:p-6">
@@ -245,19 +196,12 @@ export function SetupView() {
 
       <div className="relative z-10 flex h-full min-h-0 flex-col gap-4">
         <header className="rounded-2xl border border-gray-200/80 bg-white/80 p-4 shadow-[0_10px_32px_-24px_rgba(15,23,42,0.65)] backdrop-blur-sm dark:border-gray-700/80 dark:bg-gray-900/55 sm:p-5">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-            <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-500 dark:text-gray-400">Workspace</p>
-              <h1 className="mt-1 text-[1.65rem] font-semibold leading-tight text-gray-900 dark:text-gray-50">Models</h1>
-              <p className="mt-2 max-w-3xl text-sm text-gray-600 dark:text-gray-300">
-                Manage local transcription and AI notes engines. Both run on-device and keep meeting data on your Mac.
-              </p>
-            </div>
-
-            <div className="grid w-full gap-2 sm:grid-cols-2 lg:w-[380px]">
-              <StatusChip label="Speech-to-Text" value={modelStateLabel(modelStatus)} ready={modelStatus === 'ready'} />
-              <StatusChip label="AI Notes" value={notesStateLabel(setupPhase)} ready={setupPhase === 'ready'} />
-            </div>
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-500 dark:text-gray-400">Workspace</p>
+            <h1 className="mt-1 text-[1.65rem] font-semibold leading-tight text-gray-900 dark:text-gray-50">Models</h1>
+            <p className="mt-2 max-w-3xl text-sm text-gray-600 dark:text-gray-300">
+              Manage local transcription and AI notes engines. Both run on-device and keep meeting data on your Mac.
+            </p>
           </div>
         </header>
 
@@ -277,7 +221,7 @@ export function SetupView() {
               </div>
 
               <span className="rounded-lg border border-gray-200 bg-gray-100/80 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-gray-600 dark:border-gray-700 dark:bg-gray-800/75 dark:text-gray-300">
-                Parakeet TDT 0.6B
+                {sttModelName}
               </span>
             </div>
 
@@ -297,7 +241,7 @@ export function SetupView() {
                     className="inline-flex items-center gap-2 rounded-xl bg-accent px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-accent-hover"
                   >
                     <Download size={15} />
-                    Download Parakeet Model
+                    {sttDownloadLabel}
                   </button>
                 </div>
               )}
@@ -347,7 +291,7 @@ export function SetupView() {
 
               {modelStatus === 'ready' && (
                 <Notice tone="success" icon={CheckCircle2}>
-                  Parakeet TDT 0.6B is ready.
+                  {sttModelName} is ready.
                 </Notice>
               )}
             </div>

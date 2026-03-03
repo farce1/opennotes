@@ -8,7 +8,6 @@ import {
   Circle,
   Clock3,
   Cpu,
-  Keyboard,
   Mic,
   Square,
 } from 'lucide-react';
@@ -19,7 +18,7 @@ import { useModelSetup } from '../hooks/useModelSetup';
 import { useRecording } from '../hooks/useRecording';
 import { useSession } from '../hooks/useSession';
 import { useTranscript } from '../hooks/useTranscript';
-import { formatShortcutDisplay, isMacOS } from '../lib/platform';
+import { isMacOS } from '../lib/platform';
 import { getSetting } from '../lib/settings';
 import type { OllamaStatus } from '../types';
 
@@ -44,10 +43,6 @@ export function RecordView() {
   const autoStopTriggeredRef = useRef(false);
   const [recordingError, setRecordingError] = useState<string | null>(null);
   const macOS = useMemo(() => isMacOS(), []);
-  const shortcutHint = useMemo(
-    () => formatShortcutDisplay('CommandOrControl+Shift+R', { macSymbols: false }),
-    [],
-  );
   const systemAudioLabel = useMemo(
     () => (macOS ? 'System audio (Screen Recording)' : 'System audio'),
     [macOS],
@@ -113,6 +108,8 @@ export function RecordView() {
   const modelSettingUp = modelStatus === 'downloading' || modelStatus === 'extracting';
   const remainingAutoStopMs = Math.max(0, FOUR_HOURS_MS - elapsedMs);
   const canChangeSessionState = phase !== 'stopping' && !isSaving;
+  const hasOperationalAlert =
+    transcriptionDegraded || Boolean(permissionHint) || Boolean(recordingError) || modelBlocked || isModelChecking;
 
   useEffect(() => {
     const container = transcriptContainerRef.current;
@@ -267,7 +264,7 @@ export function RecordView() {
   }, [handleStartRecording, navigateToMeetingComplete, phase, stopSession]);
 
   return (
-    <section className="relative flex h-full min-h-[calc(100vh-3rem)] items-center justify-center overflow-hidden px-4 py-8 sm:px-6 sm:py-10">
+    <section className="relative flex min-h-full justify-center px-4 py-8 sm:px-6 sm:py-10">
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
         <div className="absolute -left-12 top-8 h-60 w-60 rounded-full bg-accent/15 blur-3xl dark:bg-accent/20" />
         <div className="absolute right-0 top-1/4 h-72 w-72 rounded-full bg-red-500/10 blur-3xl dark:bg-red-500/20" />
@@ -336,7 +333,7 @@ export function RecordView() {
                   <p className="mt-3 text-sm text-gray-600 dark:text-gray-300">
                     {sessionActive
                       ? `Time remaining before auto-stop: ${formatElapsed(remainingAutoStopMs)}.`
-                      : `Press ${shortcutHint}, use the tray menu, or start recording from this page.`}
+                      : 'Use the tray menu or start recording from this page.'}
                   </p>
                 </div>
 
@@ -373,10 +370,6 @@ export function RecordView() {
                     </>
                   )}
 
-                  <span className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white/85 px-3 py-2 text-xs font-medium text-gray-600 dark:border-gray-700 dark:bg-gray-850/80 dark:text-gray-300">
-                    <Keyboard size={14} />
-                    {shortcutHint}
-                  </span>
                 </div>
               </div>
             </section>
@@ -539,61 +532,82 @@ export function RecordView() {
             </section>
 
             <section className="rounded-3xl border border-gray-200/80 bg-white/90 p-5 shadow-[0_24px_60px_-40px_rgba(15,23,42,0.55)] backdrop-blur-sm dark:border-gray-700/80 dark:bg-gray-900/80 sm:p-6">
-              <div className="space-y-2">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-gray-500 dark:text-gray-400">
-                  Operational Notes
-                </p>
-                <p className="text-sm text-gray-600 dark:text-gray-300">
-                  Audio never leaves your device. Summaries run through your local Ollama setup.
-                </p>
+              <div className="space-y-4">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-gray-500 dark:text-gray-400">
+                    Operational Notes
+                  </p>
+                  <div className="mt-2 rounded-2xl border border-gray-200/80 bg-gradient-to-br from-gray-50 to-white p-4 dark:border-gray-700 dark:from-gray-850 dark:to-gray-900">
+                    <p className="text-sm font-medium text-gray-800 dark:text-gray-100">
+                      Audio never leaves your device. Summaries run through your local Ollama setup.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="space-y-2.5">
+                  <article className="flex items-center gap-3 rounded-2xl border border-gray-200/80 bg-gray-50/85 p-3 dark:border-gray-700 dark:bg-gray-850/70">
+                    <span className="grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-accent/10 text-accent dark:bg-accent/20 dark:text-accent-muted">
+                      <Bot size={14} />
+                    </span>
+                    <p className="text-xs font-medium text-gray-700 dark:text-gray-200">
+                      AI notes model is validated on start.
+                    </p>
+                  </article>
+
+                  <article className="flex items-center gap-3 rounded-2xl border border-gray-200/80 bg-gray-50/85 p-3 dark:border-gray-700 dark:bg-gray-850/70">
+                    <span className="grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-accent/10 text-accent dark:bg-accent/20 dark:text-accent-muted">
+                      <Clock3 size={14} />
+                    </span>
+                    <p className="text-xs font-medium text-gray-700 dark:text-gray-200">
+                      Sessions stop automatically after 4 hours.
+                    </p>
+                  </article>
+
+                </div>
               </div>
 
-              <div className="mt-4 space-y-2.5 text-xs text-gray-600 dark:text-gray-300">
-                <div className="inline-flex items-center gap-2">
-                  <Bot size={13} className="text-accent dark:text-accent-muted" />
-                  AI notes model is validated on start.
+              {hasOperationalAlert ? (
+                <div className="mt-4 space-y-2.5">
+                  {transcriptionDegraded ? (
+                    <p className="rounded-xl border border-amber-200 bg-amber-50/80 px-3 py-2 text-xs text-amber-700 dark:border-amber-500/35 dark:bg-amber-500/10 dark:text-amber-200">
+                      Transcription encountered an issue during this session. Audio recording is still active.
+                    </p>
+                  ) : null}
+
+                  {permissionHint ? (
+                    <p className="rounded-xl border border-amber-200 bg-amber-50/80 px-3 py-2 text-xs text-amber-700 dark:border-amber-500/35 dark:bg-amber-500/10 dark:text-amber-200">
+                      {permissionHint}
+                    </p>
+                  ) : null}
+
+                  {recordingError ? (
+                    <p className="rounded-xl border border-red-200 bg-red-50/80 px-3 py-2 text-xs text-red-700 dark:border-red-500/35 dark:bg-red-500/10 dark:text-red-200">
+                      {recordingError}
+                    </p>
+                  ) : null}
+
+                  {modelBlocked ? (
+                    <div className="rounded-xl border border-accent/25 bg-accent-subtle/60 px-3 py-2.5 dark:border-accent/35 dark:bg-accent/10">
+                      <p className="text-xs text-gray-700 dark:text-gray-100">
+                        Transcription model not set up. Go to Models to download it before recording.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={handleGoToModels}
+                        className="mt-2 rounded-lg border border-accent/45 px-2.5 py-1 text-xs font-semibold text-accent transition hover:bg-accent/10 dark:text-accent-muted"
+                      >
+                        Open Models
+                      </button>
+                    </div>
+                  ) : null}
+
+                  {isModelChecking ? (
+                    <p className="rounded-xl border border-gray-200 bg-white/80 px-3 py-2 text-xs text-gray-600 dark:border-gray-700 dark:bg-gray-850/75 dark:text-gray-300">
+                      Checking transcription model status…
+                    </p>
+                  ) : null}
                 </div>
-                <div className="inline-flex items-center gap-2">
-                  <Clock3 size={13} className="text-accent dark:text-accent-muted" />
-                  Sessions stop automatically after 4 hours.
-                </div>
-                <div className="inline-flex items-center gap-2">
-                  <Keyboard size={13} className="text-accent dark:text-accent-muted" />
-                  Global shortcut: {shortcutHint}
-                </div>
-              </div>
-
-              <div className="mt-4 space-y-2.5">
-                {transcriptionDegraded ? (
-                  <p className="rounded-xl border border-amber-200 bg-amber-50/80 px-3 py-2 text-xs text-amber-700 dark:border-amber-500/35 dark:bg-amber-500/10 dark:text-amber-200">
-                    Transcription encountered an issue during this session. Audio recording is still active.
-                  </p>
-                ) : null}
-
-                {permissionHint ? (
-                  <p className="rounded-xl border border-amber-200 bg-amber-50/80 px-3 py-2 text-xs text-amber-700 dark:border-amber-500/35 dark:bg-amber-500/10 dark:text-amber-200">
-                    {permissionHint}
-                  </p>
-                ) : null}
-
-                {recordingError ? (
-                  <p className="rounded-xl border border-red-200 bg-red-50/80 px-3 py-2 text-xs text-red-700 dark:border-red-500/35 dark:bg-red-500/10 dark:text-red-200">
-                    {recordingError}
-                  </p>
-                ) : null}
-
-                {modelBlocked ? (
-                  <p className="rounded-xl border border-accent/25 bg-accent-subtle/60 px-3 py-2 text-xs text-gray-700 dark:border-accent/35 dark:bg-accent/10 dark:text-gray-100">
-                    Transcription model not set up. Go to Models to download it before recording.
-                  </p>
-                ) : null}
-
-                {isModelChecking ? (
-                  <p className="rounded-xl border border-gray-200 bg-white/80 px-3 py-2 text-xs text-gray-600 dark:border-gray-700 dark:bg-gray-850/75 dark:text-gray-300">
-                    Checking transcription model status…
-                  </p>
-                ) : null}
-              </div>
+              ) : null}
             </section>
           </aside>
         </div>
