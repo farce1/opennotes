@@ -82,7 +82,7 @@ async fn download_ollama_zip(
     tmp_path: &Path,
     on_event: &Channel<OllamaSetupEvent>,
 ) -> Result<(), String> {
-    let total_bytes = content_length(client, OLLAMA_ZIP_URL).await;
+    let head_total = content_length(client, OLLAMA_ZIP_URL).await;
 
     let response = client
         .get(OLLAMA_ZIP_URL)
@@ -96,6 +96,12 @@ async fn download_ollama_zip(
             response.status()
         ));
     }
+
+    let total_bytes = if head_total > 0 {
+        head_total
+    } else {
+        response.content_length().unwrap_or(0)
+    };
 
     let mut stream = response.bytes_stream();
     let mut file = File::create(tmp_path)
