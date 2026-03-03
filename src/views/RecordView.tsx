@@ -369,8 +369,13 @@ export function RecordView() {
                       </button>
                     </>
                   )}
-
                 </div>
+
+                {recordingError ? (
+                  <p className="mt-3 rounded-xl border border-red-200 bg-red-50/80 px-3 py-2.5 text-sm text-red-700 dark:border-red-500/35 dark:bg-red-500/10 dark:text-red-200">
+                    {recordingError}
+                  </p>
+                ) : null}
               </div>
             </section>
 
