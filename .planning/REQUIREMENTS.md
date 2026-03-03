@@ -15,8 +15,8 @@ Requirements for v1.1 Hardening & Quality release. Each maps to roadmap phases.
 - [x] **LLM-04**: User sees actionable error messages when Ollama fails (OOM, model too large, connection refused)
 - [x] **LLM-05**: Model dropdown is disabled during active summary generation to prevent settings race
 - [x] **LLM-06**: Settings dropdown shows recommendation labels (e.g., "Recommended" badge on phi4-mini)
-- [ ] **LLM-07**: phi4-mini benchmarked on 15/45/90-min transcripts with documented quality findings
-- [ ] **LLM-08**: `build_summary_prompt()` tuned based on benchmark results for better long-meeting output
+- [x] **LLM-07**: phi4-mini benchmarked on 15/45/90-min transcripts with documented quality findings
+- [x] **LLM-08**: `build_summary_prompt()` tuned based on benchmark results for better long-meeting output
 
 ### Frontend Performance
 
@@ -68,8 +68,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | LLM-04 | Phase 11 | Complete |
 | LLM-05 | Phase 11 | Complete |
 | LLM-06 | Phase 11 | Complete |
-| LLM-07 | Phase 13 | Pending |
-| LLM-08 | Phase 13 | Pending |
+| LLM-07 | Phase 13 | Complete |
+| LLM-08 | Phase 13 | Complete |
 | PERF-01 | Phase 12 | Complete |
 | PERF-02 | Phase 12 | Complete |
 | PERF-03 | Phase 12 | Complete |

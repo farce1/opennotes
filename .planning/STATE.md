@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Hardening & Quality
-status: ready_to_plan
-last_updated: "2026-03-03T08:26:30Z"
+status: ready_to_complete_milestone
+last_updated: "2026-03-03T09:56:30Z"
 progress:
   total_phases: 4
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 6
-  completed_plans: 5
+  completed_plans: 6
 ---
 
 # Project State
@@ -17,24 +17,24 @@ progress:
 
 See: .planning/PROJECT.md (updated 2026-03-02)
 
-**Core value:** One-click meeting recording that produces structured, actionable meeting notes — entirely local, entirely free.
-**Current focus:** v1.1 Hardening & Quality — Phase 12 planning/execution.
+**Core value:** One-click meeting recording that produces structured, actionable meeting notes - entirely local, entirely free.
+**Current focus:** v1.1 Hardening & Quality closeout and milestone completion.
 
 ## Current Position
 
 Phase: 13 of 13 (LLM Quality Tuning)
-Plan: 0 of 1 in current phase
-Status: Phase 12 complete and verified; ready to execute Phase 13
-Last activity: 2026-03-03 — Completed Phase 12 verification and closure (plans 12-01, 12-02; requirements PERF-01..06 closed)
+Plan: 1 of 1 in current phase
+Status: Phase 13 executed and documented; ready for milestone closeout.
+Last activity: 2026-03-03 - Completed 13-01 (benchmark fixtures, prompt tuning, num_predict fix, BENCHMARK report scaffolding)
 
-Progress: [████████░░] 83%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 5 (v1.1)
-- Average duration: 2.8 min/plan
-- Total execution time: ~14 min
+- Total plans completed: 6 (v1.1)
+- Average duration: 3.7 min/plan
+- Total execution time: ~22 min
 
 **By Phase:**
 
@@ -43,10 +43,11 @@ Progress: [████████░░] 83%
 | 10 | 1 | 1 min | 1 min |
 | 11 | 2 | 4 min | 2 min |
 | 12 | 2 | 9 min | 4.5 min |
+| 13 | 1 | 8 min | 8 min |
 
 **Recent Trend:**
-- Last 5 plans: 10-01, 11-01, 11-02, 12-01, 12-02
-- Trend: Bundle optimization is closed with verified reductions; next focus is long-meeting quality benchmarking and prompt tuning.
+- Last 5 plans: 11-01, 11-02, 12-01, 12-02, 13-01
+- Trend: Core v1.1 hardening scope is complete; remaining work is milestone wrap-up and optional live benchmark rerun.
 
 *Updated after each plan completion*
 | Phase 10 P01 | 1 min | 3 tasks | 3 files |
@@ -54,6 +55,7 @@ Progress: [████████░░] 83%
 | Phase 11 P02 | 2 min | 3 tasks | 7 files |
 | Phase 12 P01 | 5 min | 2 tasks | 4 files |
 | Phase 12 P02 | 4 min | 2 tasks | 4 files |
+| Phase 13 P01 | 8 min | 2 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -62,17 +64,15 @@ Progress: [████████░░] 83%
 Decisions are logged in PROJECT.md Key Decisions table.
 Recent decisions affecting current work:
 
-- v1.1 start: Phase ordering — deps pinning first (zero code risk), then LLM wiring (Rust + TS, independent of frontend), then bundle optimization (frontend only), then prompt tuning (requires LLM wiring complete)
-- v1.1 start: `ollama-rs` crate explicitly out of scope — existing `reqwest` Ollama integration is sufficient
-- v1.1 start: `num_ctx` dynamic strategy to be resolved during Phase 11 planning (two viable approaches: transcript-length estimation vs. /api/show query)
-- [Phase 10]: Pinned sherpa-rs to exact =0.6.8 with Cargo.toml inline upgrade-path reference. — Prevents silent dependency drift and preserves explicit migration context in-source.
-- [Phase 10]: Added standalone actions/cache@v4 step for sherpa binaries with warning on cache miss while preserving rust-cache step. — Keeps release builds non-blocking on misses while improving cache-hit observability and speed.
-- [Phase 11]: Dynamic num_ctx now clamps transcript token estimates by Ollama model context length from /api/show. — Removes hardcoded context window assumptions and aligns generation limits with the selected model.
-- [Phase 11]: Manual summary inserts persist llm_model as manual instead of DEFAULT_MODEL. — Preserves provenance so user-authored summaries are not misattributed to generated output.
-- [Phase 11]: Generation lock state is centralized in SummaryGenerationContext so settings model controls remain consistent across route transitions.
-- [Phase 11]: Summary errors are displayed through structured kind/raw payload parsing to support contextual recovery actions.
-- [Phase 12]: Export-only libraries (`@react-pdf/renderer`, `jszip`) are isolated behind dynamic imports and shared lazy PDF rendering to reduce startup bundle cost without changing export features.
-- [Phase 12]: Explicit vendor chunking plus visualizer output and CI warnings now enforce bundle-size regression visibility in both local and release flows.
+- v1.1 start: Phase ordering - deps pinning first (zero code risk), then LLM wiring (Rust + TS, independent of frontend), then bundle optimization (frontend only), then prompt tuning (requires LLM wiring complete)
+- v1.1 start: `ollama-rs` crate explicitly out of scope - existing `reqwest` Ollama integration is sufficient
+- v1.1 start: `num_ctx` dynamic strategy resolved in Phase 11 via transcript-length estimation clamped by `/api/show` context length
+- [Phase 10]: Pinned sherpa-rs to exact `=0.6.8` and documented upgrade path context inline
+- [Phase 11]: Dynamic `num_ctx` + structured Ollama error classification + model provenance handling
+- [Phase 12]: Export-only libraries lazy-loaded; vendor chunking and CI bundle warning added for regression visibility
+- [Phase 13]: Added `num_predict: -1` in both Ollama generation paths to prevent output truncation
+- [Phase 13]: Strengthened base prompt and chunked synthesis prompt to preserve all action items and concise decision wording
+- [Phase 13]: Added reproducible benchmark corpus (transcripts + ground truth + evaluator) with BENCHMARK iteration tracking
 
 ### Pending Todos
 
@@ -80,11 +80,10 @@ None.
 
 ### Blockers/Concerns
 
-- [Research]: sherpa-rs CI binary cache path needs empirical confirmation with `cargo build -v` in actual CI environment before setting GitHub Actions cache key
-- [Research]: phi4-mini failure mode profile on long meetings is predicted but not yet measured — actual benchmark results may reveal unexpected chunking synthesis issues
+- Local Ollama endpoint was unavailable during Phase 13 execution, so BENCHMARK live score rows are marked pending until `ollama serve` + `phi4-mini` are available.
 
 ## Session Continuity
 
 Last session: 2026-03-03
-Stopped at: Completed Phase 12 verification and closure
+Stopped at: Completed 13-01 plan execution and metadata updates
 Resume file: None

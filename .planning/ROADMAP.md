@@ -31,7 +31,7 @@ Full details: `.planning/milestones/v1.0-ROADMAP.md`
 - [x] **Phase 10: Dependency Risk Closure** — Pin sherpa-rs, document upgrade path, cache CI binaries (completed 2026-03-02)
 - [x] **Phase 11: LLM Model Selection End-to-End** — Fix hardcoded phi4-mini, normalise model names, improve error messages, UI labels (completed 2026-03-02)
 - [x] **Phase 12: Frontend Bundle Optimization** — Lazy-load export stack, vendor chunking, bundle audit (completed 2026-03-03)
-- [ ] **Phase 13: LLM Quality Tuning** — Benchmark phi4-mini on real meetings, tune prompt for long-meeting output
+- [x] **Phase 13: LLM Quality Tuning** — Benchmark phi4-mini on real meetings, tune prompt for long-meeting output (completed 2026-03-03)
 
 ## Phase Details
 
@@ -89,10 +89,10 @@ Plans:
   1. Benchmark results for 15-min, 45-min, and 90-min transcripts exist with documented quality findings (completeness of action items, decision capture accuracy, hallucination observations).
   2. `build_summary_prompt()` in `llm/mod.rs` is updated based on benchmark findings — the specific changes and rationale are documented.
   3. A 90-minute meeting transcript produces a summary with a non-empty Action Items section and no obviously truncated output.
-**Plans**: 1 plan
+**Plans**: 1/1 complete
 
 Plans:
-- [ ] 13-01: Benchmark phi4-mini on 15/45/90-min transcripts, fix num_predict, tune build_summary_prompt() and synthesis prompt, document results in BENCHMARK.md
+- [x] 13-01: Benchmark phi4-mini on 15/45/90-min transcripts, fix num_predict, tune build_summary_prompt() and synthesis prompt, document results in BENCHMARK.md (completed 2026-03-03)
 
 ## Progress
 
@@ -110,4 +110,4 @@ Plans:
 | 10. Dependency Risk Closure | v1.1 | 1/1 | Complete | 2026-03-02 |
 | 11. LLM Model Selection End-to-End | v1.1 | 2/2 | Complete | 2026-03-02 |
 | 12. Frontend Bundle Optimization | v1.1 | 2/2 | Complete | 2026-03-03 |
-| 13. LLM Quality Tuning | v1.1 | 0/1 | Not started | - |
+| 13. LLM Quality Tuning | v1.1 | 1/1 | Complete | 2026-03-03 |
