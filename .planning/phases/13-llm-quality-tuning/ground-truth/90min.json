@@ -1,0 +1,66 @@
+{
+  "transcript_file": "90min-architecture-workshop.txt",
+  "duration_minutes": 90,
+  "action_items": [
+    {
+      "person": "Elena",
+      "task": "finalize event schema v2",
+      "deadline": "Thursday"
+    },
+    {
+      "person": "Ravi",
+      "task": "prototype idempotency middleware",
+      "deadline": "next sprint demo"
+    },
+    {
+      "person": "Ming",
+      "task": "document service-to-service auth matrix",
+      "deadline": "Tuesday"
+    },
+    {
+      "person": "Owen",
+      "task": "run load test at 5k concurrent sessions",
+      "deadline": "Friday"
+    },
+    {
+      "person": "Sara",
+      "task": "create migration plan for Redis cluster"
+    },
+    {
+      "person": "Victor",
+      "task": "draft incident runbook for stream processor",
+      "deadline": "Wednesday"
+    },
+    {
+      "person": "Chloe",
+      "task": "validate PII redaction in log pipeline",
+      "deadline": "Monday"
+    },
+    {
+      "person": "Daniel",
+      "task": "coordinate security review for token rotation with AppSec"
+    }
+  ],
+  "decisions": [
+    "Decided to adopt PostgreSQL logical replication for analytics feed",
+    "Decided to use Kafka as the event backbone",
+    "Decided to keep GraphQL gateway but split read models",
+    "Decided to postpone full multi-region failover to phase two",
+    "Decided to enforce zero-downtime migrations via expand-contract pattern",
+    "Decided to standardize on OpenTelemetry for tracing"
+  ],
+  "key_points_must_include": [
+    "p95 write latency spikes during index rebuilds",
+    "auth service currently lacks key rotation automation",
+    "data retention policy requires ninety-day hot storage",
+    "security audit window starts on June 15",
+    "mobile clients still rely on v1 websocket protocol",
+    "background jobs peak at 120k events per minute",
+    "cache invalidation storms follow catalog bulk imports",
+    "schema registry compatibility mode set to backward",
+    "incident response handoff between eu and us teams is inconsistent",
+    "cost model shows egress doubling under naive replication",
+    "search indexing lag averages seven minutes",
+    "feature flag drift detected across staging and production"
+  ]
+}

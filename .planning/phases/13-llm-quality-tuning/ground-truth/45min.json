@@ -1,0 +1,45 @@
+{
+  "transcript_file": "45min-quarterly-review.txt",
+  "duration_minutes": 45,
+  "action_items": [
+    {
+      "person": "Dana",
+      "task": "draft Q3 hiring plan",
+      "deadline": "next Wednesday"
+    },
+    {
+      "person": "Marcus",
+      "task": "renegotiate analytics vendor pricing",
+      "deadline": "end of month"
+    },
+    {
+      "person": "Irene",
+      "task": "publish customer segmentation memo"
+    },
+    {
+      "person": "Leo",
+      "task": "run checkout latency deep dive",
+      "deadline": "Friday"
+    },
+    {
+      "person": "Nia",
+      "task": "prepare board-ready revenue bridge deck"
+    }
+  ],
+  "decisions": [
+    "Decided to prioritize enterprise retention over net-new SMB acquisition",
+    "Decided to sunset the legacy onboarding webinar",
+    "Decided to move APAC expansion target to Q4",
+    "Decided to keep pricing tiers unchanged through Q3"
+  ],
+  "key_points_must_include": [
+    "gross margin improved to 68 percent",
+    "churn concentrated in self-serve cohorts",
+    "sales cycle for enterprise deals shortened to 41 days",
+    "pipeline coverage sits at 3.2x next-quarter target",
+    "support CSAT rose to 94 percent",
+    "paid acquisition CAC increased 12 percent",
+    "renewal risk highest in healthcare vertical",
+    "product usage growth strongest in collaboration features"
+  ]
+}
