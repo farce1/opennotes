@@ -8,6 +8,7 @@ import {
   Circle,
   Clock3,
   Cpu,
+  Loader2,
   Mic,
   Square,
 } from 'lucide-react';
@@ -42,6 +43,7 @@ export function RecordView() {
   const transcriptContainerRef = useRef<HTMLDivElement | null>(null);
   const autoStopTriggeredRef = useRef(false);
   const [recordingError, setRecordingError] = useState<string | null>(null);
+  const [startingSession, setStartingSession] = useState(false);
   const macOS = useMemo(() => isMacOS(), []);
   const systemAudioLabel = useMemo(
     () => (macOS ? 'System audio (Screen Recording)' : 'System audio'),
@@ -134,43 +136,48 @@ export function RecordView() {
 
   const handleStartRecording = useCallback(async () => {
     setRecordingError(null);
-
-    const ready = await checkModelReady();
-    if (!ready) {
-      setRecordingError('Transcription model not set up. Open Models to download it before recording.');
-      return false;
-    }
+    setStartingSession(true);
 
     try {
-      const serverUrl = await getSetting('ollamaServerUrl');
-      const ollamaStatus = await invoke<OllamaStatus>('check_ollama_status', {
-        serverUrl: serverUrl || undefined,
-      });
-      if (!ollamaStatus.modelReady) {
-        setRecordingError('AI notes model not ready. Open Models to finish Ollama configuration before recording.');
+      const ready = await checkModelReady();
+      if (!ready) {
+        setRecordingError('Transcription model not set up. Open Models to download it before recording.');
         return false;
       }
-    } catch {
-      setRecordingError('Unable to verify AI notes model readiness. Open Models and retry.');
-      return false;
-    }
 
-    const permissionsOk = await ensurePermissions();
-    if (!permissionsOk) {
-      return false;
-    }
+      try {
+        const serverUrl = await getSetting('ollamaServerUrl');
+        const ollamaStatus = await invoke<OllamaStatus>('check_ollama_status', {
+          serverUrl: serverUrl || undefined,
+        });
+        if (!ollamaStatus.modelReady) {
+          setRecordingError('AI notes model not ready. Open Models to finish Ollama configuration before recording.');
+          return false;
+        }
+      } catch {
+        setRecordingError('Unable to verify AI notes model readiness. Open Models and retry.');
+        return false;
+      }
 
-    resetTranscript();
+      const permissionsOk = await ensurePermissions();
+      if (!permissionsOk) {
+        return false;
+      }
 
-    try {
-      await startSession((event) => {
-        addEvent(event);
-      });
-      autoStopTriggeredRef.current = false;
-      return true;
-    } catch {
-      setRecordingError('Session failed to start. Verify audio permissions and model files, then retry.');
-      return false;
+      resetTranscript();
+
+      try {
+        await startSession((event) => {
+          addEvent(event);
+        });
+        autoStopTriggeredRef.current = false;
+        return true;
+      } catch {
+        setRecordingError('Session failed to start. Verify audio permissions and model files, then retry.');
+        return false;
+      }
+    } finally {
+      setStartingSession(false);
     }
   }, [addEvent, checkModelReady, ensurePermissions, resetTranscript, startSession]);
 
@@ -342,11 +349,11 @@ export function RecordView() {
                     <button
                       type="button"
                       onClick={() => void handleStartRecording()}
-                      disabled={permissionLoading || !modelReady}
+                      disabled={permissionLoading || startingSession || !modelReady}
                       className="inline-flex items-center gap-2 rounded-xl bg-accent px-5 py-2.5 text-sm font-semibold text-white shadow-[0_14px_30px_-18px_rgba(37,99,235,0.75)] transition hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-60"
                     >
-                      <Mic size={16} />
-                      {permissionLoading ? 'Checking permissions…' : 'Start Recording'}
+                      {startingSession ? <Loader2 size={16} className="animate-spin" /> : <Mic size={16} />}
+                      {startingSession ? 'Starting…' : permissionLoading ? 'Checking permissions…' : 'Start Recording'}
                     </button>
                   ) : (
                     <>
