@@ -30,7 +30,7 @@ Full details: `.planning/milestones/v1.0-ROADMAP.md`
 
 - [x] **Phase 10: Dependency Risk Closure** — Pin sherpa-rs, document upgrade path, cache CI binaries (completed 2026-03-02)
 - [x] **Phase 11: LLM Model Selection End-to-End** — Fix hardcoded phi4-mini, normalise model names, improve error messages, UI labels (completed 2026-03-02)
-- [ ] **Phase 12: Frontend Bundle Optimization** — Lazy-load export stack, vendor chunking, bundle audit
+- [x] **Phase 12: Frontend Bundle Optimization** — Lazy-load export stack, vendor chunking, bundle audit (completed 2026-03-03)
 - [ ] **Phase 13: LLM Quality Tuning** — Benchmark phi4-mini on real meetings, tune prompt for long-meeting output
 
 ## Phase Details
@@ -109,5 +109,5 @@ Plans:
 | 09. Polish & Tech Debt Cleanup | v1.0 | 3/3 | Complete | 2026-03-01 |
 | 10. Dependency Risk Closure | v1.1 | 1/1 | Complete | 2026-03-02 |
 | 11. LLM Model Selection End-to-End | v1.1 | 2/2 | Complete | 2026-03-02 |
-| 12. Frontend Bundle Optimization | v1.1 | 2/2 | In Progress | - |
+| 12. Frontend Bundle Optimization | v1.1 | 2/2 | Complete | 2026-03-03 |
 | 13. LLM Quality Tuning | v1.1 | 0/1 | Not started | - |
