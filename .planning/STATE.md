@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Hardening & Quality
-status: ready_to_plan
-last_updated: "2026-03-02T18:06:00Z"
+status: in_progress
+last_updated: "2026-03-03T08:21:00Z"
 progress:
   total_phases: 4
   completed_phases: 2
   total_plans: 6
-  completed_plans: 3
+  completed_plans: 4
 ---
 
 # Project State
@@ -23,18 +23,18 @@ See: .planning/PROJECT.md (updated 2026-03-02)
 ## Current Position
 
 Phase: 12 of 13 (Frontend Bundle Optimization)
-Plan: 0 of 2 in current phase
-Status: Phase 11 complete and verified; ready to execute Phase 12
-Last activity: 2026-03-02 — Completed Phase 11 verification and closure (plans 11-01, 11-02; requirements LLM-01..06 closed)
+Plan: 1 of 2 in current phase
+Status: Phase 12 wave 1 complete; ready to execute Plan 12-02
+Last activity: 2026-03-03 — Completed Plan 12-01 (dynamic imports and idle prefetch for export dependencies)
 
-Progress: [█████░░░░░] 50%
+Progress: [███████░░░] 67%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 3 (v1.1)
-- Average duration: 1.7 min/plan
-- Total execution time: ~5 min
+- Total plans completed: 4 (v1.1)
+- Average duration: 2.5 min/plan
+- Total execution time: ~10 min
 
 **By Phase:**
 
@@ -42,15 +42,17 @@ Progress: [█████░░░░░] 50%
 |-------|-------|-------|----------|
 | 10 | 1 | 1 min | 1 min |
 | 11 | 2 | 4 min | 2 min |
+| 12 | 1 | 5 min | 5 min |
 
 **Recent Trend:**
-- Last 5 plans: 10-01, 11-01, 11-02
-- Trend: Model-selection correctness and UX hardening are complete; next work shifts to bundle performance optimization.
+- Last 5 plans: 10-01, 11-01, 11-02, 12-01
+- Trend: Bundle optimization wave 1 is complete; next work is vendor chunking, audit tooling, and CI bundle regression warnings.
 
 *Updated after each plan completion*
 | Phase 10 P01 | 1 min | 3 tasks | 3 files |
 | Phase 11 P01 | 2 min | 3 tasks | 5 files |
 | Phase 11 P02 | 2 min | 3 tasks | 7 files |
+| Phase 12 P01 | 5 min | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -68,6 +70,7 @@ Recent decisions affecting current work:
 - [Phase 11]: Manual summary inserts persist llm_model as manual instead of DEFAULT_MODEL. — Preserves provenance so user-authored summaries are not misattributed to generated output.
 - [Phase 11]: Generation lock state is centralized in SummaryGenerationContext so settings model controls remain consistent across route transitions.
 - [Phase 11]: Summary errors are displayed through structured kind/raw payload parsing to support contextual recovery actions.
+- [Phase 12]: Export-only libraries (`@react-pdf/renderer`, `jszip`) are isolated behind dynamic imports and shared lazy PDF rendering to reduce startup bundle cost without changing export features.
 
 ### Pending Todos
 
@@ -81,6 +84,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-02
-Stopped at: Completed Phase 11 verification and closure
+Last session: 2026-03-03
+Stopped at: Completed Plan 12-01; pending Plan 12-02 execution
 Resume file: None

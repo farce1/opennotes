@@ -75,10 +75,10 @@ Plans:
   3. `vite build` produces stable vendor chunk filenames for React and markdown libraries across rebuilds (no hash churn on unrelated changes).
   4. First PDF export after app launch shows a loading indicator ("Generating PDF...") for the duration of WASM initialization before the download begins.
   5. A bundle audit note exists (in a SUMMARY or CONTEXT file) with before/after chunk sizes as baseline for future regressions.
-**Plans**: 2 plans
+**Plans**: 1/2 complete
 
 Plans:
-- [ ] 12-01: Dynamic imports — extract shared pdf-renderer.ts, convert export.ts and SummaryExport.tsx to lazy imports, add idle prefetch in App.tsx
+- [x] 12-01: Dynamic imports — extract shared pdf-renderer.ts, convert export.ts and SummaryExport.tsx to lazy imports, add idle prefetch in App.tsx (completed 2026-03-03)
 - [ ] 12-02: Vendor chunking and audit — manualChunks in vite.config.ts, rollup-plugin-visualizer, CI bundle size warning, before/after audit
 
 ### Phase 13: LLM Quality Tuning
@@ -109,5 +109,5 @@ Plans:
 | 09. Polish & Tech Debt Cleanup | v1.0 | 3/3 | Complete | 2026-03-01 |
 | 10. Dependency Risk Closure | v1.1 | 1/1 | Complete | 2026-03-02 |
 | 11. LLM Model Selection End-to-End | v1.1 | 2/2 | Complete | 2026-03-02 |
-| 12. Frontend Bundle Optimization | v1.1 | 0/2 | Not started | - |
+| 12. Frontend Bundle Optimization | v1.1 | 1/2 | In Progress | - |
 | 13. LLM Quality Tuning | v1.1 | 0/1 | Not started | - |
