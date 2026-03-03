@@ -44,6 +44,9 @@
     }
   },
   "plugins": {
+    "shell": {
+      "open": "((mailto:\\w+)|(tel:\\w+)|(https?://\\w+)|(x-apple\\.systempreferences:\\S+)|(ms-settings:\\S+)).+"
+    },
     "updater": {
       "pubkey": "REPLACE_WITH_GENERATED_PUBKEY",
       "endpoints": [
