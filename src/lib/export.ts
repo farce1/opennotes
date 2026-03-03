@@ -1,8 +1,5 @@
-import { Document, Page, StyleSheet, Text, View, pdf } from '@react-pdf/renderer';
 import { save } from '@tauri-apps/plugin-dialog';
 import { writeFile } from '@tauri-apps/plugin-fs';
-import JSZip from 'jszip';
-import { createElement } from 'react';
 
 import { getDb } from './db';
 import type { Meeting, TranscriptRow } from '../types';
@@ -14,36 +11,6 @@ type MeetingExportData = {
   summary: string | null;
   transcript: Array<{ text: string; start_time_ms: number }>;
 };
-
-type SummarySection = {
-  heading: string;
-  content: string;
-};
-
-const pdfStyles = StyleSheet.create({
-  page: {
-    padding: 40,
-    fontFamily: 'Helvetica',
-    fontSize: 11,
-    color: '#1e293b',
-  },
-  title: {
-    fontSize: 16,
-    marginBottom: 12,
-    fontFamily: 'Helvetica-Bold',
-  },
-  section: {
-    marginBottom: 10,
-  },
-  heading: {
-    fontSize: 12,
-    marginBottom: 4,
-    fontFamily: 'Helvetica-Bold',
-  },
-  body: {
-    lineHeight: 1.4,
-  },
-});
 
 function safeFileName(title: string): string {
   const cleaned = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
@@ -81,75 +48,6 @@ function formatDuration(durationSeconds: number | null): string {
   }
 
   return `${seconds}s`;
-}
-
-function stripMarkdown(text: string): string {
-  return text
-    .replace(/^TITLE:\s*/gim, '')
-    .replace(/^#+\s*/gm, '')
-    .replace(/\*\*(.*?)\*\*/g, '$1')
-    .replace(/__(.*?)__/g, '$1')
-    .replace(/`([^`]+)`/g, '$1')
-    .replace(/^\s*[-*]\s+/gm, '• ')
-    .replace(/^\s*\d+\.\s+/gm, '')
-    .trim();
-}
-
-function parseSections(markdown: string): SummarySection[] {
-  const lines = markdown.split('\n');
-  const sections: SummarySection[] = [];
-  let activeHeading = 'Overview';
-  let activeLines: string[] = [];
-
-  const pushSection = () => {
-    const content = stripMarkdown(activeLines.join('\n'));
-    if (content) {
-      sections.push({ heading: activeHeading, content });
-    }
-  };
-
-  for (const line of lines) {
-    if (line.startsWith('## ')) {
-      pushSection();
-      activeHeading = line.replace(/^##\s+/, '').trim() || 'Section';
-      activeLines = [];
-    } else {
-      activeLines.push(line);
-    }
-  }
-
-  pushSection();
-
-  if (sections.length > 0) {
-    return sections;
-  }
-
-  return [
-    {
-      heading: 'Summary',
-      content: stripMarkdown(markdown),
-    },
-  ];
-}
-
-function SummaryDocument({ title, sections }: { title: string; sections: SummarySection[] }) {
-  return createElement(
-    Document,
-    null,
-    createElement(
-      Page,
-      { size: 'A4', style: pdfStyles.page },
-      createElement(Text, { style: pdfStyles.title }, title),
-      ...sections.map((section, index) =>
-        createElement(
-          View,
-          { key: `${section.heading}-${index}`, style: pdfStyles.section },
-          createElement(Text, { style: pdfStyles.heading }, section.heading),
-          createElement(Text, { style: pdfStyles.body }, section.content),
-        ),
-      ),
-    ),
-  );
 }
 
 async function loadMeetingExportData(meetingId: number): Promise<MeetingExportData> {
@@ -271,13 +169,12 @@ function buildJson(data: MeetingExportData): string {
 }
 
 async function buildPdfBlob(data: MeetingExportData): Promise<Blob> {
-  const transcriptBody = data.transcript
-    .map((segment) => `[${formatTimestamp(segment.start_time_ms)}] ${segment.text}`)
-    .join('\n');
-
-  const summarySource = data.summary?.trim() || transcriptBody || 'No summary or transcript available';
-  const sections = parseSections(summarySource);
-  return pdf(createElement(SummaryDocument, { title: data.meeting.title, sections })).toBlob();
+  const { buildPdfBlob: renderPdf } = await import('./pdf-renderer');
+  const summarySource =
+    data.summary?.trim() ||
+    data.transcript.map((segment) => `[${formatTimestamp(segment.start_time_ms)}] ${segment.text}`).join('\n') ||
+    'No summary or transcript available';
+  return renderPdf(data.meeting.title, summarySource);
 }
 
 async function saveBytes(defaultPath: string, filterName: string, extension: string, data: Uint8Array): Promise<void> {
@@ -342,6 +239,7 @@ export async function bulkExportZip(meetingIds: number[], format: ExportFormat):
     return;
   }
 
+  const { default: JSZip } = await import('jszip');
   const zip = new JSZip();
 
   for (const meetingId of meetingIds) {
