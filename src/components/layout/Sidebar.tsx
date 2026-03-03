@@ -2,13 +2,18 @@ import clsx from 'clsx';
 import { BookOpen, Circle, Cpu, Settings, Trash2 } from 'lucide-react';
 import { NavLink, useLocation } from 'react-router';
 
+import {
+  DEFAULT_SETTINGS_TAB,
+  SETTINGS_TABS,
+  settingsTabPath,
+} from '../settings/settingsTabs';
 import { useUpdate } from '../../contexts/UpdateContext';
 
 const navItems = [
   { to: '/record', label: 'Record', icon: Circle },
   { to: '/library', label: 'Library', icon: BookOpen },
   { to: '/setup', label: 'Models', icon: Cpu },
-  { to: '/settings', label: 'Settings', icon: Settings },
+  { to: settingsTabPath(DEFAULT_SETTINGS_TAB), label: 'Settings', icon: Settings },
 ];
 
 const librarySubItems = [{ to: '/library/trash', label: 'Trash', icon: Trash2 }];
@@ -67,6 +72,28 @@ export function Sidebar() {
                   >
                     <SubIcon size={12} />
                     <span>{subLabel}</span>
+                  </NavLink>
+                ))}
+              </div>
+            ) : null}
+
+            {label === 'Settings' && inSettings ? (
+              <div className="ml-6 mt-1 space-y-1 border-l border-gray-200/80 pl-3 dark:border-gray-700/80">
+                {SETTINGS_TABS.map(({ id, label: tabLabel, icon: TabIcon }) => (
+                  <NavLink
+                    key={id}
+                    to={settingsTabPath(id)}
+                    className={({ isActive }) =>
+                      clsx(
+                        'flex items-center gap-2 rounded-md px-2 py-1.5 text-xs font-medium transition-colors duration-150',
+                        isActive
+                          ? 'bg-accent/10 text-accent dark:bg-accent/15 dark:text-accent-muted'
+                          : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200',
+                      )
+                    }
+                  >
+                    <TabIcon size={12} />
+                    <span>{tabLabel}</span>
                   </NavLink>
                 ))}
               </div>

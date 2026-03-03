@@ -38,6 +38,7 @@ export function App() {
           <Route path="/library" element={<LibraryView />} />
           <Route path="/library/trash" element={<TrashView />} />
           <Route path="/settings" element={<SettingsView />} />
+          <Route path="/settings/:tab" element={<SettingsView />} />
         </Route>
       </Routes>
     </HashRouter>
