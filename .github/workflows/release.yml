@@ -66,6 +66,45 @@ jobs:
       - name: Install frontend dependencies
         run: npm install
 
+      - name: Build frontend and check bundle size
+        run: |
+          npm run build
+          node <<'NODE'
+          const fs = require('node:fs');
+          const path = require('node:path');
+
+          const assetsDir = 'dist/assets';
+          if (!fs.existsSync(assetsDir)) {
+            console.log('dist/assets not found, skipping size check');
+            process.exit(0);
+          }
+
+          const chunks = fs
+            .readdirSync(assetsDir)
+            .filter((name) => name.endsWith('.js'))
+            .map((name) => ({
+              name,
+              size: fs.statSync(path.join(assetsDir, name)).size,
+            }))
+            .sort((a, b) => b.size - a.size);
+
+          console.log('Bundle chunks:');
+          for (const chunk of chunks) {
+            console.log(`  ${chunk.name}: ${Math.round(chunk.size / 1024)} KB`);
+          }
+
+          const totalSize = chunks.reduce((sum, chunk) => sum + chunk.size, 0);
+          console.log(`Total JS: ${Math.round(totalSize / 1024)} KB`);
+
+          const largest = chunks[0];
+          const warningLimitBytes = 1400 * 1024;
+          if (largest && largest.size > warningLimitBytes) {
+            console.log(
+              `::warning::Largest chunk ${largest.name} is ${Math.round(largest.size / 1024)}KB, exceeds ${Math.round(warningLimitBytes / 1024)}KB warning threshold`,
+            );
+          }
+          NODE
+
       - name: Build and release
         uses: tauri-apps/tauri-action@v0
         env:
