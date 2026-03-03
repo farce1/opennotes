@@ -89,10 +89,10 @@ Plans:
   1. Benchmark results for 15-min, 45-min, and 90-min transcripts exist with documented quality findings (completeness of action items, decision capture accuracy, hallucination observations).
   2. `build_summary_prompt()` in `llm/mod.rs` is updated based on benchmark findings — the specific changes and rationale are documented.
   3. A 90-minute meeting transcript produces a summary with a non-empty Action Items section and no obviously truncated output.
-**Plans**: TBD
+**Plans**: 1 plan
 
 Plans:
-- [ ] 13-01: Benchmark phi4-mini on 15/45/90-min transcripts, tune build_summary_prompt()
+- [ ] 13-01: Benchmark phi4-mini on 15/45/90-min transcripts, fix num_predict, tune build_summary_prompt() and synthesis prompt, document results in BENCHMARK.md
 
 ## Progress
 
