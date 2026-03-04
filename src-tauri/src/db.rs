@@ -46,6 +46,7 @@ async fn run_migrations(pool: &SqlitePool) -> Result<(), sqlx::Error> {
         (3, include_str!("../migrations/003_phase6_library.sql")),
         (4, include_str!("../migrations/004_phase14_post_processing.sql")),
         (5, include_str!("../migrations/005_phase15_whisper.sql")),
+        (6, include_str!("../migrations/006_phase17_diarization.sql")),
     ];
 
     for &(version, sql) in migrations {
@@ -82,6 +83,17 @@ async fn detect_schema_version(pool: &SqlitePool) -> Result<i64, sqlx::Error> {
 
     if has_meetings == 0 {
         return Ok(0);
+    }
+
+    // diarization_status column added in migration 6
+    let has_diarization_status: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM pragma_table_info('meetings') WHERE name='diarization_status'",
+    )
+    .fetch_one(pool)
+    .await?;
+
+    if has_diarization_status > 0 {
+        return Ok(6);
     }
 
     // detected_language column added in migration 5
