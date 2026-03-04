@@ -8,6 +8,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   theme: 'system',
   appLanguage: 'en',
   summaryLanguage: 'en',
+  lastUsedTemplateId: 'standard',
   recordingShortcut: 'CommandOrControl+Shift+R',
   pauseShortcut: 'CommandOrControl+Shift+P',
   dataDirectory: '',

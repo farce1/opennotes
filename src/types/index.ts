@@ -58,6 +58,7 @@ export interface AppSettings {
   theme: AppTheme;
   appLanguage: string;
   summaryLanguage: string;
+  lastUsedTemplateId: string;
   recordingShortcut: string;
   pauseShortcut: string;
   dataDirectory: string;
