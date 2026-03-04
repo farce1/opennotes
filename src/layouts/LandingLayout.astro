@@ -1,0 +1,39 @@
+---
+import '../styles/global.css';
+import '../styles/custom.css';
+
+interface Props {
+  title: string;
+  description?: string;
+}
+
+const {
+  title,
+  description = 'Open-source AI meeting notes. Local-first. No cloud. No bots. No cost.',
+} = Astro.props;
+---
+
+<!doctype html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content={description} />
+    <title>{title}</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="sitemap" href="/sitemap-index.xml" />
+    <script is:inline>
+      ;(() => {
+        const storedTheme =
+          typeof localStorage !== 'undefined' && localStorage.getItem('starlight-theme');
+        const fallbackTheme = window.matchMedia('(prefers-color-scheme: light)').matches
+          ? 'light'
+          : 'dark';
+        document.documentElement.dataset.theme = storedTheme === 'light' ? 'light' : storedTheme === 'dark' ? 'dark' : fallbackTheme;
+      })();
+    </script>
+  </head>
+  <body class="min-h-screen bg-[var(--sl-color-bg)] text-[var(--sl-color-text)] antialiased">
+    <slot />
+  </body>
+</html>
