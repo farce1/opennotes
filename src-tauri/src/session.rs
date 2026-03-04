@@ -1,10 +1,10 @@
 use chrono::{DateTime, Local, Utc};
 use serde::Serialize;
 use sqlx::SqlitePool;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use tauri::ipc::Channel;
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Manager};
 
 use crate::audio;
 use crate::commands::{
@@ -21,7 +21,7 @@ pub enum SessionPhase {
     Idle,
     Recording,
     Paused,
-    Stopping,
+    Processing,
 }
 
 #[derive(Clone, Debug)]
@@ -99,7 +99,7 @@ impl SessionCoordinator {
             transcription_language,
         } = args;
 
-        if !matches!(self.phase, SessionPhase::Idle) {
+        if !matches!(self.phase, SessionPhase::Idle | SessionPhase::Processing) {
             return Err("session is already active".to_string());
         }
 
@@ -222,7 +222,7 @@ impl SessionCoordinator {
             .clone()
             .ok_or_else(|| "session active state is missing".to_string())?;
 
-        self.phase = SessionPhase::Stopping;
+        self.phase = SessionPhase::Processing;
         emit_state_changed(app, &self.state_payload());
 
         {
@@ -253,40 +253,27 @@ impl SessionCoordinator {
             .num_seconds()
             .max(0);
 
-        tauri::async_runtime::block_on(async {
-            sqlx::query(
-                "UPDATE meetings
-                 SET status = 'completed', ended_at = CURRENT_TIMESTAMP,
-                     duration_seconds = ?, audio_path = ?, updated_at = CURRENT_TIMESTAMP
-                 WHERE id = ?",
-            )
-            .bind(duration_seconds)
-            .bind(audio_path.to_string_lossy().to_string())
-            .bind(active_session.meeting_id)
-            .execute(pool)
-            .await
-        })
-        .map_err(|err| format!("failed to finalize meeting row: {err}"))?;
+        let _ = set_tray_start_stop_label(app, false);
+        let _ = update_tray_icon(app.clone(), "processing".to_string());
 
-        std::thread::sleep(std::time::Duration::from_millis(300));
-        tauri::async_runtime::block_on(async {
-            if let Err(err) = crate::commands::fts_upsert(pool, active_session.meeting_id).await {
-                eprintln!("[fts] upsert after session stop failed: {err}");
-            }
+        let app_for_background = app.clone();
+        let pool_for_background = pool.clone();
+        let session_for_background = app.state::<SessionHandle>().inner().clone();
+        let meeting_id = active_session.meeting_id;
+
+        tokio::spawn(async move {
+            post_process_session(
+                app_for_background,
+                pool_for_background,
+                session_for_background,
+                meeting_id,
+                duration_seconds,
+                audio_path,
+            )
+            .await;
         });
 
-        self.phase = SessionPhase::Idle;
-        self.active = None;
-
-        emit_state_changed(app, &self.state_payload());
-        let _ = app.emit("session-complete", active_session.meeting_id);
-        let _ = app.emit("recording-stopped", ());
-        let _ = app.emit("transcribing-inactive", ());
-        widget::hide_widget(app);
-        let _ = set_tray_start_stop_label(app, false);
-        let _ = update_tray_icon(app.clone(), "idle".to_string());
-
-        Ok(active_session.meeting_id)
+        Ok(meeting_id)
     }
 
     pub fn pause(
@@ -369,6 +356,187 @@ pub async fn recover_incomplete_sessions(pool: &SqlitePool, app: &AppHandle) -> 
     }
 
     Ok(recovered_count)
+}
+
+async fn post_process_session(
+    app: AppHandle,
+    pool: SqlitePool,
+    session_handle: SessionHandle,
+    meeting_id: i64,
+    duration_seconds: i64,
+    audio_path: PathBuf,
+) {
+    let _ = sqlx::query(
+        "UPDATE meetings
+         SET post_processing_status = 'processing', updated_at = CURRENT_TIMESTAMP
+         WHERE id = ?",
+    )
+    .bind(meeting_id)
+    .execute(&pool)
+    .await;
+    let _ = app.emit("processing-stage", "Updating database...");
+
+    let db_result = sqlx::query(
+        "UPDATE meetings
+         SET status = 'completed', ended_at = CURRENT_TIMESTAMP,
+             duration_seconds = ?, audio_path = ?, updated_at = CURRENT_TIMESTAMP
+         WHERE id = ?",
+    )
+    .bind(duration_seconds)
+    .bind(audio_path.to_string_lossy().to_string())
+    .bind(meeting_id)
+    .execute(&pool)
+    .await;
+
+    if let Err(err) = db_result {
+        eprintln!("[post-process] DB finalization failed for meeting {meeting_id}: {err}");
+        handle_post_processing_failure(&app, &pool, &session_handle, meeting_id).await;
+        return;
+    }
+
+    let _ = app.emit("processing-stage", "Indexing transcript...");
+    if let Err(err) = crate::commands::fts_upsert(&pool, meeting_id).await {
+        eprintln!("[post-process] FTS upsert failed for meeting {meeting_id}: {err}");
+    }
+
+    let _ = sqlx::query(
+        "UPDATE meetings
+         SET post_processing_status = 'complete', updated_at = CURRENT_TIMESTAMP
+         WHERE id = ?",
+    )
+    .bind(meeting_id)
+    .execute(&pool)
+    .await;
+
+    let should_finalize_ui = reset_processing_session_if_current(&app, &session_handle, meeting_id);
+
+    let _ = app.emit("session-complete", meeting_id);
+    if should_finalize_ui {
+        finalize_processing_ui(&app);
+    }
+}
+
+async fn handle_post_processing_failure(
+    app: &AppHandle,
+    pool: &SqlitePool,
+    session_handle: &SessionHandle,
+    meeting_id: i64,
+) {
+    let retry_result = retry_post_processing_inner(app, pool, meeting_id).await;
+    if retry_result.is_ok() {
+        if reset_processing_session_if_current(app, session_handle, meeting_id) {
+            finalize_processing_ui(app);
+        }
+        return;
+    }
+
+    let _ = sqlx::query(
+        "UPDATE meetings
+         SET status = 'failed', post_processing_status = 'failed', updated_at = CURRENT_TIMESTAMP
+         WHERE id = ?",
+    )
+    .bind(meeting_id)
+    .execute(pool)
+    .await;
+
+    let _ = app.emit("processing-failed", meeting_id);
+    if reset_processing_session_if_current(app, session_handle, meeting_id) {
+        finalize_processing_ui(app);
+    }
+}
+
+pub(crate) async fn retry_post_processing_inner(
+    app: &AppHandle,
+    pool: &SqlitePool,
+    meeting_id: i64,
+) -> Result<(), String> {
+    let meeting_exists = sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM meetings WHERE id = ?")
+        .bind(meeting_id)
+        .fetch_one(pool)
+        .await
+        .map_err(|err| format!("failed to read meeting: {err}"))?
+        > 0;
+
+    if !meeting_exists {
+        return Err("meeting not found".to_string());
+    }
+
+    let _ = sqlx::query(
+        "UPDATE meetings
+         SET post_processing_status = 'processing', updated_at = CURRENT_TIMESTAMP
+         WHERE id = ?",
+    )
+    .bind(meeting_id)
+    .execute(pool)
+    .await;
+
+    let _ = app.emit("processing-stage", "Updating database...");
+
+    sqlx::query(
+        "UPDATE meetings
+         SET status = 'completed',
+             ended_at = COALESCE(ended_at, CURRENT_TIMESTAMP),
+             updated_at = CURRENT_TIMESTAMP
+         WHERE id = ?",
+    )
+    .bind(meeting_id)
+    .execute(pool)
+    .await
+    .map_err(|err| format!("DB finalization retry failed: {err}"))?;
+
+    let _ = app.emit("processing-stage", "Indexing transcript...");
+    if let Err(err) = crate::commands::fts_upsert(pool, meeting_id).await {
+        eprintln!("[post-process-retry] FTS upsert failed for meeting {meeting_id}: {err}");
+    }
+
+    let _ = sqlx::query(
+        "UPDATE meetings
+         SET post_processing_status = 'complete', updated_at = CURRENT_TIMESTAMP
+         WHERE id = ?",
+    )
+    .bind(meeting_id)
+    .execute(pool)
+    .await;
+
+    let _ = app.emit("session-complete", meeting_id);
+    Ok(())
+}
+
+fn reset_processing_session_if_current(
+    app: &AppHandle,
+    session_handle: &SessionHandle,
+    meeting_id: i64,
+) -> bool {
+    let mut coordinator = match session_handle.lock() {
+        Ok(coordinator) => coordinator,
+        Err(_) => {
+            eprintln!("[post-process] session lock poisoned while finalizing meeting {meeting_id}");
+            return false;
+        }
+    };
+
+    let should_reset = matches!(coordinator.phase, SessionPhase::Processing)
+        && coordinator
+            .active
+            .as_ref()
+            .map(|active| active.meeting_id)
+            == Some(meeting_id);
+
+    if should_reset {
+        coordinator.phase = SessionPhase::Idle;
+        coordinator.active = None;
+        emit_state_changed(app, &coordinator.state_payload());
+    }
+
+    should_reset
+}
+
+fn finalize_processing_ui(app: &AppHandle) {
+    let _ = app.emit("recording-stopped", ());
+    let _ = app.emit("transcribing-inactive", ());
+    widget::hide_widget(app);
+    let _ = set_tray_start_stop_label(app, false);
+    let _ = update_tray_icon(app.clone(), "idle".to_string());
 }
 
 fn emit_state_changed(app: &AppHandle, payload: &SessionStatePayload) {
