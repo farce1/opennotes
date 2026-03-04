@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import type { ReactNode } from 'react';
 
 type SummaryPanelProps = {
   summaryText: string;
@@ -10,6 +11,8 @@ type SummaryPanelProps = {
   edited: boolean;
   hasExistingSummary: boolean;
   generatedWithModel?: string | null;
+  generatedWithTemplate?: string | null;
+  templatePicker?: ReactNode;
   onTextChange: (text: string) => void;
   onRegenerate: () => void;
   onSave: (text: string) => Promise<void> | void;
@@ -22,6 +25,8 @@ export function SummaryPanel({
   edited,
   hasExistingSummary,
   generatedWithModel,
+  generatedWithTemplate,
+  templatePicker,
   onTextChange,
   onRegenerate,
   onSave,
@@ -67,13 +72,6 @@ export function SummaryPanel({
   };
 
   const onRegenerateClick = () => {
-    if (edited || hasExistingSummary) {
-      const approved = window.confirm(t('summary_confirmRegenerate'));
-      if (!approved) {
-        return;
-      }
-    }
-
     onRegenerate();
     setIsEditing(false);
   };
@@ -91,32 +89,46 @@ export function SummaryPanel({
         <div>
           <h2 className="text-base font-semibold text-gray-700 dark:text-gray-100">{t('summary_title')}</h2>
           <p className="text-xs text-gray-500 dark:text-gray-400">{t('summary_meetingId', { id: meetingId })}</p>
-          {generatedWithModel ? (
+          {generatedWithTemplate ? (
+            <p className="text-xs text-gray-400 dark:text-gray-500">
+              {t('summary_generatedWithTemplate', { name: generatedWithTemplate })}
+              {generatedWithModel ? ` (${generatedWithModel})` : ''}
+            </p>
+          ) : generatedWithModel ? (
             <p className="text-xs text-gray-400 dark:text-gray-500">{t('summary_generatedWith', { model: generatedWithModel })}</p>
           ) : null}
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          {!generating ? (
+        <div className="flex min-w-[240px] flex-col gap-2">
+          {templatePicker ?? null}
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            {!generating ? (
+              <button
+                type="button"
+                onClick={() => setIsEditing((value) => !value)}
+                className="inline-flex items-center gap-1 rounded-md border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 transition hover:bg-gray-100 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
+              >
+                <Pencil size={12} />
+                {isEditing ? t('summary_doneEditing') : tc('btn_edit')}
+              </button>
+            ) : null}
+
             <button
               type="button"
-              onClick={() => setIsEditing((value) => !value)}
-              className="inline-flex items-center gap-1 rounded-md border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 transition hover:bg-gray-100 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
+              onClick={onRegenerateClick}
+              disabled={generating}
+              className={[
+                'inline-flex items-center gap-1 rounded-md border px-3 py-1.5 text-xs font-medium transition',
+                edited
+                  ? 'border-amber-300 text-amber-700 hover:bg-amber-50 dark:border-amber-700/60 dark:text-amber-300 dark:hover:bg-amber-900/30'
+                  : 'border-gray-200 text-gray-600 hover:bg-gray-100 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800',
+                'disabled:cursor-not-allowed disabled:opacity-60',
+              ].join(' ')}
             >
-              <Pencil size={12} />
-              {isEditing ? t('summary_doneEditing') : tc('btn_edit')}
+              <RefreshCw size={12} />
+              {hasExistingSummary ? t('summary_regenerate') : t('summary_generate')}
             </button>
-          ) : null}
-
-          <button
-            type="button"
-            onClick={onRegenerateClick}
-            disabled={generating}
-            className="inline-flex items-center gap-1 rounded-md border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
-          >
-            <RefreshCw size={12} />
-            {t('summary_regenerate')}
-          </button>
+          </div>
         </div>
       </header>
 

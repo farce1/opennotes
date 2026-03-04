@@ -5,13 +5,18 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router';
 
+import { ManageTemplatesModal } from '../components/ManageTemplatesModal';
 import { SummaryError } from '../components/SummaryError';
 import { SummaryExport } from '../components/SummaryExport';
 import { SummaryPanel } from '../components/SummaryPanel';
+import { TemplateCreateModal } from '../components/TemplateCreateModal';
+import { TemplatePicker } from '../components/TemplatePicker';
 import { useSessionContext } from '../contexts/SessionContext';
 import { useSummary } from '../hooks/useSummary';
+import { useTemplates } from '../hooks/useTemplates';
 import { getDb } from '../lib/db';
 import { getSetting, setSetting } from '../lib/settings';
+import { getTemplateById, type SummaryTemplate } from '../lib/templates';
 import type { Meeting, TranscriptRow, TranscriptSegment } from '../types';
 
 type MeetingCompleteRouteState = {
@@ -77,10 +82,23 @@ export function MeetingCompleteView() {
   const [postProcessingFailed, setPostProcessingFailed] = useState(false);
   const [retryingPostProcessing, setRetryingPostProcessing] = useState(false);
   const [justCompleted, setJustCompleted] = useState(false);
+  const [selectedTemplateId, setSelectedTemplateId] = useState('standard');
+  const [generatedWithTemplateName, setGeneratedWithTemplateName] = useState<string | null>(null);
+  const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [manageModalOpen, setManageModalOpen] = useState(false);
+  const [editingTemplate, setEditingTemplate] = useState<SummaryTemplate | null>(null);
 
   const state = (location.state as MeetingCompleteRouteState | null) ?? null;
   const meetingId = typeof state?.meetingId === 'number' ? state.meetingId : null;
   const { phase, processingStage, processingFailed, processingMeetingId } = useSessionContext();
+  const {
+    builtInTemplates,
+    customTemplates,
+    loading: templatesLoading,
+    createTemplate,
+    updateTemplate,
+    removeTemplate,
+  } = useTemplates();
 
   const {
     summaryText,
@@ -114,6 +132,7 @@ export function MeetingCompleteView() {
       setAutoGenerateTriggered(false);
       setPostProcessingFailed(false);
       setJustCompleted(false);
+      setGeneratedWithTemplateName(null);
 
       try {
         const db = await getDb();
@@ -165,13 +184,64 @@ export function MeetingCompleteView() {
   }, [loadExisting, meetingId, t]);
 
   useEffect(() => {
-    if (!meetingId || !state?.autoGenerate || !summaryChecked || autoGenerateTriggered || hadSummaryOnLoad || generating) {
+    let active = true;
+
+    void getSetting('lastUsedTemplateId').then((id) => {
+      if (!active) {
+        return;
+      }
+      setSelectedTemplateId(id || 'standard');
+    });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    const resolvedTemplate = getTemplateById(selectedTemplateId, customTemplates);
+    if (resolvedTemplate) {
       return;
     }
 
+    if (selectedTemplateId !== 'standard') {
+      setSelectedTemplateId('standard');
+      void setSetting('lastUsedTemplateId', 'standard');
+    }
+  }, [customTemplates, selectedTemplateId]);
+
+  const onTemplateSelect = useCallback((id: string) => {
+    setSelectedTemplateId(id);
+    void setSetting('lastUsedTemplateId', id);
+  }, []);
+
+  useEffect(() => {
+    if (!meetingId
+      || !state?.autoGenerate
+      || !summaryChecked
+      || autoGenerateTriggered
+      || hadSummaryOnLoad
+      || generating
+      || templatesLoading) {
+      return;
+    }
+
+    const template = getTemplateById(selectedTemplateId, customTemplates);
+    setGeneratedWithTemplateName(template?.name ?? null);
     setAutoGenerateTriggered(true);
-    void generate(meetingId);
-  }, [autoGenerateTriggered, generate, generating, hadSummaryOnLoad, meetingId, state?.autoGenerate, summaryChecked]);
+    void generate(meetingId, template?.prompt);
+  }, [
+    autoGenerateTriggered,
+    customTemplates,
+    generate,
+    generating,
+    hadSummaryOnLoad,
+    meetingId,
+    selectedTemplateId,
+    state?.autoGenerate,
+    summaryChecked,
+    templatesLoading,
+  ]);
 
   useEffect(() => {
     if (!meetingId) {
@@ -311,8 +381,35 @@ export function MeetingCompleteView() {
       return;
     }
 
-    void generate(meetingId);
-  }, [generate, meetingId]);
+    const template = getTemplateById(selectedTemplateId, customTemplates);
+    setGeneratedWithTemplateName(template?.name ?? null);
+    void generate(meetingId, template?.prompt);
+  }, [customTemplates, generate, meetingId, selectedTemplateId]);
+
+  const onCreateTemplate = useCallback(async (name: string, description: string, prompt: string) => {
+    const createdTemplate = await createTemplate(name, description, prompt);
+    setSelectedTemplateId(createdTemplate.id);
+    void setSetting('lastUsedTemplateId', createdTemplate.id);
+    setCreateModalOpen(false);
+    setEditingTemplate(null);
+  }, [createTemplate]);
+
+  const onEditTemplate = useCallback((template: SummaryTemplate) => {
+    setEditingTemplate(template);
+    setCreateModalOpen(true);
+    setManageModalOpen(false);
+  }, []);
+
+  const onDuplicateTemplate = useCallback((template: SummaryTemplate) => {
+    setEditingTemplate({
+      ...template,
+      id: '',
+      name: `${template.name} (Copy)`,
+      isBuiltIn: false,
+    });
+    setCreateModalOpen(true);
+    setManageModalOpen(false);
+  }, []);
 
   const onSaveTitle = useCallback(async () => {
     if (!meetingId || !meeting) {
@@ -503,7 +600,9 @@ export function MeetingCompleteView() {
                 onSwitchModel={async (model) => {
                   await setSetting('ollamaModel', model);
                   if (meetingId) {
-                    void generate(meetingId);
+                    const template = getTemplateById(selectedTemplateId, customTemplates);
+                    setGeneratedWithTemplateName(template?.name ?? null);
+                    void generate(meetingId, template?.prompt);
                   }
                 }}
                 onCheckConnection={async () => {
@@ -529,6 +628,21 @@ export function MeetingCompleteView() {
               onSave={onSaveSummary}
               meetingId={meeting.id}
               generatedWithModel={llmModel}
+              generatedWithTemplate={generatedWithTemplateName}
+              templatePicker={(
+                <TemplatePicker
+                  selectedId={selectedTemplateId}
+                  builtInTemplates={builtInTemplates}
+                  customTemplates={customTemplates}
+                  onSelect={onTemplateSelect}
+                  onCreateNew={() => {
+                    setEditingTemplate(null);
+                    setCreateModalOpen(true);
+                  }}
+                  onManage={() => setManageModalOpen(true)}
+                  disabled={generating || templatesLoading}
+                />
+              )}
             />
 
             <SummaryExport summaryText={summaryText} meetingTitle={titleInput || fallbackTitle} />
@@ -588,6 +702,40 @@ export function MeetingCompleteView() {
           </div>
         )}
       </div>
+
+      <TemplateCreateModal
+        open={createModalOpen}
+        onClose={() => {
+          setCreateModalOpen(false);
+          setEditingTemplate(null);
+        }}
+        onSave={editingTemplate?.id
+          ? async (name, description, prompt) => {
+              await updateTemplate({
+                ...editingTemplate,
+                name,
+                description,
+                prompt,
+                isBuiltIn: false,
+              });
+              setCreateModalOpen(false);
+              setEditingTemplate(null);
+            }
+          : onCreateTemplate}
+        editingTemplate={editingTemplate}
+      />
+
+      <ManageTemplatesModal
+        open={manageModalOpen}
+        onClose={() => setManageModalOpen(false)}
+        builtInTemplates={builtInTemplates}
+        customTemplates={customTemplates}
+        onEdit={onEditTemplate}
+        onDelete={async (id) => {
+          await removeTemplate(id);
+        }}
+        onDuplicate={onDuplicateTemplate}
+      />
 
       <footer className="mt-5 flex items-center justify-end">
         <button
