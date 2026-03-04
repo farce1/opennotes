@@ -21,7 +21,7 @@ import { useSession } from '../hooks/useSession';
 import { useTranscript } from '../hooks/useTranscript';
 import { isMacOS } from '../lib/platform';
 import { getSetting } from '../lib/settings';
-import type { OllamaStatus } from '../types';
+import type { OllamaStatus, TranscriptRow } from '../types';
 
 const FOUR_HOURS_MS = 4 * 60 * 60 * 1000;
 
@@ -36,6 +36,14 @@ function formatElapsed(ms: number): string {
   }
 
   return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+}
+
+function rowToSegment(row: TranscriptRow) {
+  return {
+    text: row.text,
+    elapsedMs: row.start_time_ms,
+    index: row.segment_index,
+  };
 }
 
 export function RecordView() {
@@ -67,7 +75,7 @@ export function RecordView() {
   } = useRecording();
 
   const { modelStatus, checkModelReady } = useModelSetup();
-  const { segments, isTranscribing, addEvent, resetTranscript } = useTranscript();
+  const { segments, isTranscribing, addEvent, addSegment, resetTranscript } = useTranscript();
   const {
     phase,
     meetingId,
@@ -140,6 +148,54 @@ export function RecordView() {
 
     return 'Live transcript appears here while recording.';
   }, [segments.length, sessionActive]);
+
+  useEffect(() => {
+    if (!sessionActive || typeof meetingId !== 'number') {
+      return;
+    }
+
+    let disposed = false;
+    let syncInFlight = false;
+    let nextOffset = 0;
+
+    const syncTranscriptFromDb = async (limit: number) => {
+      if (disposed || syncInFlight) {
+        return;
+      }
+
+      syncInFlight = true;
+      try {
+        const rows = await invoke<TranscriptRow[]>('get_transcript_page', {
+          meetingId,
+          offset: nextOffset,
+          limit,
+        });
+
+        if (disposed || !rows.length) {
+          return;
+        }
+
+        rows.forEach((row) => addSegment(rowToSegment(row)));
+        const lastRow = rows[rows.length - 1];
+        nextOffset = lastRow.segment_index + 1;
+      } catch {
+        // Ignore transient read errors; a later poll can recover.
+      } finally {
+        syncInFlight = false;
+      }
+    };
+
+    void syncTranscriptFromDb(10_000);
+
+    const poller = window.setInterval(() => {
+      void syncTranscriptFromDb(250);
+    }, 1200);
+
+    return () => {
+      disposed = true;
+      window.clearInterval(poller);
+    };
+  }, [addSegment, meetingId, sessionActive]);
 
   const handleStartRecording = useCallback(async () => {
     setRecordingError(null);

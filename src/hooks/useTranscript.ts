@@ -16,6 +16,21 @@ function pushSegment(
   previous: TranscriptSegment[],
   nextSegment: TranscriptSegment,
 ): TranscriptSegment[] {
+  const existingIndex = previous.findIndex((segment) => segment.index === nextSegment.index);
+  if (existingIndex >= 0) {
+    const existingSegment = previous[existingIndex];
+    if (
+      existingSegment.text === nextSegment.text &&
+      existingSegment.elapsedMs === nextSegment.elapsedMs
+    ) {
+      return previous;
+    }
+
+    const updated = [...previous];
+    updated[existingIndex] = nextSegment;
+    return updated;
+  }
+
   const next = [...previous, nextSegment];
   return next.length > MAX_DISPLAY_SEGMENTS
     ? next.slice(next.length - MAX_DISPLAY_SEGMENTS)
