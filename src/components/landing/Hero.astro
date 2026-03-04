@@ -1,0 +1,29 @@
+---
+import { ArrowRight, Download } from '@lucide/astro';
+---
+
+<section class="pb-20 pt-32 sm:pb-28 sm:pt-40">
+  <div class="mx-auto max-w-4xl px-4 text-center sm:px-6 lg:px-8">
+    <h1 class="text-4xl font-extrabold tracking-tight text-[var(--sl-color-white)] sm:text-5xl lg:text-6xl">
+      AI Meeting Notes.<br />
+      <span class="text-[var(--sl-color-accent)]">100% Local.</span>
+    </h1>
+    <p class="mx-auto mt-6 max-w-2xl text-lg leading-relaxed text-[var(--sl-color-gray-2)] sm:text-xl">
+      Open-source desktop app that records, transcribes, and summarizes your meetings entirely on your machine. No cloud. No bots. No cost.
+    </p>
+    <div class="mt-10 flex flex-col justify-center gap-4 sm:flex-row">
+      <a
+        href="/getting-started/"
+        class="inline-flex items-center justify-center gap-2 rounded-xl bg-[var(--sl-color-accent)] px-8 py-3.5 text-lg font-semibold text-white no-underline shadow-lg shadow-[var(--sl-color-accent)]/25 transition-opacity hover:opacity-90"
+      >
+        Get Started <ArrowRight class="h-5 w-5" />
+      </a>
+      <a
+        href="https://github.com/nicodeforge/opennotes/releases"
+        class="inline-flex items-center justify-center gap-2 rounded-xl border-2 border-[var(--sl-color-gray-5)] px-8 py-3.5 text-lg font-semibold text-[var(--sl-color-text)] no-underline transition-all hover:border-[var(--sl-color-gray-3)] hover:bg-[var(--sl-color-gray-6)]"
+      >
+        <Download class="h-5 w-5" /> Download
+      </a>
+    </div>
+  </div>
+</section>
