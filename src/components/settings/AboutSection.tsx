@@ -96,6 +96,13 @@ export function AboutSection() {
             <p className="text-sm text-gray-600 dark:text-gray-300">Update available: v{availableVersion ?? 'unknown'}</p>
           ) : null}
 
+          {checkState === 'unavailable' ? (
+            <p className="flex items-center gap-2 text-sm text-amber-700 dark:text-amber-300">
+              <AlertCircle size={16} />
+              {errorMessage || 'Automatic updates are unavailable in this build.'}
+            </p>
+          ) : null}
+
           {checkState === 'error' ? (
             <p className="flex items-center gap-2 text-sm text-red-600 dark:text-red-300">
               <AlertCircle size={16} />

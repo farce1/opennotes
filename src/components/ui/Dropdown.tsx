@@ -34,7 +34,13 @@ export function Dropdown<T extends string>({
   const ref = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
-  const [menuPosition, setMenuPosition] = useState<{ top: number; left: number; width: number } | null>(null);
+  const [menuPosition, setMenuPosition] = useState<{
+    top?: number;
+    bottom?: number;
+    left: number;
+    width: number;
+    maxHeight: number;
+  } | null>(null);
   const selectedOption = options.find((o) => o.value === value);
 
   useEffect(() => {
@@ -61,10 +67,32 @@ export function Dropdown<T extends string>({
       const rect = buttonRef.current?.getBoundingClientRect();
       if (!rect) return;
 
+      const viewportPadding = 12;
+      const menuOffset = 6;
+      const spaceBelow = window.innerHeight - rect.bottom - viewportPadding;
+      const spaceAbove = rect.top - viewportPadding;
+      const optionHeight = size === 'regular' ? 40 : 32;
+      const estimatedMenuHeight = options.length * optionHeight + 8;
+      const targetMenuHeight = Math.min(360, estimatedMenuHeight);
+      const openUpward = spaceBelow < targetMenuHeight && spaceAbove > spaceBelow;
+      const availableSpace = openUpward ? spaceAbove : spaceBelow;
+      const maxHeight = Math.max(0, Math.min(360, availableSpace - menuOffset));
+
+      if (openUpward) {
+        setMenuPosition({
+          bottom: window.innerHeight - rect.top + menuOffset,
+          left: rect.left,
+          width: rect.width,
+          maxHeight,
+        });
+        return;
+      }
+
       setMenuPosition({
-        top: rect.bottom + 6,
+        top: rect.bottom + menuOffset,
         left: rect.left,
         width: rect.width,
+        maxHeight,
       });
     };
 
@@ -76,7 +104,7 @@ export function Dropdown<T extends string>({
       window.removeEventListener('resize', updatePosition);
       window.removeEventListener('scroll', updatePosition, true);
     };
-  }, [open]);
+  }, [open, options.length, size]);
 
   const onKeyDown = (event: React.KeyboardEvent) => {
     if (disabled) {
@@ -146,16 +174,18 @@ export function Dropdown<T extends string>({
             <div
               ref={menuRef}
               className={[
-                'fixed z-[1000] overflow-hidden rounded-xl',
+                'fixed z-[1000] overflow-x-hidden overflow-y-auto rounded-xl',
                 'border border-gray-200/70 bg-white/95 shadow-lg shadow-black/8 backdrop-blur-xl',
                 'dark:border-gray-700/70 dark:bg-gray-900/95 dark:shadow-black/30',
                 'animate-[dropdownIn_120ms_ease-out]',
               ].join(' ')}
               style={{
                 top: menuPosition.top,
+                bottom: menuPosition.bottom,
                 left: menuPosition.left,
                 width: fullWidth ? menuPosition.width : undefined,
                 minWidth: fullWidth ? menuPosition.width : 160,
+                maxHeight: menuPosition.maxHeight,
               }}
               role="listbox"
             >
