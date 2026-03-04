@@ -801,6 +801,55 @@ pub async fn pull_ollama_model(
     llm::pull_model(&url, &selected_model, &on_event).await
 }
 
+async fn build_speaker_roster_block(pool: &SqlitePool, meeting_id: i64) -> Option<String> {
+    let diarization_status = sqlx::query_scalar::<_, String>(
+        "SELECT diarization_status
+         FROM meetings
+         WHERE id = ?
+         LIMIT 1",
+    )
+    .bind(meeting_id)
+    .fetch_optional(pool)
+    .await
+    .ok()
+    .flatten();
+
+    if diarization_status.as_deref() != Some("complete") {
+        return None;
+    }
+
+    let speaker_rows = sqlx::query_as::<_, (i64, String)>(
+        "SELECT speaker_index, display_name
+         FROM speakers
+         WHERE meeting_id = ?
+         ORDER BY speaker_index",
+    )
+    .bind(meeting_id)
+    .fetch_all(pool)
+    .await
+    .ok()?;
+
+    if speaker_rows.len() < 2 {
+        return None;
+    }
+
+    let mut roster = String::from("Speaker roster:\n");
+    for (speaker_index, display_name) in speaker_rows {
+        let normalized = display_name.trim();
+        let label = if normalized.is_empty() {
+            format!("Speaker {}", speaker_index + 1)
+        } else {
+            normalized.to_string()
+        };
+        roster.push_str(&format!("- {label}\n"));
+    }
+    roster.push_str(
+        "\nIn the Action Items, Key Points, and Decisions Made sections, attribute statements to speakers using the format **Name**: description. The Overview section should remain narrative prose. For unnamed speakers, use their label (e.g., Speaker 1).\n\n",
+    );
+
+    Some(roster)
+}
+
 #[tauri::command]
 pub async fn generate_summary(
     pool: tauri::State<'_, SqlitePool>,
@@ -830,12 +879,14 @@ pub async fn generate_summary(
     let url = server_url.unwrap_or_else(|| llm::DEFAULT_OLLAMA_URL.to_string());
     let selected_model = model.unwrap_or_else(|| llm::DEFAULT_MODEL.to_string());
     let summary_language = language.as_deref().unwrap_or("en");
+    let speaker_roster = build_speaker_roster_block(pool.inner(), meeting_id).await;
     let full_summary = llm::run_summary(
         &transcript,
         &url,
         &selected_model,
         summary_language,
         template_prompt.as_deref(),
+        speaker_roster.as_deref(),
         &on_token,
     )
     .await?;

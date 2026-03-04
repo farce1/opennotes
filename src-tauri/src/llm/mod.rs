@@ -458,11 +458,13 @@ fn build_prompt_from_template(
     transcript: &str,
     language: &str,
     template_prompt: Option<&str>,
+    speaker_roster: Option<&str>,
 ) -> String {
     let base = template_prompt.unwrap_or(DEFAULT_STANDARD_PROMPT);
+    let roster_block = speaker_roster.unwrap_or_default();
     let lang_instruction = build_language_instruction(language);
     format!(
-        "{base}\n\n{lang_instruction}Transcript:\n{transcript}",
+        "{base}\n\n{roster_block}{lang_instruction}Transcript:\n{transcript}",
     )
 }
 
@@ -470,16 +472,18 @@ fn build_synthesis_prompt(
     stitched: &str,
     language: &str,
     template_prompt: Option<&str>,
+    speaker_roster: Option<&str>,
 ) -> String {
+    let roster_block = speaker_roster.unwrap_or_default();
     let lang_instruction = build_language_instruction(language);
     if let Some(prompt) = template_prompt {
         return format!(
-            "Synthesize these partial summaries into a single coherent summary. Follow the structure and tone of this template:\n\n{prompt}\n\n{lang_instruction}Partial summaries:\n\n{stitched}",
+            "Synthesize these partial summaries into a single coherent summary. Follow the structure and tone of this template:\n\n{prompt}\n\n{roster_block}{lang_instruction}Partial summaries:\n\n{stitched}",
         );
     }
 
     format!(
-        "You are given partial meeting summaries from consecutive sections. Synthesize them into a single coherent summary with the same four-section structure.\n\nYou MUST include every action item from every section below. Do not merge, summarize, or drop any @person assignments. Each action item from each section must appear in the final Action Items list.\n\nThe Overview should be 8-12 sentences since this is a long meeting.\n\nReturn the result in Markdown with:\n- First line as TITLE: [concise title]\n- ## Overview\n- ## Key Points\n- ## Decisions Made\n- ## Action Items\n\n{lang_instruction}Partial summaries:\n\n{stitched}",
+        "You are given partial meeting summaries from consecutive sections. Synthesize them into a single coherent summary with the same four-section structure.\n\nYou MUST include every action item from every section below. Do not merge, summarize, or drop any @person assignments. Each action item from each section must appear in the final Action Items list.\n\nThe Overview should be 8-12 sentences since this is a long meeting.\n\nReturn the result in Markdown with:\n- First line as TITLE: [concise title]\n- ## Overview\n- ## Key Points\n- ## Decisions Made\n- ## Action Items\n\n{roster_block}{lang_instruction}Partial summaries:\n\n{stitched}",
     )
 }
 
@@ -511,6 +515,7 @@ pub async fn generate_summary_stream(
     model: &str,
     language: &str,
     template_prompt: Option<&str>,
+    speaker_roster: Option<&str>,
     on_token: &Channel<LlmTokenEvent>,
 ) -> Result<String, String> {
     let model_context_length = query_model_context_length(server_url, model).await;
@@ -525,7 +530,8 @@ pub async fn generate_summary_stream(
         let _ = on_token.send(LlmTokenEvent::ContextTruncated { minutes_covered: 0 });
     }
 
-    let prompt = build_prompt_from_template(transcript_for_prompt, language, template_prompt);
+    let prompt =
+        build_prompt_from_template(transcript_for_prompt, language, template_prompt, speaker_roster);
     let num_ctx = choose_num_ctx(model_context_length, transcript_for_prompt);
     run_generate_stream(&prompt, server_url, model, num_ctx, on_token).await
 }
@@ -536,6 +542,7 @@ pub async fn generate_summary_chunked(
     model: &str,
     language: &str,
     template_prompt: Option<&str>,
+    speaker_roster: Option<&str>,
     on_token: &Channel<LlmTokenEvent>,
 ) -> Result<String, String> {
     let chunks = chunk_transcript(transcript);
@@ -543,7 +550,7 @@ pub async fn generate_summary_chunked(
     let mut partial_summaries = Vec::with_capacity(chunks.len());
 
     for chunk in chunks {
-        let prompt = build_prompt_from_template(&chunk, language, template_prompt);
+        let prompt = build_prompt_from_template(&chunk, language, template_prompt, speaker_roster);
         let num_ctx = choose_num_ctx(model_context_length, &chunk);
         partial_summaries.push(run_generate_non_stream(&prompt, server_url, model, num_ctx).await?);
     }
@@ -555,7 +562,7 @@ pub async fn generate_summary_chunked(
         .collect::<Vec<_>>()
         .join("\n\n");
 
-    let synthesis_prompt = build_synthesis_prompt(&stitched, language, template_prompt);
+    let synthesis_prompt = build_synthesis_prompt(&stitched, language, template_prompt, speaker_roster);
 
     let synthesis_num_ctx = choose_num_ctx(model_context_length, &stitched);
     run_generate_stream(&synthesis_prompt, server_url, model, synthesis_num_ctx, on_token).await
@@ -567,12 +574,31 @@ pub async fn run_summary(
     model: &str,
     language: &str,
     template_prompt: Option<&str>,
+    speaker_roster: Option<&str>,
     on_token: &Channel<LlmTokenEvent>,
 ) -> Result<String, String> {
     let result = if transcript.len() <= MAX_SINGLE_PASS_CHARS {
-        generate_summary_stream(transcript, server_url, model, language, template_prompt, on_token).await
+        generate_summary_stream(
+            transcript,
+            server_url,
+            model,
+            language,
+            template_prompt,
+            speaker_roster,
+            on_token,
+        )
+        .await
     } else {
-        generate_summary_chunked(transcript, server_url, model, language, template_prompt, on_token).await
+        generate_summary_chunked(
+            transcript,
+            server_url,
+            model,
+            language,
+            template_prompt,
+            speaker_roster,
+            on_token,
+        )
+        .await
     };
 
     match result {
