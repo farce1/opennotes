@@ -42,7 +42,7 @@ Full details: `.planning/milestones/v1.1-ROADMAP.md`
 **Milestone Goal:** Add speaker diarization to transcripts, interactive speaker timeline, flexible summary templates, migrate ASR to Whisper, and fix post-recording performance.
 
 - [x] **Phase 14: Post-Recording Performance** - Fix UI freeze on stop; async post-processing path (completed 2026-03-04)
-- [ ] **Phase 15: ASR Migration to Whisper** - Replace dual Parakeet TDT with single Whisper Large V3 Turbo
+- [ ] **Phase 15: ASR Migration to Whisper** - Replace dual Parakeet TDT with single Whisper Large V3 Turbo (2 plans)
 - [ ] **Phase 16: Summary Templates** - Built-in and custom summary templates with re-generate support
 - [ ] **Phase 17: Diarization Core** - Rust diarization backend, speaker labels, per-session renaming
 - [ ] **Phase 18: Speaker Timeline & Attributed Summaries** - Interactive timeline, click-to-jump, speaker-attributed prompts
@@ -73,7 +73,9 @@ Full details: `.planning/milestones/v1.1-ROADMAP.md`
   3. First-run model download wizard offers the Whisper Large V3 Turbo model and completes successfully on all three platforms
   4. All previously recorded meetings remain accessible and display correctly (no DB schema breakage on upgrade)
   5. Transcription works on macOS, Windows, and Linux CI matrix
-**Plans**: TBD
+**Plans:** 2 plans
+- [ ] 15-01-PLAN.md — Whisper-only backend: DB migration, model/worker/download rewrite, Parakeet removal
+- [ ] 15-02-PLAN.md — Frontend: language display, wizard update, settings cleanup, type updates
 
 ### Phase 16: Summary Templates
 **Goal**: Users can select a meeting type before generating notes and create their own prompt templates — and regenerate with a different template anytime
@@ -130,7 +132,7 @@ Full details: `.planning/milestones/v1.1-ROADMAP.md`
 | 12. Frontend Bundle Optimization | v1.1 | 2/2 | Complete | 2026-03-03 |
 | 13. LLM Quality Tuning | v1.1 | 1/1 | Complete | 2026-03-03 |
 | 14. Post-Recording Performance | v1.2 | 2/2 | Complete | 2026-03-04 |
-| 15. ASR Migration to Whisper | v1.2 | 0/TBD | Not started | - |
+| 15. ASR Migration to Whisper | v1.2 | 0/2 | Planned | - |
 | 16. Summary Templates | v1.2 | 0/TBD | Not started | - |
 | 17. Diarization Core | v1.2 | 0/TBD | Not started | - |
 | 18. Speaker Timeline & Attributed Summaries | v1.2 | 0/TBD | Not started | - |
