@@ -18,10 +18,10 @@ tech-stack:
     - Diarization writes are transaction-scoped and replace stale speaker data atomically
 key-files:
   created:
-    - src-tauri/src/diarization/mod.rs
     - src-tauri/src/diarization/decode.rs
     - src-tauri/src/diarization/worker.rs
     - src-tauri/src/diarization/model.rs
+    - src-tauri/src/diarization/mod.rs
     - src-tauri/migrations/006_phase17_diarization.sql
   modified:
     - src-tauri/src/commands.rs
@@ -58,7 +58,7 @@ completed: 2026-03-04
 - Added migration `006_phase17_diarization.sql` with `speaker_turns`, `speakers`, nullable `transcripts.speaker_id`, and `meetings.diarization_status`.
 - Added diarization model helpers and download URLs, plus `ogg`/`opus` dependencies for native OGG/Opus decode.
 - Implemented decode module with Opus pre-skip handling and worker module covering status updates, decode, resample, sherpa diarization, alignment, and transactional DB writes.
-- Added `DiarizationEvent`, `DiarizationState`, and dedicated-thread launcher in `diarization/mod.rs`.
+- Added `DiarizationEvent`, `DiarizationState`, and dedicated-thread launcher in `src-tauri/src/diarization/mod.rs`.
 - Exposed five Tauri commands: `start_diarization`, `rename_speaker`, `check_diarization_model_ready`, `download_diarization_model`, and `get_diarization_data`.
 - Wired diarization state/commands into `lib.rs` and extended transcript paging with `speaker_id`.
 
