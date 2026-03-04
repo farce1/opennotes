@@ -54,5 +54,6 @@
   "context_update_noPubkey": "Aktualizator nie jest skonfigurowany. Ustaw prawidłowy klucz publiczny w src-tauri/tauri.conf.json.",
   "context_update_noPermission": "Brak uprawnień aktualizatora dla tej funkcji okna.",
   "context_update_unavailable": "Automatyczne aktualizacje są niedostępne w tej wersji.",
-  "context_update_checkFailed": "Sprawdzanie aktualizacji nie powiodło się"
+  "context_update_checkFailed": "Sprawdzanie aktualizacji nie powiodło się",
+  "notification_processingComplete": "Przetwarzanie nagrania zakończone"
 }

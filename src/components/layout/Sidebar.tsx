@@ -8,6 +8,7 @@ import {
   SETTINGS_TABS,
   settingsTabPath,
 } from '../settings/settingsTabs';
+import { useSessionContext } from '../../contexts/SessionContext';
 import { useUpdate } from '../../hooks/useUpdate';
 
 const navItems = [
@@ -22,6 +23,7 @@ const librarySubItems = [{ to: '/library/trash', labelKey: 'nav_trash' as const,
 export function Sidebar() {
   const { t } = useTranslation('common');
   const { updateAvailable } = useUpdate();
+  const { phase } = useSessionContext();
   const location = useLocation();
   const inLibrary = location.pathname.startsWith('/library');
   const inSettings = location.pathname.startsWith('/settings');
@@ -52,6 +54,9 @@ export function Sidebar() {
                 <Icon size={18} strokeWidth={2} />
                 {labelKey === 'nav_settings' && updateAvailable ? (
                   <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-accent" />
+                ) : null}
+                {labelKey === 'nav_record' && phase === 'processing' ? (
+                  <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-amber-400 animate-pulse" />
                 ) : null}
               </span>
               <span>{t(labelKey)}</span>

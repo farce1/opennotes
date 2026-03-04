@@ -1,5 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
-import { Copy, Download, Plus, RotateCcw, TriangleAlert } from 'lucide-react';
+import { listen } from '@tauri-apps/api/event';
+import { AlertCircle, CheckCircle2, Copy, Download, Loader2, Plus, RotateCcw, TriangleAlert } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router';
@@ -7,6 +8,7 @@ import { useLocation, useNavigate } from 'react-router';
 import { SummaryError } from '../components/SummaryError';
 import { SummaryExport } from '../components/SummaryExport';
 import { SummaryPanel } from '../components/SummaryPanel';
+import { useSessionContext } from '../contexts/SessionContext';
 import { useSummary } from '../hooks/useSummary';
 import { getDb } from '../lib/db';
 import { getSetting, setSetting } from '../lib/settings';
@@ -60,9 +62,13 @@ export function MeetingCompleteView() {
   const [hadSummaryOnLoad, setHadSummaryOnLoad] = useState(false);
   const [titleInput, setTitleInput] = useState('');
   const [titleSaveState, setTitleSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [postProcessingFailed, setPostProcessingFailed] = useState(false);
+  const [retryingPostProcessing, setRetryingPostProcessing] = useState(false);
+  const [justCompleted, setJustCompleted] = useState(false);
 
   const state = (location.state as MeetingCompleteRouteState | null) ?? null;
   const meetingId = typeof state?.meetingId === 'number' ? state.meetingId : null;
+  const { phase, processingStage, processingFailed, processingMeetingId } = useSessionContext();
 
   const {
     summaryText,
@@ -94,11 +100,13 @@ export function MeetingCompleteView() {
       setSummaryChecked(false);
       setHadSummaryOnLoad(false);
       setAutoGenerateTriggered(false);
+      setPostProcessingFailed(false);
+      setJustCompleted(false);
 
       try {
         const db = await getDb();
         const meetings = await db.select<Meeting[]>(
-          'SELECT id, title, started_at, ended_at, duration_seconds, status, audio_path, audio_sources, created_at, updated_at FROM meetings WHERE id = $1 LIMIT 1',
+          'SELECT id, title, started_at, ended_at, duration_seconds, status, post_processing_status, audio_path, audio_sources, created_at, updated_at, deleted_at FROM meetings WHERE id = $1 LIMIT 1',
           [meetingId],
         );
 
@@ -122,6 +130,7 @@ export function MeetingCompleteView() {
         setMeeting(selectedMeeting);
         setSegments(mapRowsToSegments(rows));
         setHadSummaryOnLoad(Boolean(existingSummary));
+        setPostProcessingFailed(selectedMeeting.post_processing_status === 'failed');
       } catch {
         if (!active) {
           return;
@@ -151,6 +160,65 @@ export function MeetingCompleteView() {
     setAutoGenerateTriggered(true);
     void generate(meetingId);
   }, [autoGenerateTriggered, generate, generating, hadSummaryOnLoad, meetingId, state?.autoGenerate, summaryChecked]);
+
+  useEffect(() => {
+    if (!meetingId) {
+      return;
+    }
+
+    if (processingFailed && processingMeetingId === meetingId) {
+      setPostProcessingFailed(true);
+    }
+  }, [meetingId, processingFailed, processingMeetingId]);
+
+  useEffect(() => {
+    if (!meetingId) {
+      return;
+    }
+
+    let timeoutId: number | null = null;
+    let disposed = false;
+    const cleanups: Array<() => void> = [];
+
+    void Promise.all([
+      listen<number>('processing-failed', (event) => {
+        if (event.payload === meetingId) {
+          setPostProcessingFailed(true);
+        }
+      }),
+      listen<number>('session-complete', (event) => {
+        if (event.payload === meetingId) {
+          setPostProcessingFailed(false);
+          setJustCompleted(true);
+
+          if (timeoutId !== null) {
+            window.clearTimeout(timeoutId);
+          }
+
+          timeoutId = window.setTimeout(() => setJustCompleted(false), 3000);
+        }
+      }),
+    ]).then((handlers) => {
+      if (disposed) {
+        handlers.forEach((cleanup) => cleanup());
+        return;
+      }
+
+      cleanups.push(...handlers);
+    });
+
+    return () => {
+      disposed = true;
+      cleanups.forEach((cleanup) => cleanup());
+
+      if (timeoutId !== null) {
+        window.clearTimeout(timeoutId);
+      }
+    };
+  }, [meetingId]);
+
+  const isCurrentMeetingProcessing =
+    typeof meetingId === 'number' && phase === 'processing' && processingMeetingId === meetingId;
 
   const fallbackTitle = useMemo(
     () => `Meeting — ${new Date().toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}`,
@@ -192,6 +260,24 @@ export function MeetingCompleteView() {
   const onRetranscribe = useCallback(() => {
     setRetranscribeMessage(t('transcript_retranscribeNotAvailable'));
   }, [t]);
+
+  const onRetryPostProcessing = useCallback(async () => {
+    if (!meetingId) {
+      return;
+    }
+
+    setRetryingPostProcessing(true);
+    setPostProcessingFailed(false);
+    setJustCompleted(false);
+
+    try {
+      await invoke('retry_post_processing', { meetingId });
+    } catch {
+      setPostProcessingFailed(true);
+    } finally {
+      setRetryingPostProcessing(false);
+    }
+  }, [meetingId]);
 
   const onSaveSummary = useCallback(
     async (content: string) => {
@@ -317,6 +403,43 @@ export function MeetingCompleteView() {
           {titleSaveState === 'error' ? <p className="text-xs text-red-600 dark:text-red-300">{t('title_saveFailed')}</p> : null}
         </div>
       </header>
+
+      {isCurrentMeetingProcessing ? (
+        <div className="mt-4 flex items-center gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 dark:border-amber-800/50 dark:bg-amber-950/30">
+          <Loader2 size={16} className="animate-spin text-amber-600 dark:text-amber-400" />
+          <span className="text-sm font-medium text-amber-800 dark:text-amber-200">
+            {processingStage ?? t('processing_finishing')}
+          </span>
+        </div>
+      ) : null}
+
+      {justCompleted ? (
+        <div className="mt-4 flex items-center gap-3 rounded-lg border border-green-200 bg-green-50 px-4 py-3 transition-opacity duration-500 dark:border-green-800/50 dark:bg-green-950/30">
+          <CheckCircle2 size={16} className="text-green-600 dark:text-green-400" />
+          <span className="text-sm font-medium text-green-800 dark:text-green-200">
+            {t('processing_complete')}
+          </span>
+        </div>
+      ) : null}
+
+      {postProcessingFailed ? (
+        <div className="mt-4 flex items-center justify-between gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 dark:border-red-800/50 dark:bg-red-950/30">
+          <div className="flex items-center gap-3">
+            <AlertCircle size={16} className="text-red-600 dark:text-red-400" />
+            <span className="text-sm font-medium text-red-800 dark:text-red-200">
+              {t('processing_failed')}
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => void onRetryPostProcessing()}
+            disabled={retryingPostProcessing}
+            className="rounded-md bg-red-100 px-3 py-1.5 text-xs font-semibold text-red-700 transition hover:bg-red-200 disabled:opacity-50 dark:bg-red-900/50 dark:text-red-300 dark:hover:bg-red-900/70"
+          >
+            {retryingPostProcessing ? t('processing_retrying') : t('processing_retry')}
+          </button>
+        </div>
+      ) : null}
 
       <div className="mt-4 flex items-center gap-2 border-b border-gray-200 dark:border-gray-800">
         <button

@@ -54,5 +54,6 @@
   "context_update_noPubkey": "Updater is not configured. Set a valid updater pubkey in src-tauri/tauri.conf.json.",
   "context_update_noPermission": "Updater permission is missing for this window capability.",
   "context_update_unavailable": "Automatic updates are unavailable in this build.",
-  "context_update_checkFailed": "Update check failed"
+  "context_update_checkFailed": "Update check failed",
+  "notification_processingComplete": "Recording processing complete"
 }
