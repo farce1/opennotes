@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Documentation Site
-status: phase_15_complete
-stopped_at: phase 15 execution complete
-last_updated: "2026-03-04T13:03:44Z"
+status: phase_16_complete
+stopped_at: phase 16 execution complete
+last_updated: "2026-03-04T13:49:00Z"
 progress:
   total_phases: 5
-  completed_phases: 2
-  total_plans: 2
-  completed_plans: 2
-  percent: 40
+  completed_phases: 3
+  total_plans: 3
+  completed_plans: 3
+  percent: 60
 ---
 
 # Project State
@@ -24,9 +24,9 @@ See: .planning/PROJECT.md (updated 2026-03-04)
 
 ## Current Position
 
-Phase 15 executed and verified. Ready to plan or execute Phase 16.
+Phase 16 executed and verified. Ready to plan or execute Phase 17.
 
-Progress: [████░░░░░░] 40%
+Progress: [██████░░░░] 60%
 
 ## Accumulated Context
 
@@ -41,6 +41,8 @@ Progress: [████░░░░░░] 40%
 - Phase 14 scaffold complete: Astro Starlight + React + Tailwind + sitemap configured
 - [Phase 15]: Landing page uses standalone layout while syncing `starlight-theme` for docs parity.
 - [Phase 15]: Download platform cards use Lucide generic OS icons — Brand-specific Apple icon availability is not guaranteed in Lucide; generic icons keep build stable and still communicate platform choices.
+- [Phase 16]: Core docs pages now contain comprehensive end-user content across Getting Started and Guides sections.
+- [Phase 16]: Quick Start intentionally keeps screenshot placeholders as TODO markers until real product captures are available.
 
 ### Pending Todos
 
@@ -53,5 +55,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-03-04
-Stopped at: phase 15 execution complete
+Stopped at: phase 16 execution complete
 Resume file: None
