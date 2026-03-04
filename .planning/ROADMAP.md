@@ -88,7 +88,9 @@ Full details: `.planning/milestones/v1.1-ROADMAP.md`
   4. User creates a custom template by typing a prompt in a textarea, saves it, and uses it to generate a summary
   5. User can edit or delete a custom template; built-in templates cannot be deleted but display a "Reset to default" option
   6. Long meetings (2+ hours) summarized with any template complete without truncation (template works with map-reduce chunking)
-**Plans**: TBD
+**Plans:** 2 plans
+- [ ] 16-01-PLAN.md — Backend template_prompt threading, built-in template constants, template store module and hook
+- [ ] 16-02-PLAN.md — TemplatePicker UI, create/manage modals, SummaryPanel integration, i18n
 
 ### Phase 17: Diarization Core
 **Goal**: After a recording finishes, users can run speaker diarization to identify who said what — with speaker labels on every transcript segment and the ability to rename speakers to real names
@@ -133,6 +135,6 @@ Full details: `.planning/milestones/v1.1-ROADMAP.md`
 | 13. LLM Quality Tuning | v1.1 | 1/1 | Complete | 2026-03-03 |
 | 14. Post-Recording Performance | v1.2 | 2/2 | Complete | 2026-03-04 |
 | 15. ASR Migration to Whisper | v1.2 | 2/2 | Complete | 2026-03-04 |
-| 16. Summary Templates | v1.2 | 0/TBD | Not started | - |
+| 16. Summary Templates | v1.2 | 0/2 | Planned | - |
 | 17. Diarization Core | v1.2 | 0/TBD | Not started | - |
 | 18. Speaker Timeline & Attributed Summaries | v1.2 | 0/TBD | Not started | - |
