@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Speaker Intelligence & Templates
 status: roadmap_ready
-last_updated: "2026-03-04T17:24:00Z"
+last_updated: "2026-03-04T18:03:00Z"
 progress:
   total_phases: 5
-  completed_phases: 1
-  total_plans: 2
-  completed_plans: 2
+  completed_phases: 2
+  total_plans: 4
+  completed_plans: 4
 ---
 
 # Project State
@@ -18,29 +18,30 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-04)
 
 **Core value:** One-click meeting recording that produces structured, actionable meeting notes — entirely local, entirely free.
-**Current focus:** Phase 15 — ASR Migration to Whisper
+**Current focus:** Phase 16 — Summary Templates
 
 ## Current Position
 
-Phase: 15 of 18 (ASR Migration to Whisper)
+Phase: 16 of 18 (Summary Templates)
 Plan: — (not yet planned)
 Status: Ready to plan
-Last activity: 2026-03-04 — Phase 14 executed and verified (2/2 plans)
+Last activity: 2026-03-04 — Phase 15 executed and verified (2/2 plans)
 
-Progress: [██░░░░░░░░] 20%
+Progress: [████░░░░░░] 40%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 2 (v1.2)
+- Total plans completed: 4 (v1.2)
 - Average duration: 10 min
-- Total execution time: 20 min
+- Total execution time: 41 min
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 14 | 2 | 20 min | 10 min |
+| 15 | 2 | 21 min | 11 min |
 
 *Updated after each plan completion*
 
@@ -53,8 +54,10 @@ Recent decisions affecting current work:
 
 - Phase 14 stop flow now transitions to `processing` and returns immediately; DB finalization and FTS moved to async post-processing.
 - Post-processing failures persist as `meetings.post_processing_status` and are surfaced on startup for retry UX.
-- v1.2 Diarization: use sherpa-rs =0.6.8 diarize module (already compiled in); `ogg = "0.9"` + `opus = "0.3"` for audio decode — spike decode pipeline at start of Phase 17.
-- v1.2 Templates: built-ins compiled into binary (`llm/templates.rs`); user templates in `settings.json`; all templates need `supports_chunking` flag.
+- Phase 15 migrated ASR to Whisper Large V3 Turbo only; Parakeet and Whisper Tiny runtime paths were removed.
+- Phase 15 persists `meetings.detected_language` and `meetings.asr_engine` on first detected Whisper segment.
+- Phase 15 model download now supports resumable HTTP Range requests for Whisper Turbo archive downloads.
+- Phase 15 frontend removed transcription language selection and now displays detected meeting language metadata.
 
 ### Pending Todos
 
@@ -69,5 +72,5 @@ Recent decisions affecting current work:
 ## Session Continuity
 
 Last session: 2026-03-04
-Stopped at: Phase 14 complete — ready to plan Phase 15
+Stopped at: Phase 15 complete — ready to plan Phase 16
 Resume file: None

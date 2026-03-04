@@ -42,12 +42,12 @@ Requirements for v1.2 Speaker Intelligence & Templates. Each maps to roadmap pha
 
 ### ASR Migration
 
-- [ ] **ASR-01**: Transcription uses Whisper Large V3 Turbo as the single ASR model (replacing dual Parakeet TDT)
-- [ ] **ASR-02**: Whisper automatically detects the spoken language (English, Polish, and other supported languages)
-- [ ] **ASR-03**: User can see which language was detected for a recording
-- [ ] **ASR-04**: Model download wizard handles Whisper Large V3 Turbo model download
-- [ ] **ASR-05**: Existing recordings remain accessible (backward-compatible DB schema)
-- [ ] **ASR-06**: Whisper migration works cross-platform (macOS, Windows, Linux)
+- [x] **ASR-01**: Transcription uses Whisper Large V3 Turbo as the single ASR model (replacing dual Parakeet TDT)
+- [x] **ASR-02**: Whisper automatically detects the spoken language (English, Polish, and other supported languages)
+- [x] **ASR-03**: User can see which language was detected for a recording
+- [x] **ASR-04**: Model download wizard handles Whisper Large V3 Turbo model download
+- [x] **ASR-05**: Existing recordings remain accessible (backward-compatible DB schema)
+- [x] **ASR-06**: Whisper migration works cross-platform (macOS, Windows, Linux)
 
 ## Future Requirements
 
@@ -93,12 +93,12 @@ Which phases cover which requirements. Updated during roadmap creation.
 | STOP-03 | Phase 14 | Complete |
 | STOP-04 | Phase 14 | Complete |
 | STOP-05 | Phase 14 | Complete |
-| ASR-01 | Phase 15 | Pending |
-| ASR-02 | Phase 15 | Pending |
-| ASR-03 | Phase 15 | Pending |
-| ASR-04 | Phase 15 | Pending |
-| ASR-05 | Phase 15 | Pending |
-| ASR-06 | Phase 15 | Pending |
+| ASR-01 | Phase 15 | Complete |
+| ASR-02 | Phase 15 | Complete |
+| ASR-03 | Phase 15 | Complete |
+| ASR-04 | Phase 15 | Complete |
+| ASR-05 | Phase 15 | Complete |
+| ASR-06 | Phase 15 | Complete |
 | TMPL-01 | Phase 16 | Pending |
 | TMPL-02 | Phase 16 | Pending |
 | TMPL-03 | Phase 16 | Pending |
@@ -126,4 +126,4 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 ---
 *Requirements defined: 2026-03-04*
-*Last updated: 2026-03-04 after Phase 14 completion*
+*Last updated: 2026-03-04 after Phase 15 completion*
