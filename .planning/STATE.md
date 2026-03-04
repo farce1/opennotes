@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Documentation Site
-status: phase_17_complete
-stopped_at: phase 17 execution complete
-last_updated: "2026-03-04T14:13:06Z"
+status: phase_18_complete
+stopped_at: phase 18 execution complete
+last_updated: "2026-03-04T14:38:39Z"
 progress:
   total_phases: 5
-  completed_phases: 4
-  total_plans: 4
-  completed_plans: 4
-  percent: 80
+  completed_phases: 5
+  total_plans: 5
+  completed_plans: 5
+  percent: 100
 ---
 
 # Project State
@@ -24,9 +24,9 @@ See: .planning/PROJECT.md (updated 2026-03-04)
 
 ## Current Position
 
-Phase 17 executed and verified. Ready to plan or execute Phase 18.
+Phase 18 executed and verified. Milestone v1.2 phase work is complete and ready for milestone closure.
 
-Progress: [████████░░] 80%
+Progress: [██████████] 100%
 
 ## Accumulated Context
 
@@ -45,6 +45,9 @@ Progress: [████████░░] 80%
 - [Phase 16]: Quick Start intentionally keeps screenshot placeholders as TODO markers until real product captures are available.
 - [Phase 17]: Reference/support pages now provide complete settings, troubleshooting, FAQ, and contributing documentation.
 - [Phase 17]: Build-artifact verification (dist routes, sidebar links, pagefind output) is the default validation path for docs phase completion.
+- [Phase 18]: Vercel deployment uses zero-config static output (no `vercel.json`) with `dist/` as deployment artifact.
+- [Phase 18]: Site-wide social metadata now includes explicit `og:image`/`twitter:image` for landing and docs pages.
+- [Phase 18]: Docs PR CI enforces build success and required output artifacts (`dist/index.html`, `dist/robots.txt`, `dist/sitemap-index.xml`).
 
 ### Pending Todos
 
@@ -57,5 +60,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-03-04
-Stopped at: phase 17 execution complete
+Stopped at: phase 18 execution complete
 Resume file: None
