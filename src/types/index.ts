@@ -146,4 +146,5 @@ export type LlmTokenEvent =
 export interface OllamaModelInfo {
   name: string;
   parameterSize: string | null;
+  downloadSize: string | null;
 }

@@ -8,7 +8,7 @@ import { SummaryExport } from '../components/SummaryExport';
 import { SummaryPanel } from '../components/SummaryPanel';
 import { useSummary } from '../hooks/useSummary';
 import { getDb } from '../lib/db';
-import { getSetting } from '../lib/settings';
+import { getSetting, setSetting } from '../lib/settings';
 import type { Meeting, TranscriptRow, TranscriptSegment } from '../types';
 
 type MeetingCompleteRouteState = {
@@ -354,7 +354,6 @@ export function MeetingCompleteView() {
                 errorMessage={summaryError}
                 onRetry={onRegenerateSummary}
                 onSwitchModel={async (model) => {
-                  const { setSetting } = await import('../lib/settings');
                   await setSetting('ollamaModel', model);
                   if (meetingId) {
                     void generate(meetingId);

@@ -27,11 +27,12 @@ function optionButtonClasses(selected: boolean): string {
 }
 
 function formatModelLabel(model: OllamaModelInfo): string {
+  const download = model.downloadSize ? ` · ${model.downloadSize}` : '';
   const normalizedSize = model.parameterSize?.toLowerCase();
   const sizeIncludedInName = normalizedSize ? model.name.toLowerCase().endsWith(`:${normalizedSize}`) : false;
   const size = model.parameterSize && !sizeIncludedInName ? ` · ${model.parameterSize}` : '';
   const rec = model.name === 'phi4-mini' || model.name === 'phi4-mini:latest' ? ' · Recommended' : '';
-  return `${model.name}${size}${rec}`;
+  return `${model.name}${download}${size}${rec}`;
 }
 
 export function SummarySection() {
@@ -213,7 +214,7 @@ export function SummarySection() {
     if (hasCurrentModel) {
       return models;
     }
-    return [{ name: currentModel, parameterSize: null }, ...models];
+    return [{ name: currentModel, parameterSize: null, downloadSize: null }, ...models];
   }, [currentModel, models]);
 
   const modelDropdownOptions = useMemo(

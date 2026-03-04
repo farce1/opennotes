@@ -32,6 +32,7 @@ pub struct TranscriptRow {
 pub struct OllamaModelInfo {
     pub name: String,
     pub parameter_size: Option<String>,
+    pub download_size: Option<String>,
 }
 
 fn timestamp_string() -> String {
@@ -68,6 +69,26 @@ pub(crate) fn next_recording_output_path(data_dir: &Path) -> Result<PathBuf, Str
 
 fn sqlite_path_literal(path: &std::path::Path) -> String {
     path.display().to_string().replace('\'', "''")
+}
+
+fn format_size_bytes(bytes: u64) -> String {
+    const GB: f64 = 1024.0 * 1024.0 * 1024.0;
+    const MB: f64 = 1024.0 * 1024.0;
+
+    let bytes_f = bytes as f64;
+    if bytes_f >= GB {
+        let gb = bytes_f / GB;
+        if gb >= 10.0 {
+            return format!("{:.0}GB", gb.round());
+        }
+        return format!("{gb:.1}GB");
+    }
+
+    let mb = bytes_f / MB;
+    if mb >= 10.0 {
+        return format!("{:.0}MB", mb.round());
+    }
+    format!("{mb:.1}MB")
 }
 
 async fn fts_row_exists(pool: &SqlitePool, meeting_id: i64) -> Result<bool, String> {
@@ -520,6 +541,7 @@ pub async fn list_ollama_models(server_url: Option<String>) -> Result<Vec<Ollama
     #[derive(serde::Deserialize)]
     struct ModelTag {
         name: String,
+        size: Option<u64>,
         details: Option<ModelTagDetails>,
     }
 
@@ -539,6 +561,7 @@ pub async fn list_ollama_models(server_url: Option<String>) -> Result<Vec<Ollama
         .map(|model| OllamaModelInfo {
             name: model.name,
             parameter_size: model.details.and_then(|details| details.parameter_size),
+            download_size: model.size.map(format_size_bytes),
         })
         .collect())
 }

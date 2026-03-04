@@ -3,7 +3,7 @@ import { relaunch } from '@tauri-apps/plugin-process';
 import { AlertCircle, CheckCircle, Download, Info, Loader2 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 
-import { useUpdate } from '../../contexts/UpdateContext';
+import { useUpdate } from '../../hooks/useUpdate';
 
 const panelClasses =
   'rounded-2xl border border-gray-200/80 bg-white/75 p-4 shadow-sm backdrop-blur-sm dark:border-gray-700/80 dark:bg-gray-900/45';

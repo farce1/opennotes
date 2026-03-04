@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useEffect, useState, type ReactNode } from 'react';
 import { check, type Update } from '@tauri-apps/plugin-updater';
 
 type CheckState = 'idle' | 'checking' | 'up-to-date' | 'available' | 'unavailable' | 'error';
@@ -54,7 +54,7 @@ function toUnavailableMessage(rawError: string): string | null {
   return 'Automatic updates are unavailable in this build.';
 }
 
-interface UpdateContextValue {
+export interface UpdateContextValue {
   updateAvailable: boolean;
   availableVersion: string | null;
   cachedUpdate: Update | null;
@@ -63,7 +63,7 @@ interface UpdateContextValue {
   errorMessage: string | null;
 }
 
-const UpdateContext = createContext<UpdateContextValue>({
+export const UpdateContext = createContext<UpdateContextValue>({
   updateAvailable: false,
   availableVersion: null,
   cachedUpdate: null,
@@ -71,10 +71,6 @@ const UpdateContext = createContext<UpdateContextValue>({
   checkState: 'idle',
   errorMessage: null,
 });
-
-export function useUpdate() {
-  return useContext(UpdateContext);
-}
 
 export function UpdateProvider({ children }: { children: ReactNode }) {
   const [updateAvailable, setUpdateAvailable] = useState(false);

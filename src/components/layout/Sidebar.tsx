@@ -7,7 +7,7 @@ import {
   SETTINGS_TABS,
   settingsTabPath,
 } from '../settings/settingsTabs';
-import { useUpdate } from '../../contexts/UpdateContext';
+import { useUpdate } from '../../hooks/useUpdate';
 
 const navItems = [
   { to: '/record', label: 'Record', icon: Circle },
