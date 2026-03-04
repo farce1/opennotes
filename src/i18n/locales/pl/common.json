@@ -1,0 +1,58 @@
+{
+  "nav_record": "Nagrywanie",
+  "nav_library": "Biblioteka",
+  "nav_models": "Modele",
+  "nav_settings": "Ustawienia",
+  "nav_trash": "Kosz",
+
+  "btn_delete": "Usu\u0144",
+  "btn_restore": "Przywr\u00f3\u0107",
+  "btn_export": "Eksportuj",
+  "btn_copy": "Kopiuj",
+  "btn_copied": "Skopiowano!",
+  "btn_edit": "Edytuj",
+  "btn_save": "Zapisz",
+  "btn_cancel": "Anuluj",
+  "btn_retry": "Pon\u00f3w",
+  "btn_clear": "Wyczy\u015b\u0107",
+
+  "dropdown_placeholder": "Wybierz...",
+
+  "export_markdown": "Markdown",
+  "export_plainText": "Zwyk\u0142y tekst",
+  "export_json": "JSON",
+  "export_pdf": "PDF",
+  "export_exportMarkdown": "Eksportuj jako Markdown",
+  "export_exportPdf": "Eksportuj jako PDF",
+  "export_generatingPdf": "Generowanie PDF\u2026",
+  "export_exportFailed": "Eksport nie powi\u00f3d\u0142 si\u0119",
+
+  "status_completed": "Zako\u0144czone",
+  "status_recovered": "Odzyskane",
+  "status_failed": "Nieudane",
+  "status_processing": "Przetwarzanie",
+  "status_recording": "Nagrywanie",
+  "status_paused": "Wstrzymano",
+
+  "duration_h": "g",
+  "duration_m": "min",
+  "duration_s": "s",
+  "duration_inProgress": "W toku",
+
+  "source_mic": "Mikrofon",
+  "source_system": "System",
+  "source_both": "Oba",
+
+  "settingsTab_general": "Ogólne",
+  "settingsTab_recording": "Nagrywanie",
+  "settingsTab_transcription": "Transkrypcja",
+  "settingsTab_summary": "Podsumowanie",
+  "settingsTab_data": "Dane",
+  "settingsTab_about": "O aplikacji",
+
+  "context_update_noManifest": "Nie znaleziono manifestu aktualizacji. Opublikuj wydanie zawierające latest.json.",
+  "context_update_noPubkey": "Aktualizator nie jest skonfigurowany. Ustaw prawidłowy klucz publiczny w src-tauri/tauri.conf.json.",
+  "context_update_noPermission": "Brak uprawnień aktualizatora dla tej funkcji okna.",
+  "context_update_unavailable": "Automatyczne aktualizacje są niedostępne w tej wersji.",
+  "context_update_checkFailed": "Sprawdzanie aktualizacji nie powiodło się"
+}

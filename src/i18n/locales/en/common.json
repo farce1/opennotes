@@ -1,0 +1,58 @@
+{
+  "nav_record": "Record",
+  "nav_library": "Library",
+  "nav_models": "Models",
+  "nav_settings": "Settings",
+  "nav_trash": "Trash",
+
+  "btn_delete": "Delete",
+  "btn_restore": "Restore",
+  "btn_export": "Export",
+  "btn_copy": "Copy",
+  "btn_copied": "Copied!",
+  "btn_edit": "Edit",
+  "btn_save": "Save",
+  "btn_cancel": "Cancel",
+  "btn_retry": "Retry",
+  "btn_clear": "Clear",
+
+  "dropdown_placeholder": "Select...",
+
+  "export_markdown": "Markdown",
+  "export_plainText": "Plain Text",
+  "export_json": "JSON",
+  "export_pdf": "PDF",
+  "export_exportMarkdown": "Export Markdown",
+  "export_exportPdf": "Export PDF",
+  "export_generatingPdf": "Generating PDF\u2026",
+  "export_exportFailed": "Export failed",
+
+  "status_completed": "Completed",
+  "status_recovered": "Recovered",
+  "status_failed": "Failed",
+  "status_processing": "Processing",
+  "status_recording": "Recording",
+  "status_paused": "Paused",
+
+  "duration_h": "h",
+  "duration_m": "m",
+  "duration_s": "s",
+  "duration_inProgress": "In progress",
+
+  "source_mic": "Mic",
+  "source_system": "System",
+  "source_both": "Both",
+
+  "settingsTab_general": "General",
+  "settingsTab_recording": "Recording",
+  "settingsTab_transcription": "Transcription",
+  "settingsTab_summary": "Summary",
+  "settingsTab_data": "Data",
+  "settingsTab_about": "About",
+
+  "context_update_noManifest": "No updater manifest was found at the release endpoint. Publish a release that includes latest.json.",
+  "context_update_noPubkey": "Updater is not configured. Set a valid updater pubkey in src-tauri/tauri.conf.json.",
+  "context_update_noPermission": "Updater permission is missing for this window capability.",
+  "context_update_unavailable": "Automatic updates are unavailable in this build.",
+  "context_update_checkFailed": "Update check failed"
+}
