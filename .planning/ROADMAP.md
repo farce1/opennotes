@@ -156,7 +156,7 @@ Full details: `.planning/milestones/v1.1-ROADMAP.md`
 | 12. Frontend Bundle Optimization | v1.1 | 2/2 | Complete | 2026-03-03 |
 | 13. LLM Quality Tuning | v1.1 | 1/1 | Complete | 2026-03-03 |
 | 14. Project Scaffold & Repo Cleanup | v1.2 | 1/1 | Complete | 2026-03-04 |
-| 15. Marketing Landing Page | 1/1 | Complete   | 2026-03-04 | — |
+| 15. Marketing Landing Page | v1.2 | 1/1 | Complete | 2026-03-04 |
 | 16. Documentation Content — Core | v1.2 | — | Pending | — |
 | 17. Documentation Content — Reference & Support | v1.2 | — | Pending | — |
 | 18. Branding, SEO & Deployment | v1.2 | — | Pending | — |
