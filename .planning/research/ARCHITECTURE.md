@@ -1,443 +1,763 @@
 # Architecture Research
 
-**Domain:** Local-first AI meeting transcription and summarization desktop app — v1.1 Hardening integration
-**Researched:** 2026-03-02
-**Confidence:** HIGH (based on direct codebase reading; research supplements with verified external sources)
+**Domain:** Desktop meeting recording app — speaker diarization, summary templates, interactive speaker timeline, post-recording performance fix
+**Researched:** 2026-03-04
+**Confidence:** HIGH (direct codebase inspection + verified external sources for all library APIs)
 
 ---
 
-## Context: What v1.1 Changes
+## Context: v1.2 Adds Four Distinct Concerns
 
-This is not a greenfield architecture document. The v1.0 architecture is fully shipped and working.
-v1.1 adds three targeted concerns:
+This is not a greenfield document. The v1.1 architecture is fully shipped. v1.2 adds:
 
-1. **LLM model selection** — users pick any Ollama model; `check_ollama_status` is model-aware
-2. **Frontend code-splitting** — lazy-load heavy imports (`@react-pdf/renderer`, `jszip`) to cut startup time
-3. **sherpa-rs dependency health** — evaluate crate health, pin version, document upgrade path
+1. **Post-recording performance fix** — UI freezes after Stop button; root cause in `session.rs`
+2. **Speaker diarization** — post-processing with sherpa-rs `diarize` module (already in pinned dependency)
+3. **Summary templates** — user-selectable prompt styles; no new DB table required
+4. **Interactive speaker timeline** — SVG visualization + speaker-attributed transcript display
 
-The diagram and component list below reflect **only the components touched by v1.1**, how they integrate with
-the existing architecture, and what changes vs. what stays the same.
+All four features must integrate with the existing architecture rather than alongside it.
 
 ---
 
-## System Overview — v1.1 Touch Points
+## Existing Architecture (v1.1 Baseline)
+
+Precise understanding of the current system is required because every new touch point must be explicit.
 
 ```
-┌──────────────────────────────────────────────────────────────────────────┐
-│                       React / TS Frontend (WebView)                      │
-│                                                                          │
-│  ┌─────────────────────────────────────────────────────────────────────┐ │
-│  │  Settings > Summary tab                                              │ │
-│  │  SummarySection.tsx                                                  │ │
-│  │  ┌──────────────────────┐  ┌───────────────────────────────────┐    │ │
-│  │  │ Model selector       │  │ Ollama Management panel           │    │ │
-│  │  │ (select populated    │  │ list / delete / pull any model    │    │ │
-│  │  │  from list_ollama_   │  │                                   │    │ │
-│  │  │  models command)     │  │ [NEW: pull model UI re-uses       │    │ │
-│  │  │                      │  │  model param already wired]       │    │ │
-│  │  └──────────────────────┘  └───────────────────────────────────┘    │ │
-│  └─────────────────────────────────────────────────────────────────────┘ │
-│                                                                          │
-│  ┌─────────────────────────────────────────────────────────────────────┐ │
-│  │  export.ts — CURRENTLY eager-imported at module level               │ │
-│  │  @react-pdf/renderer  (~450 KB gz)    → MOVE to dynamic import()    │ │
-│  │  jszip                (~100 KB gz)    → MOVE to dynamic import()    │ │
-│  └─────────────────────────────────────────────────────────────────────┘ │
-│                                                                          │
-│  ┌───────────────────┐  ┌───────────────────┐  ┌─────────────────────┐  │
-│  │ SetupView.tsx     │  │ useSummary.ts     │  │ useOllamaSetup.ts  │  │
-│  │ (Ollama setup     │  │ reads ollamaModel │  │ hardcodes          │  │
-│  │  hardcodes        │  │ from settings,    │  │ 'phi4-mini' for    │  │
-│  │  'phi4-mini')     │  │ passes to command)│  │ pull — needs param)│  │
-│  └───────────────────┘  └───────────────────┘  └─────────────────────┘  │
-│                                                                          │
-├──────────────────────────────────────────────────────────────────────────┤
-│                      Tauri IPC Bridge                                    │
-│                                                                          │
-│  check_ollama_status(serverUrl, model?)   ← needs model param          │
-│  pull_ollama_model(serverUrl, model)      already parameterised         │
-│  list_ollama_models(serverUrl)            already exists                │
-│  generate_summary(meetingId, model?)     already parameterised         │
-│                                                                          │
-├──────────────────────────────────────────────────────────────────────────┤
-│                       Rust Backend (src-tauri)                           │
-│                                                                          │
-│  ┌──────────────────────┐    ┌──────────────────────────────────────┐   │
-│  │  llm/detect.rs       │    │  llm/mod.rs                          │   │
-│  │                      │    │                                      │   │
-│  │  full_status()       │    │  DEFAULT_MODEL = "phi4-mini"         │   │
-│  │  hardcodes           │    │  run_summary(transcript, url,        │   │
-│  │  DEFAULT_MODEL as    │    │    model, on_token) — already        │   │
-│  │  model_name arg      │    │    accepts any model string          │   │
-│  │  → needs to accept   │    │                                      │   │
-│  │    caller-supplied   │    │  save_summary() stores llm_model     │   │
-│  │    model param       │    │  column — already schema-ready       │   │
-│  └──────────────────────┘    └──────────────────────────────────────┘   │
-│                                                                          │
-│  ┌───────────────────────────────────────────────────────────────────┐   │
-│  │  transcription/worker.rs + mod.rs                                 │   │
-│  │  sherpa-rs 0.6.8  (pinned in Cargo.toml)                         │   │
-│  │  SileroVad  +  TransducerRecognizer (Parakeet TDT)               │   │
-│  │                                                                   │   │
-│  │  HEALTH: 0.6.8 released Oct 2025, upstream sherpa-onnx 1.12.9   │   │
-│  │  Open issues: 24. PRs: 7. Stars: 298. Forks: 64.                │   │
-│  │  Single maintainer (@thewh1teagle). Community-maintained.        │   │
-│  │  RISK: maintainer dropout could strand the crate.               │   │
-│  └───────────────────────────────────────────────────────────────────┘   │
-└──────────────────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────┐
+│                      React Frontend (TypeScript)                      │
+│                                                                       │
+│  RecordView          MeetingCompleteView     LibraryView              │
+│  useSession          useSummary              useLibrary               │
+│  useTranscript       SummaryGenerationCtx    useSettings              │
+│                                                                       │
+│  IPC: invoke() for commands, Channel<T> for streams, listen() events  │
+├──────────────────────────────────────────────────────────────────────┤
+│                     Tauri IPC Boundary                                │
+│         #[tauri::command] functions in commands.rs                    │
+├──────────────────────────────────────────────────────────────────────┤
+│                      Rust Backend (src-tauri)                         │
+│                                                                       │
+│  SessionCoordinator (session.rs)                                      │
+│    start / stop / pause / resume / recover                            │
+│    Arc<Mutex<SessionCoordinator>> shared across all commands          │
+│                                                                       │
+│  audio/ (capture.rs, encoder.rs, mixer.rs)                           │
+│    cpal → sync_channel<Vec<f32>> → Opus/OGG file                     │
+│    ↓ transcription_tx/rx clone                                        │
+│                                                                       │
+│  transcription/ (worker.rs, mod.rs)                                  │
+│    audio_rx → Silero VAD → Parakeet TDT → SegmentResult              │
+│    forwarder thread → Channel<TranscriptEvent> → IPC                  │
+│                     → INSERT INTO transcripts (SQLite checkpoint)     │
+│                                                                       │
+│  llm/ (mod.rs, detect.rs, setup.rs)                                  │
+│    transcript text → Ollama /api/generate → streaming tokens          │
+│    → summaries table (SQLite)                                         │
+│                                                                       │
+│  db.rs: SQLite WAL via sqlx, versioned migrations (001–003)           │
+│  download.rs: model file download with progress Channel               │
+│  commands.rs: all #[tauri::command] entry points                      │
+└──────────────────────────────────────────────────────────────────────┘
+                               │
+                          SQLite (WAL)
+                    ┌──────────────────────┐
+                    │  meetings             │
+                    │  transcripts          │
+                    │  summaries            │
+                    │  meetings_fts (FTS5)  │
+                    └──────────────────────┘
+                               │
+                    settings.json (plugin-store)
+                    ┌──────────────────────┐
+                    │  theme, shortcuts     │
+                    │  ollamaModel, etc.    │
+                    └──────────────────────┘
+```
+
+### Structural Properties That Must Be Preserved
+
+- `SessionCoordinator` is the Rust-authoritative lifecycle controller. Frontend never mutates session state directly; it calls commands and responds to events.
+- `Channel<T>` is the correct mechanism for high-frequency streams (transcription segments, LLM tokens, download progress). Do not use `app.emit()` for streams — it goes through the global event bus.
+- `block_on` inside a `#[tauri::command]` blocks the Tauri async runtime thread and freezes the UI. The existing `stop_session` command correctly uses `spawn_blocking` to avoid this. But the internal `block_on(fts_upsert)` inside `SessionCoordinator::stop()` is still happening in the blocking thread — see the freeze analysis below.
+- All DB schema changes use numbered SQL migration files in `src-tauri/migrations/` and are registered in `db.rs`.
+- Settings are stored in `settings.json` via `plugin-store`. New user preferences go here; meeting data goes in SQLite.
+- `SummaryGenerationContext` is a cross-route lock preventing concurrent generation. Any new generation flow must acquire and release this lock.
+
+---
+
+## Feature 1: Post-Recording Performance Fix
+
+### Root Cause (Identified from Source Code)
+
+In `src-tauri/src/session.rs`, `SessionCoordinator::stop()` lines 271–276:
+
+```rust
+std::thread::sleep(std::time::Duration::from_millis(300));
+tauri::async_runtime::block_on(async {
+    if let Err(err) = crate::commands::fts_upsert(pool, active_session.meeting_id).await {
+        eprintln!("[fts] upsert after session stop failed: {err}");
+    }
+});
+```
+
+This runs inside a `spawn_blocking` task (in `commands.rs stop_session`). The `stop_session` command awaits that task and returns the meeting_id to the frontend. So the frontend is blocked for: transcription worker join (up to 3s) + 300ms sleep + FTS upsert time (~50–200ms depending on transcript length). During this entire window, the frontend renders a frozen "Saving..." state.
+
+The 300ms sleep appears to be a guard giving the transcription forwarder thread time to write its last segment. This is a race condition workaround, not a proper synchronization point.
+
+### Fix Architecture
+
+The fix splits `stop()` into a fast synchronous phase (return meeting_id immediately) and a detached background phase (FTS indexing + event emission).
+
+**Modified: `src-tauri/src/session.rs` — `SessionCoordinator::stop()`**
+
+```rust
+pub fn stop(...) -> Result<i64, String> {
+    // Phase 1: synchronous — stop audio and transcription, update DB status
+    // stop_transcription_worker() — waits for worker join (up to 3s, unavoidable)
+    // stop_recording() — closes audio stream
+    // UPDATE meetings SET status='completed', ended_at=..., duration_seconds=?
+    // Return meeting_id immediately — DO NOT call fts_upsert here
+    Ok(active_session.meeting_id)
+}
+```
+
+**Modified: `src-tauri/src/commands.rs` — `stop_session`**
+
+```rust
+pub async fn stop_session(...) -> Result<i64, String> {
+    let meeting_id = tokio::task::spawn_blocking(move || {
+        let mut coordinator = session_handle.lock()...;
+        coordinator.stop(&app, &pool, &recording_state, &transcription_state)
+    }).await...?;
+
+    // Detached background task — not awaited
+    let pool_bg = pool.inner().clone();
+    let app_bg = app.clone();
+    tokio::spawn(async move {
+        // Wait briefly for the transcription forwarder to flush its last write
+        tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+        if let Err(err) = fts_upsert(&pool_bg, meeting_id).await {
+            eprintln!("[fts] post-stop upsert failed: {err}");
+        }
+        let _ = app_bg.emit("session-complete", meeting_id);
+    });
+
+    Ok(meeting_id)
+}
+```
+
+The 300ms sleep moves to the async Tokio context where it is non-blocking. The frontend receives `meeting_id` as soon as the transcription worker joins, navigates immediately, and the library refreshes when `session-complete` fires.
+
+**Modified: `src/hooks/useSession.ts`**
+
+The `stopSession()` function already awaits the IPC call and navigates. The `session-complete` event listener needs to trigger a library cache invalidation (or the library can re-fetch on mount, which it already does).
+
+**Files modified:** `session.rs`, `commands.rs`, `useSession.ts` (minor). No schema changes.
+
+---
+
+## Feature 2: Speaker Diarization
+
+### Library Decision: sherpa-rs `diarize` module (zero new dependencies)
+
+`Cargo.toml` already pins `sherpa-rs = { version = "=0.6.8", features = ["download-binaries"] }`. The `sherpa_rs::diarize` module is confirmed present in v0.6.8 (verified via docs.rs). No additional crate is needed.
+
+**API surface (confirmed from docs.rs + diarize.rs example):**
+
+```rust
+use sherpa_rs::diarize::{Diarize, DiarizeConfig, Segment};
+
+let config = DiarizeConfig {
+    num_clusters: None,   // None = auto-detect speaker count
+    ..Default::default()
+};
+
+let sd = Diarize::new(
+    segmentation_model_path,   // path to pyannote segmentation model.onnx
+    embedding_model_path,      // path to 3dspeaker embedding model.onnx
+    config,
+)?;
+
+let segments: Vec<Segment> = sd.compute(
+    samples,               // &[f32] at 16kHz mono
+    Some(progress_cb),     // Option<Box<dyn Fn(computed, total) -> bool>>
+)?;
+
+// Segment { start: f32 (seconds), end: f32 (seconds), speaker: u32 (0-based) }
+```
+
+**Required models (downloaded separately, same pattern as Parakeet):**
+
+| Model | Size | Source |
+|-------|------|--------|
+| `sherpa-onnx-pyannote-segmentation-3-0/model.onnx` | ~5.4 MB (compressed) | k2-fsa/sherpa-models on HuggingFace |
+| `3dspeaker_speech_eres2net_base_sv_zh-cn_3dspeaker_16k.onnx` | ~25–35 MB | sherpa-onnx GitHub releases |
+
+Total model download: approximately 35–40 MB. Acceptable for a local-only desktop tool.
+
+**Diarization is post-processing, not real-time.** Running diarization during recording would require 10–30s audio buffers (pyannote segmentation window), block the transcription CPU thread, and significantly increase recording-time resource usage. The correct approach is: trigger diarization after recording completes, either automatically or on user request.
+
+### New Rust Module: `src-tauri/src/diarization/`
+
+Mirrors the existing `transcription/` module structure exactly.
+
+```
+src-tauri/src/diarization/
+├── mod.rs       — public API, DiarizationState handle, new Tauri commands
+├── worker.rs    — blocking sherpa_rs::diarize computation + timestamp matching
+└── model.rs     — model path resolution, download availability check
+```
+
+**New Tauri commands (all in `commands.rs`):**
+
+- `diarize_meeting(meeting_id, on_progress: Channel<DiarizationEvent>)` — triggers diarization, streams progress
+- `get_speaker_segments(meeting_id)` — returns `Vec<SpeakerSegmentRow>`
+- `get_speaker_labels(meeting_id)` — returns map of `{speaker_id → display_name}`
+- `rename_speaker(meeting_id, speaker_id, display_name)` — upserts to `speaker_labels`
+- `check_diarization_models_ready()` — returns bool, used by frontend to conditionally show diarization UI
+
+### Data Flow: Diarization
+
+```
+MeetingCompleteView mounts with meetingId
+    ↓
+invoke('check_diarization_models_ready')  — are models present?
+    ↓ YES: invoke('get_speaker_segments', meetingId) — prior run?
+           → if empty: show "Analyze Speakers" button
+           → if populated: render SpeakerTimeline immediately
+    ↓ NO: show "Download diarization model" prompt
+           (same model wizard pattern as Parakeet)
+
+User clicks "Analyze Speakers"
+    ↓
+Rust: tokio::task::spawn_blocking {
+    1. SELECT audio_path FROM meetings WHERE id = ?
+    2. Decode OGG to Vec<f32> at 16kHz (existing resampler infrastructure)
+    3. Diarize::new(segmentation_path, embedding_path, config)
+    4. sd.compute(samples, progress_cb)
+       → progress_cb sends DiarizationEvent::Progress { percent: u8 }
+    5. assign_speakers_to_segments(diarize_output, transcript_segments)
+    6. Batch INSERT INTO speaker_segments
+    7. Batch UPDATE transcripts SET speaker_id = ?
+    8. Send DiarizationEvent::Complete
+}
+    ↓
+Frontend: re-fetch speaker_segments + transcript → render SpeakerTimeline
+```
+
+**Speaker-to-transcript matching algorithm:**
+
+```rust
+fn assign_speakers(
+    transcript_rows: &[TranscriptRow],   // have start_time_ms: i64
+    diarize_segs: &[Segment],            // have start/end: f32 (seconds)
+) -> Vec<(i64 /* segment_id */, u32 /* speaker_id */)> {
+    transcript_rows.iter().filter_map(|seg| {
+        let mid_sec = seg.start_time_ms as f32 / 1000.0;
+        diarize_segs.iter()
+            .find(|s| s.start <= mid_sec && mid_sec <= s.end)
+            .map(|s| (seg.id, s.speaker))
+    }).collect()
+}
+```
+
+Using the midpoint of each transcript segment reliably falls within a single speaker's turn. Segments at speaker boundaries (rare) are assigned to whichever turn contains the midpoint.
+
+### New Database Schema (Migration 004)
+
+```sql
+-- Speaker diarization results (time ranges per speaker)
+CREATE TABLE IF NOT EXISTS speaker_segments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    meeting_id INTEGER NOT NULL REFERENCES meetings(id) ON DELETE CASCADE,
+    speaker_id INTEGER NOT NULL,       -- 0-based, as assigned by diarize model
+    start_ms INTEGER NOT NULL,
+    end_ms INTEGER NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_speaker_segments_meeting ON speaker_segments(meeting_id);
+
+-- Per-session user-editable speaker display names
+CREATE TABLE IF NOT EXISTS speaker_labels (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    meeting_id INTEGER NOT NULL REFERENCES meetings(id) ON DELETE CASCADE,
+    speaker_id INTEGER NOT NULL,
+    display_name TEXT NOT NULL,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(meeting_id, speaker_id)
+);
+
+-- Nullable speaker attribution on transcript segments
+ALTER TABLE transcripts ADD COLUMN speaker_id INTEGER DEFAULT NULL;
+
+-- Template used for each summary generation (see Feature 3)
+ALTER TABLE summaries ADD COLUMN template_id TEXT DEFAULT NULL;
+```
+
+Both `ALTER TABLE` changes add nullable columns — safe additive migrations with no data migration required.
+
+### Diarization Model Download
+
+The existing `download.rs` module and model download wizard handle Parakeet model acquisition. Diarization models follow the same `Channel<DownloadEvent>` pattern with a separate `download_diarization_models` command. The model wizard gains a new optional "Diarization Models" step, shown only when diarization models are absent.
+
+The diarization feature is **opt-in**: if models are not downloaded, the `MeetingCompleteView` shows a "Download speaker analysis model (~35 MB)" prompt instead of the diarization UI.
+
+---
+
+## Feature 3: Summary Templates
+
+### Architecture: Prompt Registry in Rust, User Templates in Settings
+
+Templates do not belong in SQLite. They are user configuration (like shortcuts or model selection), not meeting data. The `plugin-store` (`settings.json`) already handles arbitrary JSON including arrays.
+
+**New Rust file: `src-tauri/src/llm/templates.rs`**
+
+```rust
+#[derive(Clone, Serialize, Deserialize)]
+pub struct SummaryTemplate {
+    pub id: String,           // "default", "standup", "research", custom uuid
+    pub name: String,
+    pub description: String,
+    pub prompt: String,       // Full prompt with {transcript} and {language_instruction} placeholders
+    pub is_builtin: bool,
+}
+
+pub fn builtin_templates() -> Vec<SummaryTemplate> {
+    vec![
+        // "default" — current 4-section prompt; backward compat alias
+        // "standup" — Yesterday / Today / Blockers
+        // "research" — Findings, Hypotheses Tested, Open Questions
+        // "interview" — Candidate, Strengths, Concerns, Recommendation
+        // "sales" — Customer Pain Points, Next Steps, Deal Status
+    ]
+}
+```
+
+Built-in templates are compiled into the binary. User templates are stored in `settings.json` as `userSummaryTemplates: SummaryTemplate[]`.
+
+### Modified: `generate_summary` Command
+
+```rust
+pub async fn generate_summary(
+    meeting_id: i64,
+    server_url: Option<String>,
+    model: Option<String>,
+    language: Option<String>,
+    template_id: Option<String>,    // NEW — None defaults to "default" (backward compat)
+    on_token: Channel<LlmTokenEvent>,
+) -> Result<(), String>
+```
+
+The command resolves `template_id` → `SummaryTemplate` (builtin map or from user templates passed via invocation), substitutes `{transcript}` and `{language_instruction}` placeholders, then passes the resulting prompt string to the existing `run_generate_stream`. The entire context-length, chunking, and streaming machinery is unchanged.
+
+**Prompt substitution:**
+
+```rust
+fn build_prompt_from_template(template: &SummaryTemplate, transcript: &str, language: &str) -> String {
+    template.prompt
+        .replace("{transcript}", transcript)
+        .replace("{language_instruction}", build_language_instruction(language))
+}
+```
+
+**Important:** Built-in templates must include the `TITLE:` instruction line so that `extract_title()` continues to work. Custom templates should document this requirement.
+
+### New Tauri Commands
+
+- `list_summary_templates(user_templates: Vec<SummaryTemplate>)` — merges builtin + user-supplied templates, returns full list
+- `save_user_template(template: SummaryTemplate)` — frontend handles persistence in `settings.json`; Rust only needs to validate the template is well-formed
+- (User template CRUD otherwise handled entirely in `settings.json` via `plugin-store` — no Rust command needed for save/delete)
+
+### Settings Schema Additions
+
+```typescript
+interface AppSettings {
+  // ... all existing fields
+  defaultSummaryTemplate: string;           // template id, default "default"
+  userSummaryTemplates: SummaryTemplate[];  // custom user-created templates
+}
+```
+
+### Frontend Changes
+
+**Modified: `src/hooks/useSummary.ts`**
+- `generate(meetingId, templateId?)` — accepts optional template ID
+- Passes `templateId` to `invoke('generate_summary', ...)`
+
+**Modified: `src/components/SummaryPanel.tsx`**
+- Add template selector dropdown (shown when regenerating)
+- "Regenerate with template" — triggers `generate()` with selected template ID
+- Must acquire `SummaryGenerationContext` lock same as existing regeneration flow
+
+**New: `src/components/SummaryTemplateEditor.tsx`**
+- Form for creating/editing custom templates
+- Template name, description, prompt textarea with `{transcript}` placeholder guidance
+- Save → `setSetting('userSummaryTemplates', [...updated])`
+
+**New: `src/hooks/useTemplates.ts`**
+- `listTemplates()` — returns builtin + user templates
+- `saveTemplate()`, `deleteTemplate()` — read/write `userSummaryTemplates` in settings
+
+**Modified: `src/views/SettingsView.tsx`**
+- "Summary Templates" section under the Summary tab
+- Lists user-created templates with edit/delete, "New Template" button
+
+**FTS impact:** Templates produce different section structures but the FTS upsert concatenates raw summary content — it is template-agnostic. No FTS changes needed.
+
+---
+
+## Feature 4: Interactive Speaker Timeline Visualization
+
+### Architecture: Custom SVG in React, No New Library Dependency
+
+The timeline visualization is a `<svg>` element rendered by React using `useMemo` to compute layout from `speaker_segments` data. Adding a chart library (Recharts, Visx, Nivo) for this use case would increase bundle size ~100–200 KB for a component that requires no zoom, no animation, and no axes. Inline SVG with React is sufficient.
+
+**What the timeline shows:**
+- Horizontal time axis covering the full meeting duration
+- One horizontal lane per unique speaker (identified by display name from `speaker_labels`)
+- Colored `<rect>` elements for each speaker's talking blocks
+- Speaker name labels on the left side (click-to-edit inline)
+- Clicking a block scrolls the transcript to the corresponding time range
+
+**New: `src/components/SpeakerTimeline.tsx`**
+
+```typescript
+interface SpeakerTimelineProps {
+  segments: SpeakerSegment[];           // from speaker_segments table
+  labels: Record<number, string>;       // speaker_id → display_name
+  durationMs: number;                   // total meeting duration
+  onSegmentClick?: (speakerId: number, startMs: number) => void;
+  onLabelEdit?: (speakerId: number, newName: string) => void;
+}
+```
+
+The component uses `useMemo` to group segments by `speaker_id`, compute SVG viewport (`width = 100%` with `viewBox` for responsive scaling), and produce the array of colored `<rect>` objects. Lane height is fixed (e.g., 24px). Total SVG height = `speakers.length * (24 + 4)` pixels.
+
+**New: `src/components/SpeakerLabel.tsx`**
+- Inline display of speaker name badge (e.g., "Speaker 1" or custom name)
+- Click to show a rename input field
+- On blur/enter: call `invoke('rename_speaker', { meetingId, speakerId, displayName })`
+
+**Speaker-attributed transcript display:**
+
+The existing `TranscriptSegment` type gains optional speaker fields:
+
+```typescript
+interface TranscriptSegment {
+  text: string;
+  elapsedMs: number;
+  index: number;
+  speakerId?: number;       // NEW — from transcripts.speaker_id (nullable)
+  speakerName?: string;     // NEW — resolved from speaker_labels
+}
+```
+
+The `get_transcript_page` command returns `speaker_id` from the transcripts table (existing column after migration 004). The `TranscriptRow` Rust type gains the nullable `speaker_id` field. Frontend resolves the name using the `speaker_labels` map.
+
+**Click-to-scroll coordination between timeline and transcript:**
+
+Lift state to `MeetingCompleteView`:
+
+```typescript
+const [highlightedMs, setHighlightedMs] = useState<number | null>(null);
+
+// Timeline passes up: onSegmentClick → setHighlightedMs(startMs)
+// Transcript list: useEffect watches highlightedMs → scroll to matching segment
+```
+
+One-directional data flow: timeline sets `highlightedMs`, transcript reads it. No cross-component refs.
+
+**Speaker-attributed summaries:**
+
+When diarization data is available and the user regenerates the summary, the transcript is pre-processed to prepend speaker labels:
+
+```
+[Alice]: Good morning everyone, let's review the agenda...
+[Bob]: Before we start, I have a question about...
+```
+
+This pre-processing happens in `llm/mod.rs` at prompt build time, gated on whether `speaker_map: Option<HashMap<u32, String>>` is populated. The `generate_summary` command fetches `speaker_labels` for the meeting and passes the map to `build_summary_prompt`. No model changes, no prompt structure changes for the LLM output.
+
+---
+
+## System Overview: v1.2 Extended Architecture
+
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│                     React Frontend (v1.2 additions)                   │
+│                                                                       │
+│  MeetingCompleteView (modified)                                       │
+│  ├── SpeakerTimeline (new) ── SVG timeline, click-to-scroll          │
+│  ├── SpeakerLabel (new) ──── inline speaker name editor              │
+│  ├── SummaryPanel (modified) template picker for regeneration        │
+│  └── SummaryTemplateEditor (new) custom template CRUD                │
+│                                                                       │
+│  useDiarization (new) ─── trigger, progress, speaker data            │
+│  useTemplates (new) ───── list/save/delete templates                 │
+│  useSummary (modified) ── templateId param                           │
+│  useSession (modified) ── handle session-complete event              │
+├──────────────────────────────────────────────────────────────────────┤
+│                       Tauri IPC Boundary                              │
+│  New commands: diarize_meeting, get_speaker_segments,                 │
+│                get_speaker_labels, rename_speaker,                    │
+│                check_diarization_models_ready                         │
+│  Modified: generate_summary (+template_id), stop_session (fast path) │
+├──────────────────────────────────────────────────────────────────────┤
+│                       Rust Backend (v1.2 additions)                   │
+│                                                                       │
+│  session.rs (modified)                                                │
+│    stop() fast path: return meeting_id after transcription join       │
+│    background tokio::spawn: 300ms wait + fts_upsert + event          │
+│                                                                       │
+│  commands.rs (modified)                                               │
+│    stop_session: spawn background finalization, return immediately    │
+│    + all new diarization and template commands                        │
+│                                                                       │
+│  diarization/ (new module, mirrors transcription/ pattern)            │
+│    mod.rs ─── DiarizationState, public commands                      │
+│    worker.rs ─ sherpa_rs::diarize::Diarize::compute()                │
+│    model.rs ── model path resolution, download check                 │
+│                                                                       │
+│  llm/templates.rs (new)                                               │
+│    builtin_templates(), prompt substitution                           │
+│                                                                       │
+│  llm/mod.rs (modified)                                                │
+│    build_summary_prompt() ── speaker_map param                        │
+│    generate_summary ─────── template_id param                         │
+└──────────────────────────────────────────────────────────────────────┘
+                               │
+                          SQLite (WAL) — Migration 004
+                    ┌──────────────────────────────┐
+                    │  meetings                     │
+                    │  transcripts (+speaker_id)    │
+                    │  summaries (+template_id)     │
+                    │  speaker_segments (new)       │
+                    │  speaker_labels (new)         │
+                    │  meetings_fts                 │
+                    └──────────────────────────────┘
+                               │
+                    settings.json (plugin-store)
+                    ┌──────────────────────────────┐
+                    │  ... all existing settings    │
+                    │  defaultSummaryTemplate       │
+                    │  userSummaryTemplates[]       │
+                    └──────────────────────────────┘
 ```
 
 ---
 
-## Component Responsibilities — v1.1 Delta
+## Component Inventory: New vs Modified
 
-### New vs Modified vs Unchanged
+### New Rust Files
 
-| Component | v1.1 Status | What Changes |
-|-----------|-------------|--------------|
-| `llm/detect.rs :: full_status()` | MODIFIED | Accept optional `model_name` param instead of always using `DEFAULT_MODEL`; `check_ollama_status` Tauri command passes it through |
-| `commands.rs :: check_ollama_status` | MODIFIED | Accept optional `model: Option<String>` and forward to `llm::detect::full_status` |
-| `useOllamaSetup.ts` | MODIFIED | Replace hardcoded `'phi4-mini'` pull with `ollamaModel` setting value |
-| `SetupView.tsx` | MODIFIED | Pass configured model name to pull step, not hardcoded constant |
-| `lib/export.ts` | MODIFIED | Convert top-level `@react-pdf/renderer` and `jszip` imports to dynamic `import()` inside `buildPdfBlob()` and `bulkExportZip()` |
-| `vite.config.ts` | MODIFIED | Add `build.rollupOptions.output.manualChunks` to extract `@react-pdf/renderer`, `jszip`, `react-markdown`/`remark-gfm`, `lucide-react` into separate vendor chunks |
-| `Cargo.toml :: sherpa-rs` | MODIFIED (evaluated) | Pin exact version `= "0.6.8"` (already `"0.6.8"`); add CHANGELOG note; document fallback path |
-| `transcription/worker.rs` | UNCHANGED | No code changes needed for sherpa-rs evaluation |
-| `SummarySection.tsx` | UNCHANGED | Model selector and pull UI already fully parameterised |
-| `useSummary.ts` | UNCHANGED | Already reads `ollamaModel` from settings and passes to `generate_summary` |
-| `llm/mod.rs :: run_summary` | UNCHANGED | Already accepts `model: &str` — no changes needed |
-| `SessionCoordinator` / audio pipeline | UNCHANGED | v1.1 does not touch recording or transcription path |
-| SQLite schema | UNCHANGED | `summaries.llm_model` column already stores the model name |
+| File | Purpose |
+|------|---------|
+| `src-tauri/src/diarization/mod.rs` | Module public API, DiarizationState, new commands |
+| `src-tauri/src/diarization/worker.rs` | Blocking sherpa_rs::diarize computation + timestamp matching |
+| `src-tauri/src/diarization/model.rs` | Diarization model path resolution, download check |
+| `src-tauri/src/llm/templates.rs` | Built-in template definitions, prompt substitution |
+| `src-tauri/migrations/004_diarization_templates.sql` | speaker_segments, speaker_labels, transcripts.speaker_id, summaries.template_id |
+
+### Modified Rust Files
+
+| File | Change |
+|------|--------|
+| `src-tauri/src/session.rs` | Remove `block_on(fts_upsert)` + 300ms sleep from `stop()` |
+| `src-tauri/src/commands.rs` | `stop_session` spawns background finalization; add diarization commands; extend `generate_summary` |
+| `src-tauri/src/llm/mod.rs` | `build_summary_prompt` gains `speaker_map` param; `save_summary` gains `template_id` param |
+| `src-tauri/src/db.rs` | Register migration 004 |
+| `src-tauri/src/lib.rs` | Register new diarization + template commands |
+
+### New Frontend Files
+
+| File | Purpose |
+|------|---------|
+| `src/components/SpeakerTimeline.tsx` | SVG speaker timeline visualization |
+| `src/components/SpeakerLabel.tsx` | Inline speaker name display + edit |
+| `src/components/SummaryTemplateEditor.tsx` | Create/edit custom summary templates |
+| `src/hooks/useDiarization.ts` | Trigger diarization, receive progress, fetch speaker data |
+| `src/hooks/useTemplates.ts` | Load, save, delete summary templates |
+
+### Modified Frontend Files
+
+| File | Change |
+|------|--------|
+| `src/views/MeetingCompleteView.tsx` | SpeakerTimeline tab, speaker-attributed transcript, template picker |
+| `src/hooks/useSummary.ts` | Accept optional `templateId` in `generate()` |
+| `src/hooks/useSession.ts` | Handle `session-complete` event for library refresh |
+| `src/components/SummaryPanel.tsx` | Template selector dropdown, regenerate-with-template flow |
+| `src/types/index.ts` | Add `TranscriptSegment.speakerId`, `SpeakerSegment`, `SummaryTemplate` types |
+| `src/views/SettingsView.tsx` | Summary Templates section under Summary tab |
+| `src/lib/constants.ts` | `DEFAULT_SETTINGS` additions for template preferences |
 
 ---
 
 ## Integration Points
 
-### Feature 1: LLM Model Selection
+### Boundaries That New Features Cross
 
-**Integration surface is smaller than it looks.** Most of the pipeline is already parameterised. The two gaps are:
+| Existing Boundary | How v1.2 Crosses It | Risk |
+|-------------------|---------------------|------|
+| `SessionCoordinator::stop()` | FTS upsert moved out; existing error paths (mark_meeting_failed) must still fire | Medium — test all stop error paths |
+| `transcription/mod.rs` forwarder thread | Writes `transcripts.speaker_id = NULL`; diarization later updates it — sequential, no race | Low |
+| `llm/mod.rs build_summary_prompt()` | New `speaker_map` param; `None` must preserve exact existing behavior | Low — backward compat by design |
+| `summaries` table | Add `template_id TEXT DEFAULT NULL` — nullable, no migration data loss | Low |
+| `transcripts` table | Add `speaker_id INTEGER DEFAULT NULL` — nullable, no migration data loss | Low |
+| `commands.rs generate_summary` | Add `template_id: Option<String>` param — None = current behavior | Low |
+| `SummaryGenerationContext` | Template-based regeneration must acquire + release the lock | Low — same code path |
+| `download.rs` + model wizard | Diarization models use same Channel pattern; wizard gains optional step | Low |
 
-**Gap A — `check_ollama_status` ignores the caller-configured model.**
+### Data Produced and Consumed by Feature
 
-Current path:
-```
-check_ollama_status(serverUrl: Option<String>)
-  → llm::detect::full_status(&url, llm::DEFAULT_MODEL)   ← constant, not user setting
-  → OllamaStatus { model_ready: bool, model_name: "phi4-mini" }
-```
-
-Required path:
-```
-check_ollama_status(serverUrl: Option<String>, model: Option<String>)
-  → let m = model.unwrap_or_else(|| llm::DEFAULT_MODEL.to_string());
-  → llm::detect::full_status(&url, &m)
-  → OllamaStatus { model_ready: bool, model_name: m }
-```
-
-Impact: one-line change to `commands.rs` and `llm/detect.rs`. `full_status()` already accepts `model_name: &str`.
-
-**Gap B — `useOllamaSetup.ts` hardcodes `'phi4-mini'` for the pull step.**
-
-```typescript
-// Line 138 — current
-await invoke('pull_ollama_model', { model: 'phi4-mini', onEvent: channel });
-
-// Required
-const model = await getSetting('ollamaModel');
-await invoke('pull_ollama_model', { model: model || 'phi4-mini', onEvent: channel });
-```
-
-`SetupView.tsx` calls `useOllamaSetup.pullModel()` — it will automatically pull the user's configured model rather than always pulling phi4-mini.
-
-**Data flow after fix:**
-```
-User changes model in SummarySection dropdown
-  → useSetting('ollamaModel') persisted to settings.json (tauri-plugin-store)
-  → useSummary.generate() reads ollamaModel via getSetting()
-  → invoke('generate_summary', { model: ollamaModel, ... })
-  → Rust: run_summary(transcript, url, model)    [already correct]
-  → llm_model stored in summaries table           [already correct]
-
-check_ollama_status now passes model to full_status
-  → OllamaStatus.modelReady reflects the selected model, not always phi4-mini
-```
-
-**AppSettings type** already has `ollamaModel: string` and `DEFAULT_SETTINGS.ollamaModel = 'phi4-mini'`. No type changes needed.
+| Feature | Produces | Consumed By |
+|---------|----------|-------------|
+| Diarization (Rust) | `speaker_segments` rows, `transcripts.speaker_id` updates | SpeakerTimeline, attributed transcript, attributed summary |
+| Speaker labels | `speaker_labels` rows | SpeakerTimeline labels, SpeakerLabel editor |
+| Templates (Rust) | `summaries.template_id` column value | Settings UI, future filtering |
+| Post-recording fix | `session-complete` event timing changes | Library refresh, MeetingCompleteView load |
 
 ---
 
-### Feature 2: Frontend Bundle Size / Lazy-Loading
+## Recommended Build Order
 
-**Root cause:** `src/lib/export.ts` uses top-level static imports.
+Dependencies between features determine safe implementation order:
 
-```typescript
-// Current — loaded on every app startup even for users who never export
-import { Document, Page, StyleSheet, Text, View, pdf } from '@react-pdf/renderer';
-import JSZip from 'jszip';
-```
+**Phase 1: Post-recording performance fix**
+- No dependencies. Unblocks user experience for all subsequent testing.
+- Files: `session.rs`, `commands.rs`, `useSession.ts`
+- No schema changes. Self-contained.
 
-`@react-pdf/renderer` adds ~450 KB gzipped to the main bundle. `jszip` adds ~100 KB. Together ~550 KB of payload loaded even on the Record screen.
+**Phase 2: Summary templates**
+- No dependency on diarization.
+- Requires: `llm/templates.rs`, migration 004 (partial — just `summaries.template_id`), `useTemplates.ts`, `SummaryPanel` template picker, `SummaryTemplateEditor`, settings additions.
+- Users can test different prompt styles immediately while diarization is built.
 
-**Fix A — Dynamic imports in export.ts:**
+**Phase 3: Diarization core (Rust)**
+- No frontend dependency, but frontend features depend on it.
+- Requires: migration 004 (full — speaker_segments, speaker_labels, transcripts.speaker_id), `diarization/` module, model download integration, new commands.
+- Build and integration-test in isolation before frontend work: verify `diarize_meeting` produces correct segment data on known test audio.
 
-```typescript
-async function buildPdfBlob(data: MeetingExportData): Promise<Blob> {
-  // Loaded only when PDF export is triggered — not at app startup
-  const { Document, Page, StyleSheet, Text, View, pdf } = await import('@react-pdf/renderer');
-  // ... existing code unchanged
-}
+**Phase 4: Speaker timeline + attributed transcript (Frontend)**
+- Depends on Phase 3 commands being available.
+- Build: `SpeakerTimeline`, `SpeakerLabel`, `useDiarization`, wire into `MeetingCompleteView`.
 
-export async function bulkExportZip(meetingIds: number[], format: ExportFormat): Promise<void> {
-  const JSZip = (await import('jszip')).default;
-  // ... existing code unchanged
-}
-```
-
-`createElement` is already from React (top-level React import) — not from react-pdf.
-
-**Fix B — vite.config.ts manualChunks:**
-
-```typescript
-// vite.config.ts
-export default defineConfig({
-  plugins: [react(), tailwindcss()],
-  build: {
-    rollupOptions: {
-      output: {
-        manualChunks: {
-          'vendor-react': ['react', 'react-dom', 'react-router'],
-          'vendor-pdf': ['@react-pdf/renderer'],
-          'vendor-zip': ['jszip'],
-          'vendor-markdown': ['react-markdown', 'remark-gfm'],
-          'vendor-icons': ['lucide-react'],
-        },
-      },
-    },
-  },
-  // ...existing server config unchanged
-});
-```
-
-`manualChunks` defines stable chunk names for caching. Dynamic imports in Fix A ensure pdf/zip chunks are not loaded until needed. The two fixes work together: manualChunks controls cache identity, dynamic import controls load timing.
-
-**Fix C — Audit remaining eager imports:**
-
-Files to audit for unnecessary eager loading:
-- `SummaryPanel.tsx` imports `ReactMarkdown` + `remark-gfm` — used only on meeting detail screens, candidate for `React.lazy()`
-- `SummaryExport.tsx` — check if it re-imports pdf-related code
-
-Route-level lazy loading is lower priority since the app currently has few routes and Tauri's webview does local file loads (no network latency cost like a web app).
-
-**Expected impact:** Main chunk shrinks by ~40–50%. App cold startup noticeably faster, especially on first launch when WebView cache is cold.
-
-**What does NOT change:** The Tauri backend, IPC commands, SQLite schema, and all Rust code are completely untouched by this feature.
+**Phase 5: Speaker-attributed summaries**
+- Depends on Phase 3 (speaker data) and Phase 2 (template prompt system).
+- Modify `build_summary_prompt` to accept `speaker_map`. Wire speaker label fetch into `generate_summary`.
 
 ---
 
-### Feature 3: sherpa-rs Dependency Health Evaluation
+## Architectural Patterns
 
-**Current state:**
-- `Cargo.toml` pins `sherpa-rs = { version = "0.6.8", features = ["download-binaries"] }`
-- `0.6.8` released October 2025, wraps upstream `sherpa-onnx 1.12.9`
-- Single maintainer (`@thewh1teagle`), 298 stars, 64 forks, 24 open issues, 7 open PRs
-- Community-maintained, not backed by a company or foundation
-- Open issue #96: CMake 4.0 compatibility (build system concern, not functional)
+### Pattern 1: Post-Processing Worker
 
-**Risk profile:** MEDIUM. The crate works today and is actively maintained, but it is one maintainer with no institutional backing. If the maintainer stops, the project would need:
-1. Direct FFI bindings to `sherpa-onnx-sys` (the underlying C library)
-2. Or a fork of `sherpa-rs` with the project as de-facto owner
+**What:** Heavy CPU work (decode + neural inference) runs in `tokio::task::spawn_blocking`. The Tauri command returns a `Channel<Event>` immediately, and the background task streams progress events then emits a final `Complete` or `Error` event.
 
-**Evaluation tasks (no code changes needed):**
+**When to use:** Any operation taking >500ms that benefits from progress reporting. Diarization (60–120s on long meetings), model download, and summary generation all use this pattern.
 
-| Task | Type | Outcome |
-|------|------|---------|
-| Confirm `0.6.8` builds cleanly on all three platforms in CI | Verification | Pass/fail documented |
-| Review open issues for anything blocking v1.1 | Audit | Issue #96 (CMake) is build-env only, not a runtime bug |
-| Document upgrade path to next minor version | Documentation | Note breaking API changes between `0.6.x` releases |
-| Document FFI fallback plan | Documentation | Direct `sherpa-onnx` C bindings via `cc` crate if sherpa-rs abandoned |
-| Pin to exact version `= "0.6.8"` | Cargo.toml | Already done — keep it; do not use `^0.6.8` semver range |
+**Code shape:**
 
-**Architecture impact:** Zero. This feature produces documentation and CI verification, not code changes. `transcription/worker.rs` and `transcription/mod.rs` are unchanged.
-
-**Upgrade note for later:** sherpa-rs `0.6.x` → `0.7.x` is a minor version bump in their scheme but has historically included API changes to recognizer config structs. Test on a branch before upgrading. The `WorkerConfig` struct in `transcription/worker.rs` directly mirrors `TransducerConfig` fields — these will need auditing on any sherpa-rs upgrade.
-
----
-
-## Data Flow Changes
-
-### LLM Model Selection — before and after
-
-**Before (v1.0):**
-```
-User setting 'ollamaModel' stored in settings.json
-  → useSummary reads it → passed to generate_summary command ✓
-  → check_ollama_status ignores it → always checks phi4-mini ✗
-  → useOllamaSetup pulls phi4-mini regardless of setting ✗
-```
-
-**After (v1.1):**
-```
-User setting 'ollamaModel' stored in settings.json
-  → useSummary reads it → passed to generate_summary command ✓ (unchanged)
-  → check_ollama_status reads it → OllamaStatus.modelReady is accurate ✓ (fixed)
-  → useOllamaSetup reads it → pulls user's chosen model ✓ (fixed)
-```
-
-### Frontend Bundle Load — before and after
-
-**Before:**
-```
-App startup
-  → main.tsx → App.tsx → (all routes eagerly imported)
-  → export.ts loaded → @react-pdf/renderer loaded (~450 KB gz)
-  → export.ts loaded → jszip loaded (~100 KB gz)
-  [User on Record tab never exports, paid full cost anyway]
-```
-
-**After:**
-```
-App startup
-  → main.tsx → App.tsx → routes loaded
-  → export.ts loaded (module) but @react-pdf/renderer NOT loaded
-  → jszip NOT loaded
-  [User clicks Export PDF for first time]
-     → dynamic import('@react-pdf/renderer') resolves from vendor-pdf chunk
-     → buildPdfBlob executes with loaded module
-  [Subsequent exports: chunk already in memory, no re-download]
-```
-
----
-
-## Architectural Patterns Relevant to v1.1
-
-### Pattern 1: Settings-Driven Command Parameterisation
-
-**What:** The `AppSettings` type in `src/types/index.ts` is the single source of truth for user preferences. Commands already accept `Option<String>` for `model` and `server_url`. The correct pattern is: read from settings in the hook, pass to command, do not hardcode in backend.
-
-**When to use:** Any new preference that affects backend behaviour. This is how `ollamaModel`, `ollamaServerUrl`, `preferredMicDevice`, and `transcriptionLanguage` are all handled.
-
-**Anti-pattern caught:** `useOllamaSetup.ts` line 138 hardcodes `'phi4-mini'` — this is the specific violation to fix. Every other LLM call already reads from settings.
-
-### Pattern 2: Dynamic Import for Heavy Frontend-Only Libraries
-
-**What:** Libraries used only on user action (export, print, download) should never be in the initial bundle. Vite's Rollup integration handles the chunking automatically when you use `await import('lib')` syntax. The pattern is:
-
-```typescript
-// Before: static import at module top — always bundled
-import { pdf } from '@react-pdf/renderer';
-
-// After: dynamic import inside the function — bundled separately, loaded on demand
-async function buildPdfBlob(...) {
-  const { pdf } = await import('@react-pdf/renderer');
+```rust
+#[tauri::command]
+pub async fn diarize_meeting(
+    meeting_id: i64,
+    pool: tauri::State<'_, SqlitePool>,
+    data_dir: tauri::State<'_, DataDir>,
+    on_progress: Channel<DiarizationEvent>,
+) -> Result<(), String> {
+    let pool = pool.inner().clone();
+    let data_dir = data_dir.inner().0.clone();
+    tokio::task::spawn_blocking(move || {
+        diarization::run_diarization(meeting_id, &pool, &data_dir, &on_progress)
+    })
+    .await
+    .map_err(|e| format!("diarization task failed: {e}"))?
 }
 ```
 
-**When to use:** Any dependency over ~50 KB gzipped that is not needed on the critical render path (app startup, main navigation).
+### Pattern 2: Timestamp Matching for Speaker Attribution
 
-**Tauri-specific note:** In Tauri, the frontend loads from a local file (`tauri://localhost` protocol), so there is no network latency for chunk loading. Dynamic imports are still worthwhile because they reduce WebView JS parse/compile time on startup, which is the dominant startup cost on lower-end hardware.
+**What:** Align diarization output (float-second timestamps) to transcript segments (integer millisecond timestamps). Use midpoint containment: for each transcript segment, find the diarization segment containing its `start_time_ms` midpoint.
 
-### Pattern 3: Exact Version Pinning for Native Binaries
+**Why midpoint:** VAD-detected speech segments have a stable center that reliably falls within a single speaker's turn. Boundary segments (where two speakers overlap) are rare and acceptable to assign to whichever turn contains the midpoint.
 
-**What:** `sherpa-rs` uses `features = ["download-binaries"]` to download pre-compiled native `.so`/`.dylib`/`.dll` files at build time. Semver ranges (`^0.6.8`) mean `cargo update` can silently pull a new version that downloads different binary artifacts. Use exact pinning (`= "0.6.8"`) for any crate that downloads native binaries.
+### Pattern 3: Template Prompt Injection
 
-**Current status:** `Cargo.toml` uses `sherpa-rs = { version = "0.6.8", ... }` which Cargo interprets as `^0.6.8` (compatible releases). Change to `= "0.6.8"` for exact pinning.
+**What:** Templates store a full prompt string with `{transcript}` placeholder. At generation time, the placeholder is substituted. The existing LLM pipeline (context length calculation, chunking, streaming) sees the final string and is unchanged.
 
----
+**Trade-off:** The `extract_title()` function in `llm/mod.rs` parses a `TITLE:` prefix line from LLM output. Built-in templates must include this instruction. Custom templates should document the requirement; if absent, title extraction silently fails (returns `None`), which is a graceful degradation, not an error.
 
-## Build Order for v1.1
+### Pattern 4: Lifted State for Timeline-Transcript Coordination
 
-Dependencies between the three features determine safe build order:
+**What:** `MeetingCompleteView` holds `highlightedMs: number | null`. The `SpeakerTimeline` calls `onSegmentClick(startMs)` which sets this state. The transcript list reads it via `useEffect` to scroll to the matching segment.
 
-```
-Step 1: sherpa-rs evaluation (no code changes)
-  ├── Audit open issues, document upgrade path
-  ├── Verify CI builds clean on all three platforms
-  └── Update Cargo.toml to exact pin (= "0.6.8")
-  ← No code risk. Do this first to close the open question.
-
-Step 2: LLM model selection fix (small Rust + small TS)
-  ├── Rust: commands.rs — add model: Option<String> param to check_ollama_status
-  ├── Rust: llm/detect.rs — full_status() already accepts model_name, just wire it
-  ├── TS: useOllamaSetup.ts — replace hardcoded 'phi4-mini' with getSetting('ollamaModel')
-  └── TS: SetupView.tsx — verify it passes through correctly
-  ← Small, contained, low risk. Rust and TS changes are independent.
-  ← Test: set ollamaModel to 'llama3.2:3b', verify status and pull use that model.
-
-Step 3: Frontend code-splitting (TS + vite config only, no Rust)
-  ├── export.ts — convert @react-pdf/renderer and jszip to dynamic imports
-  ├── vite.config.ts — add manualChunks configuration
-  └── Audit SummaryPanel.tsx imports (react-markdown, remark-gfm)
-  ← No backend changes. Isolated to build system and one library file.
-  ← Test: npm run build, inspect bundle, verify chunk sizes.
-  ← Risk: dynamic import timing — ensure TypeScript types still work (they do with type imports).
-```
-
-**Why this order:**
-- Step 1 is pure documentation/verification — no risk, establishes baseline health check
-- Step 2 Rust changes and Step 3 TS changes are fully independent — can be developed in parallel if needed, but Step 2 should merge first to keep PRs small
-- Step 3 has the most potential for subtle build regressions (Rollup chunk splitting edge cases) so it goes last
+**Why lifted:** The timeline and transcript are sibling components. The timeline does not need a ref to the transcript DOM — it only needs to signal "here is a time." The transcript handles its own scroll behavior. This is clean unidirectional data flow.
 
 ---
 
-## Internal Boundaries — v1.1 Changes
+## Anti-Patterns to Avoid
 
-| Boundary | v1.0 Communication | v1.1 Change |
-|----------|--------------------|-------------|
-| `useOllamaSetup` → Tauri `pull_ollama_model` | Hardcoded `model: 'phi4-mini'` | Read from `getSetting('ollamaModel')` |
-| Frontend → `check_ollama_status` command | No model param | Add `model?: string` param |
-| `commands.rs` → `llm::detect::full_status()` | Passes `llm::DEFAULT_MODEL` constant | Passes caller-supplied model or falls back to `DEFAULT_MODEL` |
-| `export.ts` → `@react-pdf/renderer` | Static import at module level | Dynamic `import()` inside `buildPdfBlob()` |
-| `export.ts` → `jszip` | Static import at module level | Dynamic `import()` inside `bulkExportZip()` |
-| `Cargo.toml` → `sherpa-rs` | `version = "0.6.8"` (semver compatible) | `version = "= 0.6.8"` (exact pin) |
+### Anti-Pattern 1: Real-Time Speaker Diarization
+
+**What people try:** Running diarization concurrently with transcription to show live speaker labels during recording.
+
+**Why it's wrong:** Pyannote segmentation requires ~10–30s audio windows to detect speaker change points. Running it during recording would consume significant CPU competing with Parakeet transcription, add unacceptable latency, and require buffering large audio chunks. The transcription worker is already CPU-bound on a dedicated thread.
+
+**Do this instead:** Post-process after recording completes. Show "Analyzing speakers..." state while diarization runs. The UX is acceptable because users can view the transcript immediately; speaker attribution enhances it.
+
+### Anti-Pattern 2: Storing Summary Templates in SQLite
+
+**What people try:** Creating a `summary_templates` table in the database.
+
+**Why it's wrong:** Templates are user configuration, not meeting data. SQLite is for meeting content that needs queries, relationships, and FTS indexing. Templates need none of this. Putting them in SQLite creates unnecessary migration overhead and inconsistency with how all other user preferences are stored.
+
+**Do this instead:** Store user templates in `settings.json` as `userSummaryTemplates: SummaryTemplate[]`. Built-in templates are compiled into the Rust binary in `llm/templates.rs`.
+
+### Anti-Pattern 3: Blocking the IPC Call During Diarization
+
+**What people try:** Making `diarize_meeting` a blocking command that returns only when complete.
+
+**Why it's wrong:** Diarization on a 2-hour meeting takes 60–120s on CPU. A blocking IPC call for this duration freezes the frontend's invoke queue and makes the app unresponsive. This is exactly the same problem as the post-recording freeze being fixed in Feature 1.
+
+**Do this instead:** `Channel<DiarizationEvent>` for streaming progress (0–100%), return `Ok(())` from the command promptly, background task emits `DiarizationEvent::Complete { meeting_id }` when done.
+
+### Anti-Pattern 4: Tight Coupling Between Speaker Timeline and Transcript Scroll
+
+**What people try:** Passing `TranscriptSegment[]` and a ref to the transcript DOM into `SpeakerTimeline`, letting the timeline manage scroll.
+
+**Why it's wrong:** The timeline becomes responsible for the transcript DOM, creating a bidirectional coupling that makes both components harder to test and reason about.
+
+**Do this instead:** Lift `highlightedMs` state to `MeetingCompleteView`. Timeline writes it; transcript reads it. Clean boundary.
 
 ---
 
-## Anti-Patterns to Avoid in v1.1
+## Scaling Considerations (Local Desktop App)
 
-### Anti-Pattern 1: Propagating the Model Hardcode
+"Scaling" here means handling large meetings on constrained hardware, not multi-user load.
 
-**What people do:** Fix `useOllamaSetup.ts` but forget `SetupView.tsx` which calls it, or fix the Rust `check_ollama_status` but leave `check_model_pulled` called from elsewhere still using the constant.
-
-**Prevention:** Search all callsites of `DEFAULT_MODEL` in Rust and `'phi4-mini'` in TypeScript before closing the task. There are exactly two TypeScript callsites (useOllamaSetup and SetupView) and one Rust callsite (commands.rs check_ollama_status). `save_summary` in `commands.rs` also references `DEFAULT_MODEL` for manual saves — that should also be updated to accept the user's configured model.
-
-### Anti-Pattern 2: Using React.lazy() for Non-Component Dynamic Imports
-
-**What people do:** Try to apply `React.lazy(() => import('./export'))` to a utility module (non-component).
-
-**Why it's wrong:** `React.lazy()` only works with modules that export a React component as their default export. `export.ts` exports plain async functions. Use `await import('...')` directly inside the function bodies.
-
-**Do this instead:** Dynamic `import()` inside the async function, not `React.lazy()` at the module level.
-
-### Anti-Pattern 3: Over-Splitting Vendor Chunks
-
-**What people do:** Put every dependency in its own `manualChunks` entry, creating 20+ tiny chunks.
-
-**Why it's wrong:** In Tauri's local file protocol, each chunk load is a synchronous disk read (fast), but too many chunks can cascade waterfall loads. Rollup's default chunking is already reasonable. Only manually chunk libraries that are genuinely large and independently cacheable.
-
-**Do this instead:** Target `@react-pdf/renderer` (~450 KB gz) and `jszip` (~100 KB gz) as priority splits. Group `react-markdown` + `remark-gfm` together (they are always used together). Leave smaller utilities in the main vendor chunk.
-
-### Anti-Pattern 4: Upgrading sherpa-rs During v1.1
-
-**What people do:** See that a newer sherpa-rs version exists and upgrade "while we're in there."
-
-**Why it's wrong:** sherpa-rs minor version bumps have historically changed `TransducerConfig` field names and `SileroVadConfig` defaults. An upgrade during v1.1 (which is a hardening release, not a feature release) introduces unrelated risk and obscures any regressions.
-
-**Do this instead:** Pin at `= "0.6.8"`, document the upgrade path for v1.2, test the upgrade on a separate branch.
+| Concern | With v1.2 Features |
+|---------|-------------------|
+| 2-hour meeting diarization | ~2–4 min on modern CPU. sherpa-onnx/pyannote processes at ~8x real-time on CPU (MEDIUM confidence). Acceptable as a one-time post-processing step. |
+| Memory during diarization | Full OGG decode to f32 samples: 2h × 16kHz × 4 bytes ≈ 460 MB peak. Acceptable for a desktop app targeting modern hardware. |
+| SVG timeline with 500+ speaker segments | Use `useMemo` to batch-compute SVG paths. No virtualization needed — speaker count is bounded (typically 2–8) and segments per speaker fit within a single `<svg>`. |
+| Template prompt length | Built-in templates add ~500 chars overhead to existing prompt. No impact on the 96,000 char single-pass threshold. |
+| Speaker labels in FTS | Speaker names live in `speaker_labels` table, not `meetings_fts`. FTS searches raw transcript text. No FTS changes required. |
+| Long-meeting summary with speaker map | Speaker-prefixed transcript text is ~5–10% longer than unspeaker transcript. Slightly increases token estimate but stays within chunking thresholds for all realistic meeting lengths. |
 
 ---
 
 ## Sources
 
-- Direct codebase reading: `src-tauri/src/commands.rs`, `llm/mod.rs`, `llm/detect.rs`, `transcription/worker.rs`, `src/lib/export.ts`, `src/hooks/useOllamaSetup.ts`, `src/hooks/useSummary.ts`, `src/types/index.ts`, `src/lib/constants.ts`, `vite.config.ts`, `package.json`, `Cargo.toml` — HIGH confidence (ground truth)
-- [sherpa-rs GitHub (thewh1teagle/sherpa-rs)](https://github.com/thewh1teagle/sherpa-rs) — v0.6.8 latest, 24 open issues, MEDIUM confidence (community crate)
-- [sherpa-rs crates.io](https://docs.rs/crate/sherpa-rs/latest) — version history, release cadence — MEDIUM confidence
-- [Vite code splitting — manualChunks](https://sambitsahoo.com/blog/vite-code-splitting-that-works.html) — MEDIUM confidence (community, consistent with Vite docs)
-- [Vite features — dynamic import](https://vite.dev/guide/features) — HIGH confidence (official docs)
-- [react-pdf bundle size issue](https://github.com/diegomura/react-pdf/issues/632) — confirmed ~450 KB gz, MEDIUM confidence (issue thread)
-- [React.lazy and dynamic imports](https://www.freecodecamp.org/news/how-to-use-react-lazy-and-suspense-for-components-lazy-loading-8d420ecac58/) — MEDIUM confidence (community, standard React pattern)
-- [Phi-4-Mini technical report](https://arxiv.org/html/2503.01743v1) — 128K context, summarization training limited to 30-min audio — HIGH confidence (official Microsoft paper)
-- [Ollama API: list models](https://docs.ollama.com/api/tags) — `/api/tags` endpoint shape confirmed — HIGH confidence (official docs)
+- Codebase ground truth: `src-tauri/src/session.rs` (stop() lines 256–290), `transcription/mod.rs`, `transcription/worker.rs`, `llm/mod.rs`, `commands.rs`, `db.rs`, migrations 001–003, `src/types/index.ts`, `src/hooks/useSummary.ts`, `src/views/MeetingCompleteView.tsx` — HIGH confidence
+- sherpa-rs v0.6.8 diarize module: [https://docs.rs/sherpa-rs/latest/sherpa_rs/](https://docs.rs/sherpa-rs/latest/sherpa_rs/) — diarize module confirmed present — HIGH confidence
+- sherpa-rs diarize.rs example: [https://github.com/thewh1teagle/sherpa-rs/blob/main/examples/diarize.rs](https://github.com/thewh1teagle/sherpa-rs/blob/main/examples/diarize.rs) — DiarizeConfig, Segment fields confirmed — HIGH confidence
+- Pyannote segmentation model (k2-fsa distribution): [https://huggingface.co/k2-fsa/sherpa-models](https://huggingface.co/k2-fsa/sherpa-models) — ~5.4 MB compressed — HIGH confidence
+- sherpa-onnx speaker diarization docs: [https://k2-fsa.github.io/sherpa/onnx/speaker-diarization/rust.html](https://k2-fsa.github.io/sherpa/onnx/speaker-diarization/rust.html) — MEDIUM confidence (points to example)
+- Tauri async runtime: [https://docs.rs/tauri/latest/tauri/async_runtime/index.html](https://docs.rs/tauri/latest/tauri/async_runtime/index.html) — HIGH confidence (official)
+- pyannote-rs CPU performance ("1 hour in under a minute"): [https://github.com/thewh1teagle/pyannote-rs](https://github.com/thewh1teagle/pyannote-rs) — MEDIUM confidence (README claim, benchmark not independently verified)
 
 ---
-*Architecture research for: openNotes v1.1 — LLM model selection, frontend code-splitting, sherpa-rs evaluation*
-*Researched: 2026-03-02*
+
+*Architecture research for: openNotes v1.2 — Speaker Intelligence & Templates*
+*Researched: 2026-03-04*
