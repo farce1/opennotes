@@ -297,7 +297,7 @@ export function MeetingCompleteView() {
               value={titleInput}
               onChange={(event) => setTitleInput(event.target.value)}
               onBlur={() => void onSaveTitle()}
-              className="rounded-lg border border-transparent bg-transparent px-1 text-2xl font-semibold text-gray-700 outline-none ring-accent transition focus:border-gray-200 focus:ring-2 dark:text-gray-50 dark:focus:border-gray-700"
+              className="rounded-lg border border-transparent bg-transparent px-2 py-1 text-3xl font-semibold leading-tight text-gray-700 outline-none ring-accent transition focus:border-gray-200 focus:ring-2 sm:text-4xl dark:text-gray-50 dark:focus:border-gray-700"
             />
             {meeting.status === 'recovered' ? (
               <span className="rounded-full bg-amber-100/70 px-2 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-500/10 dark:text-amber-200">
