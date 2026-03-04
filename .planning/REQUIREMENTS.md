@@ -9,11 +9,11 @@ Requirements for v1.2 Speaker Intelligence & Templates. Each maps to roadmap pha
 
 ### Post-Recording Performance
 
-- [ ] **STOP-01**: User sees immediate UI response when stopping a recording (no freeze)
-- [ ] **STOP-02**: Post-recording processing (audio flush, DB finalization, FTS update) runs asynchronously in background
-- [ ] **STOP-03**: User sees a processing indicator while post-recording work completes
-- [ ] **STOP-04**: User receives a session-complete event when all post-recording work finishes
-- [ ] **STOP-05**: 4-hour auto-stop triggers the same async stop path without UI freeze
+- [x] **STOP-01**: User sees immediate UI response when stopping a recording (no freeze)
+- [x] **STOP-02**: Post-recording processing (audio flush, DB finalization, FTS update) runs asynchronously in background
+- [x] **STOP-03**: User sees a processing indicator while post-recording work completes
+- [x] **STOP-04**: User receives a session-complete event when all post-recording work finishes
+- [x] **STOP-05**: 4-hour auto-stop triggers the same async stop path without UI freeze
 
 ### Speaker Diarization
 
@@ -88,11 +88,11 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| STOP-01 | Phase 14 | Pending |
-| STOP-02 | Phase 14 | Pending |
-| STOP-03 | Phase 14 | Pending |
-| STOP-04 | Phase 14 | Pending |
-| STOP-05 | Phase 14 | Pending |
+| STOP-01 | Phase 14 | Complete |
+| STOP-02 | Phase 14 | Complete |
+| STOP-03 | Phase 14 | Complete |
+| STOP-04 | Phase 14 | Complete |
+| STOP-05 | Phase 14 | Complete |
 | ASR-01 | Phase 15 | Pending |
 | ASR-02 | Phase 15 | Pending |
 | ASR-03 | Phase 15 | Pending |
@@ -126,4 +126,4 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 ---
 *Requirements defined: 2026-03-04*
-*Last updated: 2026-03-04 after roadmap creation (v1.2 phases 14-18)*
+*Last updated: 2026-03-04 after Phase 14 completion*
