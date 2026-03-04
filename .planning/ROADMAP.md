@@ -59,7 +59,9 @@ Full details: `.planning/milestones/v1.1-ROADMAP.md`
   3. User receives a session-complete notification when all post-recording work finishes, without having waited for it
   4. Triggering the 4-hour auto-stop produces the same immediate UI response as a manual stop
   5. No transcript data is lost compared to the previous blocking stop path
-**Plans**: TBD
+**Plans**: 2 plans
+- [ ] 14-01-PLAN.md — Non-blocking stop backend: Processing phase, background task, migration, retry command
+- [ ] 14-02-PLAN.md — Frontend processing UI: widget morph, sidebar indicator, notifications, error/retry
 
 ### Phase 15: ASR Migration to Whisper
 **Goal**: Transcription runs on a single Whisper Large V3 Turbo model with automatic language detection, replacing the dual Parakeet TDT models
@@ -127,7 +129,7 @@ Full details: `.planning/milestones/v1.1-ROADMAP.md`
 | 11. LLM Model Selection End-to-End | v1.1 | 2/2 | Complete | 2026-03-02 |
 | 12. Frontend Bundle Optimization | v1.1 | 2/2 | Complete | 2026-03-03 |
 | 13. LLM Quality Tuning | v1.1 | 1/1 | Complete | 2026-03-03 |
-| 14. Post-Recording Performance | v1.2 | 0/TBD | Not started | - |
+| 14. Post-Recording Performance | v1.2 | 0/2 | In progress | - |
 | 15. ASR Migration to Whisper | v1.2 | 0/TBD | Not started | - |
 | 16. Summary Templates | v1.2 | 0/TBD | Not started | - |
 | 17. Diarization Core | v1.2 | 0/TBD | Not started | - |
