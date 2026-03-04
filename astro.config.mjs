@@ -54,6 +54,11 @@ export default defineConfig({
       ],
       sidebar: [
         {
+          label: 'Home',
+          link: '/',
+          attrs: { target: '_self' },
+        },
+        {
           label: 'Getting Started',
           items: [
             { label: 'Introduction', slug: 'getting-started' },
