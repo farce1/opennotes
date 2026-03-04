@@ -576,12 +576,47 @@ pub async fn update_recording_shortcut(
 ) -> Result<(), String> {
     use tauri_plugin_global_shortcut::GlobalShortcutExt;
 
+    let old_shortcut = normalize_shortcut_for_tauri(old_shortcut.as_str());
+    let new_shortcut = normalize_shortcut_for_tauri(new_shortcut.as_str());
+
     let _ = app.global_shortcut().unregister(old_shortcut.as_str());
 
+    register_shortcut_event(&app, new_shortcut.as_str(), "recording-toggle")
+}
+
+#[tauri::command]
+pub async fn update_pause_shortcut(
+    app: AppHandle,
+    old_shortcut: String,
+    new_shortcut: String,
+) -> Result<(), String> {
+    use tauri_plugin_global_shortcut::GlobalShortcutExt;
+
+    let old_shortcut = normalize_shortcut_for_tauri(old_shortcut.as_str());
+    let new_shortcut = normalize_shortcut_for_tauri(new_shortcut.as_str());
+
+    let _ = app.global_shortcut().unregister(old_shortcut.as_str());
+
+    register_shortcut_event(&app, new_shortcut.as_str(), "recording-pause-toggle")
+}
+
+fn normalize_shortcut_for_tauri(shortcut: &str) -> String {
+    shortcut
+        .to_lowercase()
+        .replace("commandorcontrol", "cmdorcontrol")
+}
+
+fn register_shortcut_event(
+    app: &AppHandle,
+    shortcut: &str,
+    event_name: &'static str,
+) -> Result<(), String> {
+    use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
+
     app.global_shortcut()
-        .on_shortcut(new_shortcut.as_str(), |app, _shortcut, event| {
-            if event.state == tauri_plugin_global_shortcut::ShortcutState::Pressed {
-                let _ = app.emit("recording-toggle", ());
+        .on_shortcut(shortcut, move |app, _shortcut, event| {
+            if event.state == ShortcutState::Released {
+                let _ = app.emit(event_name, ());
             }
         })
         .map_err(|err| format!("failed to register shortcut: {err}"))

@@ -173,6 +173,7 @@ pub fn build_mic_stream(
 
                         if last_emit.elapsed() >= Duration::from_millis(50) {
                             let _ = app.emit("audio-level", mixer::rms_level(&mono));
+                            let _ = app.emit("audio-spectrum", mixer::spectral_levels(&mono, sample_rate));
                             last_emit = Instant::now();
                         }
 
@@ -195,6 +196,7 @@ pub fn build_mic_stream(
 
                         if last_emit.elapsed() >= Duration::from_millis(50) {
                             let _ = app.emit("audio-level", mixer::rms_level(&mono));
+                            let _ = app.emit("audio-spectrum", mixer::spectral_levels(&mono, sample_rate));
                             last_emit = Instant::now();
                         }
 
@@ -217,6 +219,7 @@ pub fn build_mic_stream(
 
                         if last_emit.elapsed() >= Duration::from_millis(50) {
                             let _ = app.emit("audio-level", mixer::rms_level(&mono));
+                            let _ = app.emit("audio-spectrum", mixer::spectral_levels(&mono, sample_rate));
                             last_emit = Instant::now();
                         }
 
@@ -239,7 +242,7 @@ pub fn build_mic_stream(
 }
 
 #[cfg(target_os = "macos")]
-pub fn build_loopback_stream(tx: mpsc::SyncSender<Vec<f32>>) -> Option<BuiltStream> {
+pub fn build_loopback_stream(tx: mpsc::SyncSender<Vec<f32>>, app: AppHandle) -> Option<BuiltStream> {
     let (major, minor) = macos_version();
     if (major, minor) < (14, 6) {
         eprintln!(
@@ -260,11 +263,18 @@ pub fn build_loopback_stream(tx: mpsc::SyncSender<Vec<f32>>) -> Option<BuiltStre
     let stream = match sample_format {
         SampleFormat::F32 => {
             let tx = tx.clone();
+            let app = app.clone();
+            let mut last_emit = Instant::now();
             device
                 .build_input_stream(
                     &config,
                     move |data: &[f32], _| {
                         let mono = downmix_to_mono(data, channels);
+                        if last_emit.elapsed() >= Duration::from_millis(50) {
+                            let _ = app.emit("audio-level", mixer::rms_level(&mono));
+                            let _ = app.emit("audio-spectrum", mixer::spectral_levels(&mono, sample_rate));
+                            last_emit = Instant::now();
+                        }
                         let _ = tx.try_send(mono);
                     },
                     err_fn,
@@ -274,11 +284,18 @@ pub fn build_loopback_stream(tx: mpsc::SyncSender<Vec<f32>>) -> Option<BuiltStre
         }
         SampleFormat::I16 => {
             let tx = tx.clone();
+            let app = app.clone();
+            let mut last_emit = Instant::now();
             device
                 .build_input_stream(
                     &config,
                     move |data: &[i16], _| {
                         let mono = downmix_to_mono(&normalize_i16(data), channels);
+                        if last_emit.elapsed() >= Duration::from_millis(50) {
+                            let _ = app.emit("audio-level", mixer::rms_level(&mono));
+                            let _ = app.emit("audio-spectrum", mixer::spectral_levels(&mono, sample_rate));
+                            last_emit = Instant::now();
+                        }
                         let _ = tx.try_send(mono);
                     },
                     err_fn,
@@ -288,11 +305,18 @@ pub fn build_loopback_stream(tx: mpsc::SyncSender<Vec<f32>>) -> Option<BuiltStre
         }
         SampleFormat::U16 => {
             let tx = tx.clone();
+            let app = app.clone();
+            let mut last_emit = Instant::now();
             device
                 .build_input_stream(
                     &config,
                     move |data: &[u16], _| {
                         let mono = downmix_to_mono(&normalize_u16(data), channels);
+                        if last_emit.elapsed() >= Duration::from_millis(50) {
+                            let _ = app.emit("audio-level", mixer::rms_level(&mono));
+                            let _ = app.emit("audio-spectrum", mixer::spectral_levels(&mono, sample_rate));
+                            last_emit = Instant::now();
+                        }
                         let _ = tx.try_send(mono);
                     },
                     err_fn,
@@ -313,7 +337,7 @@ pub fn build_loopback_stream(tx: mpsc::SyncSender<Vec<f32>>) -> Option<BuiltStre
 }
 
 #[cfg(target_os = "windows")]
-pub fn build_loopback_stream(tx: mpsc::SyncSender<Vec<f32>>) -> Option<BuiltStream> {
+pub fn build_loopback_stream(tx: mpsc::SyncSender<Vec<f32>>, app: AppHandle) -> Option<BuiltStream> {
     let host = cpal::host_from_id(cpal::HostId::Wasapi).ok()?;
     let device = host.default_output_device()?;
     let (config, sample_format) = select_loopback_config(&device).ok()?;
@@ -325,11 +349,18 @@ pub fn build_loopback_stream(tx: mpsc::SyncSender<Vec<f32>>) -> Option<BuiltStre
     let stream = match sample_format {
         SampleFormat::F32 => {
             let tx = tx.clone();
+            let app = app.clone();
+            let mut last_emit = Instant::now();
             device
                 .build_input_stream(
                     &config,
                     move |data: &[f32], _| {
                         let mono = downmix_to_mono(data, channels);
+                        if last_emit.elapsed() >= Duration::from_millis(50) {
+                            let _ = app.emit("audio-level", mixer::rms_level(&mono));
+                            let _ = app.emit("audio-spectrum", mixer::spectral_levels(&mono, sample_rate));
+                            last_emit = Instant::now();
+                        }
                         let _ = tx.try_send(mono);
                     },
                     err_fn,
@@ -339,11 +370,18 @@ pub fn build_loopback_stream(tx: mpsc::SyncSender<Vec<f32>>) -> Option<BuiltStre
         }
         SampleFormat::I16 => {
             let tx = tx.clone();
+            let app = app.clone();
+            let mut last_emit = Instant::now();
             device
                 .build_input_stream(
                     &config,
                     move |data: &[i16], _| {
                         let mono = downmix_to_mono(&normalize_i16(data), channels);
+                        if last_emit.elapsed() >= Duration::from_millis(50) {
+                            let _ = app.emit("audio-level", mixer::rms_level(&mono));
+                            let _ = app.emit("audio-spectrum", mixer::spectral_levels(&mono, sample_rate));
+                            last_emit = Instant::now();
+                        }
                         let _ = tx.try_send(mono);
                     },
                     err_fn,
@@ -353,11 +391,18 @@ pub fn build_loopback_stream(tx: mpsc::SyncSender<Vec<f32>>) -> Option<BuiltStre
         }
         SampleFormat::U16 => {
             let tx = tx.clone();
+            let app = app.clone();
+            let mut last_emit = Instant::now();
             device
                 .build_input_stream(
                     &config,
                     move |data: &[u16], _| {
                         let mono = downmix_to_mono(&normalize_u16(data), channels);
+                        if last_emit.elapsed() >= Duration::from_millis(50) {
+                            let _ = app.emit("audio-level", mixer::rms_level(&mono));
+                            let _ = app.emit("audio-spectrum", mixer::spectral_levels(&mono, sample_rate));
+                            last_emit = Instant::now();
+                        }
                         let _ = tx.try_send(mono);
                     },
                     err_fn,
@@ -378,7 +423,7 @@ pub fn build_loopback_stream(tx: mpsc::SyncSender<Vec<f32>>) -> Option<BuiltStre
 }
 
 #[cfg(target_os = "linux")]
-pub fn build_loopback_stream(tx: mpsc::SyncSender<Vec<f32>>) -> Option<BuiltStream> {
+pub fn build_loopback_stream(tx: mpsc::SyncSender<Vec<f32>>, app: AppHandle) -> Option<BuiltStream> {
     let host = cpal::default_host();
     let device = host.input_devices().ok()?.find(|device| {
         device
@@ -396,11 +441,18 @@ pub fn build_loopback_stream(tx: mpsc::SyncSender<Vec<f32>>) -> Option<BuiltStre
     let stream = match sample_format {
         SampleFormat::F32 => {
             let tx = tx.clone();
+            let app = app.clone();
+            let mut last_emit = Instant::now();
             device
                 .build_input_stream(
                     &config,
                     move |data: &[f32], _| {
                         let mono = downmix_to_mono(data, channels);
+                        if last_emit.elapsed() >= Duration::from_millis(50) {
+                            let _ = app.emit("audio-level", mixer::rms_level(&mono));
+                            let _ = app.emit("audio-spectrum", mixer::spectral_levels(&mono, sample_rate));
+                            last_emit = Instant::now();
+                        }
                         let _ = tx.try_send(mono);
                     },
                     err_fn,
@@ -410,11 +462,18 @@ pub fn build_loopback_stream(tx: mpsc::SyncSender<Vec<f32>>) -> Option<BuiltStre
         }
         SampleFormat::I16 => {
             let tx = tx.clone();
+            let app = app.clone();
+            let mut last_emit = Instant::now();
             device
                 .build_input_stream(
                     &config,
                     move |data: &[i16], _| {
                         let mono = downmix_to_mono(&normalize_i16(data), channels);
+                        if last_emit.elapsed() >= Duration::from_millis(50) {
+                            let _ = app.emit("audio-level", mixer::rms_level(&mono));
+                            let _ = app.emit("audio-spectrum", mixer::spectral_levels(&mono, sample_rate));
+                            last_emit = Instant::now();
+                        }
                         let _ = tx.try_send(mono);
                     },
                     err_fn,
@@ -424,11 +483,18 @@ pub fn build_loopback_stream(tx: mpsc::SyncSender<Vec<f32>>) -> Option<BuiltStre
         }
         SampleFormat::U16 => {
             let tx = tx.clone();
+            let app = app.clone();
+            let mut last_emit = Instant::now();
             device
                 .build_input_stream(
                     &config,
                     move |data: &[u16], _| {
                         let mono = downmix_to_mono(&normalize_u16(data), channels);
+                        if last_emit.elapsed() >= Duration::from_millis(50) {
+                            let _ = app.emit("audio-level", mixer::rms_level(&mono));
+                            let _ = app.emit("audio-spectrum", mixer::spectral_levels(&mono, sample_rate));
+                            last_emit = Instant::now();
+                        }
                         let _ = tx.try_send(mono);
                     },
                     err_fn,
@@ -449,7 +515,7 @@ pub fn build_loopback_stream(tx: mpsc::SyncSender<Vec<f32>>) -> Option<BuiltStre
 }
 
 #[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
-pub fn build_loopback_stream(_tx: mpsc::SyncSender<Vec<f32>>) -> Option<BuiltStream> {
+pub fn build_loopback_stream(_tx: mpsc::SyncSender<Vec<f32>>, _app: AppHandle) -> Option<BuiltStream> {
     None
 }
 

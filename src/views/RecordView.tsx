@@ -42,6 +42,8 @@ export function RecordView() {
   const navigate = useNavigate();
   const transcriptContainerRef = useRef<HTMLDivElement | null>(null);
   const autoStopTriggeredRef = useRef(false);
+  const shortcutHandlingRef = useRef(false);
+  const lastShortcutTriggeredAtRef = useRef(0);
   const [recordingError, setRecordingError] = useState<string | null>(null);
   const [startingSession, setStartingSession] = useState(false);
   const macOS = useMemo(() => isMacOS(), []);
@@ -78,6 +80,11 @@ export function RecordView() {
   } = useSession();
 
   const sessionActive = phase === 'recording' || phase === 'paused' || phase === 'stopping';
+  const phaseRef = useRef(phase);
+
+  useEffect(() => {
+    phaseRef.current = phase;
+  }, [phase]);
 
   const navigateToMeetingComplete = useCallback(
     async (completedMeetingId: number) => {
@@ -233,42 +240,84 @@ export function RecordView() {
 
   useEffect(() => {
     let disposed = false;
-    let unlisten: (() => void) | null = null;
+    const cleanups: Array<() => void> = [];
 
-    void listen('recording-toggle', async () => {
-      if (phase === 'stopping') {
+    const runToggleAction = async () => {
+      const now = Date.now();
+      if (shortcutHandlingRef.current) {
         return;
       }
 
-      if (phase === 'recording' || phase === 'paused') {
-        try {
-          const completedMeetingId = await stopSession();
-          if (typeof completedMeetingId === 'number') {
-            await navigateToMeetingComplete(completedMeetingId);
-          }
-        } catch {
-          setRecordingError('Unable to stop session from shortcut.');
+      if (now - lastShortcutTriggeredAtRef.current < 350) {
+        return;
+      }
+
+      shortcutHandlingRef.current = true;
+      lastShortcutTriggeredAtRef.current = now;
+
+      try {
+        const currentPhase = phaseRef.current;
+        if (currentPhase === 'stopping') {
+          return;
         }
-        return;
-      }
 
-      await handleStartRecording();
-    }).then((cleanup) => {
+        if (currentPhase === 'recording' || currentPhase === 'paused') {
+          try {
+            const completedMeetingId = await stopSession();
+            if (typeof completedMeetingId === 'number') {
+              await navigateToMeetingComplete(completedMeetingId);
+            }
+          } catch {
+            setRecordingError('Unable to stop session from shortcut.');
+          }
+          return;
+        }
+
+        await handleStartRecording();
+      } finally {
+        window.setTimeout(() => {
+          shortcutHandlingRef.current = false;
+        }, 220);
+      }
+    };
+
+    void Promise.all([
+      listen('recording-toggle', () => {
+        void runToggleAction();
+      }),
+      listen('recording-pause-toggle', async () => {
+        const currentPhase = phaseRef.current;
+        if (currentPhase === 'recording') {
+          try {
+            await pauseSession();
+          } catch {
+            setRecordingError('Unable to pause session from shortcut.');
+          }
+          return;
+        }
+
+        if (currentPhase === 'paused') {
+          try {
+            await resumeSession();
+          } catch {
+            setRecordingError('Unable to resume session from shortcut.');
+          }
+        }
+      }),
+    ]).then((handlers) => {
       if (disposed) {
-        cleanup();
+        handlers.forEach((cleanup) => cleanup());
         return;
       }
 
-      unlisten = cleanup;
+      cleanups.push(...handlers);
     });
 
     return () => {
       disposed = true;
-      if (unlisten) {
-        unlisten();
-      }
+      cleanups.forEach((cleanup) => cleanup());
     };
-  }, [handleStartRecording, navigateToMeetingComplete, phase, stopSession]);
+  }, [handleStartRecording, navigateToMeetingComplete, pauseSession, resumeSession, stopSession]);
 
   return (
     <section className="relative flex min-h-full justify-center px-4 py-8 sm:px-6 sm:py-10">

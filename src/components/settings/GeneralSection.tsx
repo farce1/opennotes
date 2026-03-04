@@ -20,6 +20,7 @@ const themeOptions: Array<{ value: AppTheme; label: string; icon: typeof Sun }> 
 
 const panelClasses =
   'rounded-2xl border border-gray-200/80 bg-white/75 p-4 shadow-sm backdrop-blur-sm dark:border-gray-700/80 dark:bg-gray-900/45';
+type ShortcutKind = 'recording' | 'pause';
 
 function buildShortcutFromEvent(event: KeyboardEvent<HTMLButtonElement>): string | null {
   const parts: string[] = [];
@@ -60,28 +61,38 @@ function optionButtonClasses(selected: boolean): string {
 
 export function GeneralSection() {
   const { theme, setTheme } = useTheme();
-  const [recordingShortcut, updateShortcut] = useSetting('recordingShortcut');
-  const [capturing, setCapturing] = useState(false);
+  const [recordingShortcut, updateRecordingShortcut] = useSetting('recordingShortcut');
+  const [pauseShortcut, updatePauseShortcut] = useSetting('pauseShortcut');
+  const [capturingShortcut, setCapturingShortcut] = useState<ShortcutKind | null>(null);
   const [shortcutError, setShortcutError] = useState<string | null>(null);
   const [resetting, setResetting] = useState(false);
-  const shortcutFieldRef = useRef<HTMLButtonElement | null>(null);
+  const recordingShortcutFieldRef = useRef<HTMLButtonElement | null>(null);
+  const pauseShortcutFieldRef = useRef<HTMLButtonElement | null>(null);
 
-  const shortcutValue = recordingShortcut ?? DEFAULT_SETTINGS.recordingShortcut;
+  const recordingShortcutValue = recordingShortcut ?? DEFAULT_SETTINGS.recordingShortcut;
+  const pauseShortcutValue = pauseShortcut ?? DEFAULT_SETTINGS.pauseShortcut;
 
-  const displayShortcut = useMemo(() => formatShortcutDisplay(shortcutValue), [shortcutValue]);
+  const displayRecordingShortcut = useMemo(
+    () => formatShortcutDisplay(recordingShortcutValue),
+    [recordingShortcutValue],
+  );
+  const displayPauseShortcut = useMemo(
+    () => formatShortcutDisplay(pauseShortcutValue),
+    [pauseShortcutValue],
+  );
 
   const cancelCapture = useCallback(() => {
-    setCapturing(false);
+    setCapturingShortcut(null);
   }, []);
 
-  const startCapture = useCallback(() => {
+  const startCapture = useCallback((target: ShortcutKind) => {
     setShortcutError(null);
-    setCapturing(true);
+    setCapturingShortcut(target);
   }, []);
 
   const handleShortcutKeyDown = useCallback(
-    async (event: KeyboardEvent<HTMLButtonElement>) => {
-      if (!capturing) {
+    async (event: KeyboardEvent<HTMLButtonElement>, target: ShortcutKind) => {
+      if (capturingShortcut !== target) {
         return;
       }
 
@@ -98,36 +109,51 @@ export function GeneralSection() {
         return;
       }
 
-      setCapturing(false);
+      setCapturingShortcut(null);
       setShortcutError(null);
 
+      const currentShortcut =
+        target === 'recording' ? recordingShortcutValue : pauseShortcutValue;
+      const command = target === 'recording' ? 'update_recording_shortcut' : 'update_pause_shortcut';
+
       try {
-        await invoke('update_recording_shortcut', {
-          oldShortcut: shortcutValue,
+        await invoke(command, {
+          oldShortcut: currentShortcut,
           newShortcut: nextShortcut,
         });
-        await updateShortcut(nextShortcut);
+        if (target === 'recording') {
+          await updateRecordingShortcut(nextShortcut);
+        } else {
+          await updatePauseShortcut(nextShortcut);
+        }
       } catch {
-        setShortcutError('Unable to update shortcut. Previous shortcut restored.');
+        setShortcutError(`Unable to update ${target} shortcut. Previous shortcut restored.`);
         try {
-          await invoke('update_recording_shortcut', {
+          await invoke(command, {
             oldShortcut: nextShortcut,
-            newShortcut: shortcutValue,
+            newShortcut: currentShortcut,
           });
         } catch {
-          setShortcutError('Unable to update or restore shortcut. Restart the app.');
+          setShortcutError(`Unable to update or restore ${target} shortcut. Restart the app.`);
         }
       }
     },
-    [cancelCapture, capturing, shortcutValue, updateShortcut],
+    [
+      cancelCapture,
+      capturingShortcut,
+      pauseShortcutValue,
+      recordingShortcutValue,
+      updatePauseShortcut,
+      updateRecordingShortcut,
+    ],
   );
 
-  const handleShortcutBlur = useCallback(() => {
-    if (!capturing) {
+  const handleShortcutBlur = useCallback((target: ShortcutKind) => {
+    if (capturingShortcut !== target) {
       return;
     }
     void cancelCapture();
-  }, [cancelCapture, capturing]);
+  }, [cancelCapture, capturingShortcut]);
 
   const handleResetAll = useCallback(async () => {
     const confirmed = window.confirm('Reset all settings to defaults? This cannot be undone.');
@@ -149,12 +175,15 @@ export function GeneralSection() {
   }, []);
 
   useEffect(() => {
-    if (!capturing) {
+    if (capturingShortcut === 'recording') {
+      recordingShortcutFieldRef.current?.focus();
       return;
     }
 
-    shortcutFieldRef.current?.focus();
-  }, [capturing]);
+    if (capturingShortcut === 'pause') {
+      pauseShortcutFieldRef.current?.focus();
+    }
+  }, [capturingShortcut]);
 
   return (
     <section className="space-y-5">
@@ -192,27 +221,57 @@ export function GeneralSection() {
       </div>
 
       <div className={panelClasses}>
-        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-100">Recording Shortcut</h3>
-        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Set the global hotkey used to start or stop recording instantly.</p>
+        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-100">Recording Shortcuts</h3>
+        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+          Assign separate global hotkeys for start/stop and pause/resume.
+        </p>
 
-        <button
-          ref={shortcutFieldRef}
-          type="button"
-          onClick={() => void startCapture()}
-          onKeyDown={(event) => void handleShortcutKeyDown(event)}
-          onBlur={handleShortcutBlur}
-          className={[
-            'mt-4 w-full rounded-xl border px-3 py-2.5 text-left text-sm transition-all duration-150 focus:outline-none',
-            capturing
-              ? 'border-accent/45 bg-accent/8 text-accent ring-2 ring-accent/20 dark:border-accent/50 dark:bg-accent/12 dark:text-accent-muted'
-              : 'border-gray-200/80 bg-white/80 text-gray-700 hover:border-gray-300 hover:bg-white focus:border-accent/45 focus:ring-2 focus:ring-accent/20 dark:border-gray-700/80 dark:bg-gray-800/70 dark:text-gray-100 dark:hover:border-gray-600 dark:hover:bg-gray-800',
-          ].join(' ')}
-        >
-          {capturing ? 'Press shortcut...' : displayShortcut}
-        </button>
+        <div className="mt-4 space-y-4">
+          <div>
+            <p className="text-xs font-medium uppercase tracking-[0.16em] text-gray-500 dark:text-gray-400">
+              Start or stop recording
+            </p>
+            <button
+              ref={recordingShortcutFieldRef}
+              type="button"
+              onClick={() => void startCapture('recording')}
+              onKeyDown={(event) => void handleShortcutKeyDown(event, 'recording')}
+              onBlur={() => handleShortcutBlur('recording')}
+              className={[
+                'mt-2 w-full rounded-xl border px-3 py-2.5 text-left text-sm transition-all duration-150 focus:outline-none',
+                capturingShortcut === 'recording'
+                  ? 'border-accent/45 bg-accent/8 text-accent ring-2 ring-accent/20 dark:border-accent/50 dark:bg-accent/12 dark:text-accent-muted'
+                  : 'border-gray-200/80 bg-white/80 text-gray-700 hover:border-gray-300 hover:bg-white focus:border-accent/45 focus:ring-2 focus:ring-accent/20 dark:border-gray-700/80 dark:bg-gray-800/70 dark:text-gray-100 dark:hover:border-gray-600 dark:hover:bg-gray-800',
+              ].join(' ')}
+            >
+              {capturingShortcut === 'recording' ? 'Press shortcut...' : displayRecordingShortcut}
+            </button>
+          </div>
 
-        <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-          Click to capture a new keyboard combination. Press Escape to cancel.
+          <div>
+            <p className="text-xs font-medium uppercase tracking-[0.16em] text-gray-500 dark:text-gray-400">
+              Pause or resume recording
+            </p>
+            <button
+              ref={pauseShortcutFieldRef}
+              type="button"
+              onClick={() => void startCapture('pause')}
+              onKeyDown={(event) => void handleShortcutKeyDown(event, 'pause')}
+              onBlur={() => handleShortcutBlur('pause')}
+              className={[
+                'mt-2 w-full rounded-xl border px-3 py-2.5 text-left text-sm transition-all duration-150 focus:outline-none',
+                capturingShortcut === 'pause'
+                  ? 'border-accent/45 bg-accent/8 text-accent ring-2 ring-accent/20 dark:border-accent/50 dark:bg-accent/12 dark:text-accent-muted'
+                  : 'border-gray-200/80 bg-white/80 text-gray-700 hover:border-gray-300 hover:bg-white focus:border-accent/45 focus:ring-2 focus:ring-accent/20 dark:border-gray-700/80 dark:bg-gray-800/70 dark:text-gray-100 dark:hover:border-gray-600 dark:hover:bg-gray-800',
+              ].join(' ')}
+            >
+              {capturingShortcut === 'pause' ? 'Press shortcut...' : displayPauseShortcut}
+            </button>
+          </div>
+        </div>
+
+        <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">
+          Click a field to capture a new keyboard combination. Press Escape to cancel.
         </p>
 
         {shortcutError ? (

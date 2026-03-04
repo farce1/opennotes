@@ -27,15 +27,30 @@ fn normalize_shortcut_for_tauri(shortcut: &str) -> String {
         .replace("commandorcontrol", "cmdorcontrol")
 }
 
-fn read_shortcut_from_settings(data_dir: &Path) -> Option<String> {
+fn read_shortcut_from_settings(data_dir: &Path, key: &str) -> Option<String> {
     let store_path = data_dir.join("settings.json");
     let contents = std::fs::read_to_string(store_path).ok()?;
     let parsed: serde_json::Value = serde_json::from_str(&contents).ok()?;
 
     parsed
-        .get("recordingShortcut")
+        .get(key)
         .and_then(|value| value.as_str())
         .map(normalize_shortcut_for_tauri)
+}
+
+#[cfg(desktop)]
+fn register_shortcut_event(
+    app: &tauri::App,
+    shortcut: &str,
+    event_name: &'static str,
+) -> Result<(), String> {
+    app.global_shortcut()
+        .on_shortcut(shortcut, move |app, _shortcut, event| {
+            if event.state == ShortcutState::Released {
+                let _ = app.emit(event_name, ());
+            }
+        })
+        .map_err(|err| format!("failed to register shortcut `{shortcut}`: {err}"))
 }
 
 fn copy_dir_recursive(source: &Path, destination: &Path) -> std::io::Result<()> {
@@ -158,15 +173,16 @@ pub fn run() {
 
             #[cfg(desktop)]
             {
-                let startup_shortcut = read_shortcut_from_settings(data_dir.as_path())
+                let startup_recording_shortcut =
+                    read_shortcut_from_settings(data_dir.as_path(), "recordingShortcut")
                     .unwrap_or_else(|| "cmdorcontrol+shift+r".to_string());
-                app.global_shortcut()
-                    .on_shortcut(startup_shortcut.as_str(), |app, _shortcut, event| {
-                        if event.state == ShortcutState::Pressed {
-                            let _ = app.emit("recording-toggle", ());
-                        }
-                    })
-                    .expect("failed to register startup shortcut");
+                let startup_pause_shortcut = read_shortcut_from_settings(data_dir.as_path(), "pauseShortcut")
+                    .unwrap_or_else(|| "cmdorcontrol+shift+p".to_string());
+
+                register_shortcut_event(app, startup_recording_shortcut.as_str(), "recording-toggle")
+                    .expect("failed to register startup recording shortcut");
+                register_shortcut_event(app, startup_pause_shortcut.as_str(), "recording-pause-toggle")
+                    .expect("failed to register startup pause shortcut");
 
                 crate::tray::create_tray(app)?;
 
@@ -223,6 +239,7 @@ pub fn run() {
             ollama_catalog::list_ollama_library_catalog_models,
             commands::delete_ollama_model,
             commands::update_recording_shortcut,
+            commands::update_pause_shortcut,
             commands::auto_setup_ollama,
             commands::check_ollama_status,
             commands::pull_ollama_model,

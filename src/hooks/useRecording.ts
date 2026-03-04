@@ -53,6 +53,7 @@ export function useRecording() {
   const [isRecording, setIsRecording] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [audioLevel, setAudioLevel] = useState(0);
+  const [audioSpectrum, setAudioSpectrum] = useState<number[]>(() => Array(7).fill(0));
   const [startTime, setStartTime] = useState<number | null>(null);
   const [elapsedMs, setElapsedMs] = useState(0);
   const [permissionStatus, setPermissionStatus] = useState<PermissionStatus>({
@@ -100,6 +101,7 @@ export function useRecording() {
     setStartTime(null);
     setElapsedMs(0);
     setAudioLevel(0);
+    setAudioSpectrum(Array(7).fill(0));
   }, []);
 
   const applySessionState = useCallback(
@@ -344,23 +346,48 @@ export function useRecording() {
 
   useEffect(() => {
     let disposed = false;
-    let unlisten: (() => void) | null = null;
+    const cleanups: Array<() => void> = [];
 
     void listen<number>('audio-level', (event) => {
-      setAudioLevel(Math.max(0, Math.min(1, Number(event.payload) || 0)));
+      const raw = Math.max(0, Math.min(1, Number(event.payload) || 0));
+      const boosted = Math.min(1, Math.pow(raw * 14, 0.65));
+      setAudioLevel((previous) => {
+        const easing = boosted > previous ? 0.55 : 0.22;
+        return previous + (boosted - previous) * easing;
+      });
     }).then((cleanup) => {
       if (disposed) {
         cleanup();
         return;
       }
-      unlisten = cleanup;
+      cleanups.push(cleanup);
+    });
+
+    void listen<number[]>('audio-spectrum', (event) => {
+      const payload = Array.isArray(event.payload) ? event.payload : [];
+      const target = Array.from({ length: 7 }, (_, index) =>
+        Math.max(0, Math.min(1, Number(payload[index]) || 0)),
+      );
+
+      setAudioSpectrum((previous) =>
+        target.map((value, index) => {
+          const baseline = Math.max(value, Math.min(0.05, previous[index] ?? 0));
+          const current = previous[index] ?? 0;
+          const easing = baseline > current ? 0.6 : 0.3;
+          return current + (baseline - current) * easing;
+        }),
+      );
+    }).then((cleanup) => {
+      if (disposed) {
+        cleanup();
+        return;
+      }
+      cleanups.push(cleanup);
     });
 
     return () => {
       disposed = true;
-      if (unlisten) {
-        unlisten();
-      }
+      cleanups.forEach((cleanup) => cleanup());
     };
   }, []);
 
@@ -402,6 +429,7 @@ export function useRecording() {
     isRecording,
     isPaused,
     audioLevel,
+    audioSpectrum,
     startTime,
     elapsedMs,
     permissionStatus,

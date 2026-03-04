@@ -7,7 +7,7 @@ import { ElapsedTimer } from './ElapsedTimer';
 import { WaveformBar } from './WaveformBar';
 
 export function RecordingWidget() {
-  const { isPaused, isRecording, audioLevel, elapsedMs } = useRecording();
+  const { isPaused, isRecording, audioLevel, audioSpectrum, elapsedMs } = useRecording();
   const { phase, transcriptionDegraded, pauseSession, resumeSession, stopSession } = useSession();
 
   const isSaving = phase === 'stopping';
@@ -39,7 +39,7 @@ export function RecordingWidget() {
     <section
       data-tauri-drag-region
       onMouseDown={onStartDrag}
-      className="flex h-[72px] w-[300px] cursor-grab items-center gap-3 rounded-full border border-white/15 bg-black/80 px-4 shadow-xl backdrop-blur-sm active:cursor-grabbing"
+      className="flex h-full w-full cursor-grab select-none items-center gap-3 rounded-[22px] border border-white/12 bg-black/86 px-4 shadow-[0_14px_34px_rgba(0,0,0,0.45)] backdrop-blur-xl active:cursor-grabbing"
     >
       <div className="min-w-[78px]">
         <ElapsedTimer elapsedMs={elapsedMs} />
@@ -60,7 +60,7 @@ export function RecordingWidget() {
       </div>
 
       <div className="flex-1">
-        <WaveformBar level={audioLevel} />
+        <WaveformBar level={audioLevel} spectrum={audioSpectrum} />
       </div>
 
       <button

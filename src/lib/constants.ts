@@ -7,6 +7,7 @@ export const APP_NAME = 'openNotes';
 export const DEFAULT_SETTINGS: AppSettings = {
   theme: 'system',
   recordingShortcut: 'CommandOrControl+Shift+R',
+  pauseShortcut: 'CommandOrControl+Shift+P',
   dataDirectory: '',
   defaultAudioSource: 'both',
   preferredMicDevice: null,

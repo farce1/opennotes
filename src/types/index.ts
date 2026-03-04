@@ -54,6 +54,7 @@ export interface MeetingWithPreview extends Meeting {
 export interface AppSettings {
   theme: AppTheme;
   recordingShortcut: string;
+  pauseShortcut: string;
   dataDirectory: string;
   defaultAudioSource: 'mic' | 'system' | 'both';
   preferredMicDevice: string | null;

@@ -85,9 +85,10 @@ pub fn run_worker(
         SileroVadConfig {
             model: config.vad_model.clone(),
             window_size: 512,
-            min_silence_duration: 0.5,
-            min_speech_duration: 0.25,
-            threshold: 0.5,
+            min_silence_duration: 1.2,
+            min_speech_duration: 0.15,
+            max_speech_duration: 30.0,
+            threshold: 0.45,
             sample_rate: 16_000,
             ..Default::default()
         },

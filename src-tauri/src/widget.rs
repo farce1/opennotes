@@ -14,14 +14,14 @@ pub fn show_widget(app: &AppHandle) -> tauri::Result<()> {
     .decorations(false)
     .always_on_top(true)
     .resizable(false)
-    .inner_size(280.0, 72.0)
+    .inner_size(340.0, 86.0)
     .skip_taskbar(true)
     .build()?;
 
     if let Ok(Some(monitor)) = widget.primary_monitor() {
         let screen_size = monitor.size();
         let scale = monitor.scale_factor();
-        let x = (screen_size.width as f64 / scale / 2.0) - 140.0;
+        let x = (screen_size.width as f64 / scale / 2.0) - 170.0;
         let y = 24.0;
         widget.set_position(LogicalPosition::new(x, y))?;
     }
