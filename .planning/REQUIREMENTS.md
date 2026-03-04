@@ -88,13 +88,42 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| (populated by roadmapper) | | |
+| STOP-01 | Phase 14 | Pending |
+| STOP-02 | Phase 14 | Pending |
+| STOP-03 | Phase 14 | Pending |
+| STOP-04 | Phase 14 | Pending |
+| STOP-05 | Phase 14 | Pending |
+| ASR-01 | Phase 15 | Pending |
+| ASR-02 | Phase 15 | Pending |
+| ASR-03 | Phase 15 | Pending |
+| ASR-04 | Phase 15 | Pending |
+| ASR-05 | Phase 15 | Pending |
+| ASR-06 | Phase 15 | Pending |
+| TMPL-01 | Phase 16 | Pending |
+| TMPL-02 | Phase 16 | Pending |
+| TMPL-03 | Phase 16 | Pending |
+| TMPL-04 | Phase 16 | Pending |
+| TMPL-05 | Phase 16 | Pending |
+| TMPL-06 | Phase 16 | Pending |
+| TMPL-08 | Phase 16 | Pending |
+| DIAR-01 | Phase 17 | Pending |
+| DIAR-02 | Phase 17 | Pending |
+| DIAR-03 | Phase 17 | Pending |
+| DIAR-04 | Phase 17 | Pending |
+| DIAR-05 | Phase 17 | Pending |
+| DIAR-06 | Phase 17 | Pending |
+| DIAR-09 | Phase 17 | Pending |
+| DIAR-10 | Phase 17 | Pending |
+| DIAR-11 | Phase 17 | Pending |
+| DIAR-07 | Phase 18 | Pending |
+| DIAR-08 | Phase 18 | Pending |
+| TMPL-07 | Phase 18 | Pending |
 
 **Coverage:**
 - v1.2 requirements: 30 total
-- Mapped to phases: 0
-- Unmapped: 30
+- Mapped to phases: 30
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-03-04*
-*Last updated: 2026-03-04 after initial definition*
+*Last updated: 2026-03-04 after roadmap creation (v1.2 phases 14-18)*
