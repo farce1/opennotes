@@ -89,7 +89,7 @@ openNotes stores all meeting data (recordings, transcripts, summaries) in a loca
 | Platform | Path |
 |----------|------|
 | macOS | `~/Library/Application Support/com.opennotes.app/` |
-| Windows | `%APPDATA%\\com.opennotes.app\\` |
+| Windows | `%APPDATA%\com.opennotes.app\` |
 | Linux | `~/.local/share/com.opennotes.app/` |
 
 ### Trash
@@ -103,7 +103,7 @@ Settings are persisted in a JSON file managed by `tauri-plugin-store`:
 | Platform | Path |
 |----------|------|
 | macOS | `~/Library/Application Support/com.opennotes.app/settings.json` |
-| Windows | `%APPDATA%\\com.opennotes.app\\settings.json` |
+| Windows | `%APPDATA%\com.opennotes.app\settings.json` |
 | Linux | `~/.local/share/com.opennotes.app/settings.json` |
 
 :::caution

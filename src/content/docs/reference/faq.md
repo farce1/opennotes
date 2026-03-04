@@ -25,7 +25,7 @@ All meeting data is stored in a local SQLite database:
 | Platform | Path |
 |----------|------|
 | macOS | `~/Library/Application Support/com.opennotes.app/` |
-| Windows | `%APPDATA%\\com.opennotes.app\\` |
+| Windows | `%APPDATA%\com.opennotes.app\` |
 | Linux | `~/.local/share/com.opennotes.app/` |
 
 See the [Settings Reference](/reference/settings/) for more details.
