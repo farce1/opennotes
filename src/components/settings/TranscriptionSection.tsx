@@ -5,10 +5,8 @@ import { FileText } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { useSetting } from '../../hooks/useSettings';
 import { getDataDirectory } from '../../lib/constants';
 import type { DownloadEvent } from '../../types';
-import { Dropdown } from '../ui/Dropdown';
 
 type DownloadProgress = {
   downloadedBytes: number;
@@ -21,37 +19,28 @@ const panelClasses =
 
 export function TranscriptionSection() {
   const { t } = useTranslation('settings');
-  const [language, updateLanguage] = useSetting('transcriptionLanguage');
   const [modelReady, setModelReady] = useState<boolean>(false);
   const [loadingModelState, setLoadingModelState] = useState(false);
   const [working, setWorking] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [downloadProgress, setDownloadProgress] = useState<DownloadProgress | null>(null);
 
-  const activeLanguage = language ?? 'en';
-  const activeModel = activeLanguage === 'pl' ? 'Whisper Tiny (Multilingual)' : 'Parakeet TDT';
-  const activeModelSize = activeLanguage === 'pl' ? '111' : '460';
-
-  const languageOptions = useMemo(() => [
-    { value: 'en', label: t('transLanguage_en') },
-    { value: 'pl', label: t('transLanguage_pl') },
-  ], [t]);
+  const activeModel = 'Whisper Large V3 Turbo';
+  const activeModelSize = '1.6 GB';
 
   const refreshModelState = useCallback(async () => {
     setLoadingModelState(true);
     setErrorMessage(null);
 
     try {
-      const ready = await invoke<boolean>('check_model_ready', {
-        transcriptionLanguage: activeLanguage,
-      });
+      const ready = await invoke<boolean>('check_model_ready');
       setModelReady(ready);
     } catch {
       setErrorMessage(t('transModel_errorCheck'));
     } finally {
       setLoadingModelState(false);
     }
-  }, [activeLanguage, t]);
+  }, [t]);
 
   useEffect(() => {
     void refreshModelState();
@@ -128,7 +117,6 @@ export function TranscriptionSection() {
     try {
       await invoke('download_model', {
         onEvent: channel,
-        transcriptionLanguage: activeLanguage,
       });
       await refreshModelState();
     } catch {
@@ -137,7 +125,7 @@ export function TranscriptionSection() {
       setWorking(false);
       setDownloadProgress(null);
     }
-  }, [activeLanguage, refreshModelState, t]);
+  }, [refreshModelState, t]);
 
   const progressPercent = useMemo(() => {
     if (!downloadProgress || !downloadProgress.totalBytes) {
@@ -160,22 +148,6 @@ export function TranscriptionSection() {
           <h2 className="text-lg font-semibold tracking-tight text-gray-800 dark:text-gray-50">{t('transcription_title')}</h2>
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{t('transcription_description')}</p>
         </div>
-      </div>
-
-      <div className={panelClasses}>
-        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-100">{t('transLanguage_title')}</h3>
-        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t('transLanguage_description')}</p>
-
-        <Dropdown
-          value={activeLanguage}
-          options={languageOptions}
-          onChange={(value) => {
-            void updateLanguage(value);
-          }}
-          size="regular"
-          fullWidth
-          className="mt-4 w-full"
-        />
       </div>
 
       <div className={panelClasses}>

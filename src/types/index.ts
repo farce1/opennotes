@@ -16,6 +16,8 @@ export interface Meeting {
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
+  detected_language: string | null;
+  asr_engine: string | null;
 }
 
 export type SortField = 'date' | 'duration' | 'title';

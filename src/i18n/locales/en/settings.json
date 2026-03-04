@@ -44,16 +44,11 @@
   "audioSource_hint": "Maximum recording duration remains capped at 4 hours.",
 
   "transcription_title": "Transcription",
-  "transcription_description": "Manage language preferences and local model availability.",
-
-  "transLanguage_title": "Language",
-  "transLanguage_description": "Current release supports English and Polish transcription.",
-  "transLanguage_en": "English",
-  "transLanguage_pl": "Polish",
+  "transcription_description": "Manage local Whisper model availability. Recording language is auto-detected.",
 
   "transModel_title": "Transcription Model",
   "transModel_description": "{{model}} runs fully local and powers transcript generation.",
-  "transModel_downloadSize": "Download size ~{{size}} MB",
+  "transModel_downloadSize": "Download size {{size}}",
   "transModel_checking": "Checking\u2026",
   "transModel_downloaded": "Downloaded",
   "transModel_notDownloaded": "Not Downloaded",

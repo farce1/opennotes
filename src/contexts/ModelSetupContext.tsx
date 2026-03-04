@@ -2,7 +2,6 @@ import { Channel, invoke } from '@tauri-apps/api/core';
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { getSetting } from '../lib/settings';
 import type { DownloadEvent, ModelStatus } from '../types';
 
 type DownloadProgress = {
@@ -43,10 +42,7 @@ export function ModelSetupProvider({ children }: { children: ReactNode }) {
     setModelStatus('checking');
 
     try {
-      const transcriptionLanguage = await getSetting('transcriptionLanguage');
-      const ready = await invoke<boolean>('check_model_ready', {
-        transcriptionLanguage: transcriptionLanguage || undefined,
-      });
+      const ready = await invoke<boolean>('check_model_ready');
       setModelStatus(ready ? 'ready' : 'not_ready');
       return ready;
     } catch {
@@ -60,7 +56,6 @@ export function ModelSetupProvider({ children }: { children: ReactNode }) {
     setModelStatus('downloading');
     setErrorMessage(null);
     setDownloadProgress({ downloaded: 0, total: 0 });
-    const transcriptionLanguage = await getSetting('transcriptionLanguage');
 
     const channel = new Channel<DownloadEvent>();
     channel.onmessage = (event) => {
@@ -103,7 +98,6 @@ export function ModelSetupProvider({ children }: { children: ReactNode }) {
     try {
       await invoke('download_model', {
         onEvent: channel,
-        transcriptionLanguage: transcriptionLanguage || undefined,
       });
     } catch {
       setModelStatus((current) => (current === 'not_ready' || current === 'ready' ? current : 'error'));

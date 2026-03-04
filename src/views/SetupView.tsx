@@ -17,7 +17,6 @@ import { useNavigate } from 'react-router';
 
 import { useModelSetup } from '../hooks/useModelSetup';
 import { useOllamaSetup } from '../hooks/useOllamaSetup';
-import { useSetting } from '../hooks/useSettings';
 
 function formatBytes(bytes: number): string {
   const mb = bytes / (1024 * 1024);
@@ -80,7 +79,6 @@ function Notice({
 export function SetupView() {
   const { t } = useTranslation('setup');
   const navigate = useNavigate();
-  const [transcriptionLanguage] = useSetting('transcriptionLanguage');
   const { modelStatus, downloadProgress, errorMessage: modelErrorMessage, startDownload, cancelDownload } =
     useModelSetup();
   const {
@@ -189,9 +187,7 @@ export function SetupView() {
   }, [ollamaDownloadProgress, ollamaDownloadStartedAt, t, tick]);
 
   const allReady = modelStatus === 'ready' && setupPhase === 'ready';
-  const activeLanguage = transcriptionLanguage ?? 'en';
-  const sttModelName = activeLanguage === 'pl' ? 'Whisper Tiny (Multilingual)' : 'Parakeet TDT 0.6B';
-  const sttDownloadLabel = activeLanguage === 'pl' ? t('stt_downloadLabel_pl') : t('stt_downloadLabel_en');
+  const sttModelName = 'Whisper Large V3 Turbo';
 
   return (
     <section className="relative h-full min-h-[calc(100vh-3rem)] overflow-hidden rounded-[1.75rem] border border-gray-200/70 bg-gradient-to-br from-white/85 via-white/70 to-gray-100/70 p-4 shadow-[0_28px_80px_-50px_rgba(15,23,42,0.45)] dark:border-gray-800/70 dark:from-gray-900/90 dark:via-gray-900/70 dark:to-gray-950/80 sm:p-5 lg:p-6">
@@ -221,6 +217,9 @@ export function SetupView() {
                   <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">
                     {t('stt_description')}
                   </p>
+                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    {t('stt_modelMeta', { model: sttModelName, size: '~1.6 GB' })}
+                  </p>
                 </div>
               </div>
 
@@ -245,7 +244,7 @@ export function SetupView() {
                     className="inline-flex items-center gap-2 rounded-xl bg-accent px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-accent-hover"
                   >
                     <Download size={15} />
-                    {sttDownloadLabel}
+                    {t('stt_downloadLabel')}
                   </button>
                 </div>
               )}

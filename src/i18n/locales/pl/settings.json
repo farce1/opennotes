@@ -44,16 +44,11 @@
   "audioSource_hint": "Maksymalny czas nagrywania jest ograniczony do 4 godzin.",
 
   "transcription_title": "Transkrypcja",
-  "transcription_description": "Zarz\u0105dzaj preferencjami j\u0119zykowymi i dost\u0119pno\u015bci\u0105 lokalnych modeli.",
-
-  "transLanguage_title": "J\u0119zyk",
-  "transLanguage_description": "Obecna wersja obs\u0142uguje transkrypcj\u0119 w j\u0119zyku angielskim i polskim.",
-  "transLanguage_en": "Angielski",
-  "transLanguage_pl": "Polski",
+  "transcription_description": "Zarządzaj dostępnością lokalnego modelu Whisper. Język nagrania jest wykrywany automatycznie.",
 
   "transModel_title": "Model transkrypcji",
   "transModel_description": "{{model}} dzia\u0142a w pe\u0142ni lokalnie i generuje transkrypcje.",
-  "transModel_downloadSize": "Rozmiar pobierania ~{{size}} MB",
+  "transModel_downloadSize": "Rozmiar pobierania {{size}}",
   "transModel_checking": "Sprawdzanie\u2026",
   "transModel_downloaded": "Pobrany",
   "transModel_notDownloaded": "Nie pobrany",

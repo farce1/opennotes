@@ -8,6 +8,7 @@
   "loadError_openLibrary": "Otw\u00f3rz bibliotek\u0119",
   "loadError_dbFailed": "Nie uda\u0142o si\u0119 za\u0142adowa\u0107 transkrypcji spotkania z lokalnej bazy danych.",
   "header_subtitle": "Spotkanie zako\u0144czone. Podsumowanie i transkrypcja s\u0105 za\u0142adowane z pami\u0119ci lokalnej.",
+  "header_language": "Język",
   "header_recovered": "Odzyskane",
   "processing_finishing": "Kończenie\u2026",
   "processing_complete": "Przetwarzanie zakończone",

@@ -46,8 +46,20 @@ function mapRowsToSegments(rows: TranscriptRow[]): TranscriptSegment[] {
   }));
 }
 
+function formatDetectedLanguage(code: string | null | undefined, locale: string): string | null {
+  if (!code) {
+    return null;
+  }
+
+  try {
+    return new Intl.DisplayNames([locale || 'en'], { type: 'language' }).of(code) ?? code;
+  } catch {
+    return code;
+  }
+}
+
 export function MeetingCompleteView() {
-  const { t } = useTranslation('meeting');
+  const { t, i18n } = useTranslation('meeting');
   const navigate = useNavigate();
   const location = useLocation();
   const [meeting, setMeeting] = useState<Meeting | null>(null);
@@ -106,7 +118,7 @@ export function MeetingCompleteView() {
       try {
         const db = await getDb();
         const meetings = await db.select<Meeting[]>(
-          'SELECT id, title, started_at, ended_at, duration_seconds, status, post_processing_status, audio_path, audio_sources, created_at, updated_at, deleted_at FROM meetings WHERE id = $1 LIMIT 1',
+          'SELECT id, title, started_at, ended_at, duration_seconds, status, post_processing_status, audio_path, audio_sources, created_at, updated_at, deleted_at, detected_language, asr_engine FROM meetings WHERE id = $1 LIMIT 1',
           [meetingId],
         );
 
@@ -231,6 +243,10 @@ export function MeetingCompleteView() {
   }, [fallbackTitle, meeting?.title, title]);
 
   const transcriptLines = useMemo(() => buildTranscriptLines(segments), [segments]);
+  const detectedLanguageLabel = useMemo(
+    () => formatDetectedLanguage(meeting?.detected_language, i18n.language),
+    [i18n.language, meeting?.detected_language],
+  );
 
   const onCopyTranscript = useCallback(async () => {
     try {
@@ -394,9 +410,15 @@ export function MeetingCompleteView() {
             ) : null}
           </div>
 
-          <p className="text-sm text-gray-500 dark:text-gray-400">
-            {t('header_subtitle')}
-          </p>
+          <p className="text-sm text-gray-500 dark:text-gray-400">{t('header_subtitle')}</p>
+
+          {detectedLanguageLabel ? (
+            <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+              <span className="rounded-full border border-gray-200 bg-gray-100 px-2 py-0.5 dark:border-gray-700 dark:bg-gray-800">
+                {t('header_language')}: {detectedLanguageLabel}
+              </span>
+            </div>
+          ) : null}
 
           {titleSaveState === 'saving' ? <p className="text-xs text-gray-500 dark:text-gray-400">{t('title_saving')}</p> : null}
           {titleSaveState === 'saved' ? <p className="text-xs text-emerald-600 dark:text-emerald-300">{t('title_saved')}</p> : null}

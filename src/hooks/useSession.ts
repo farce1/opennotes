@@ -40,13 +40,11 @@ export function useSession() {
     channelRef.current = channel;
     const audioSource = await getSetting('defaultAudioSource');
     const preferredMicDevice = await getSetting('preferredMicDevice');
-    const transcriptionLanguage = await getSetting('transcriptionLanguage');
 
     const nextMeetingId = await invoke<number>('start_session', {
       onSegment: channel,
       audioSource: audioSource || undefined,
       preferredMicDevice: preferredMicDevice || undefined,
-      transcriptionLanguage: transcriptionLanguage || undefined,
     });
 
     setMeetingId(nextMeetingId);
