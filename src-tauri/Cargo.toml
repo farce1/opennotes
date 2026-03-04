@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "openNotes desktop app"
 authors = ["you"]
 edition = "2021"
+default-run = "tauri-app"
 
 [lib]
 name = "app_lib"
@@ -11,6 +12,7 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
+cc = "1"
 
 [dependencies]
 tauri = { version = "2", features = ["tray-icon"] }
@@ -31,6 +33,7 @@ cpal = "0.17"
 libopusenc = "0.2"
 # Pinned: sherpa-rs-sys binary compat; see .planning/research/sherpa-upgrade-path.md
 sherpa-rs = { version = "=0.6.8", features = ["download-binaries"] }
+sherpa-rs-sys = { version = "=0.6.8", features = ["download-binaries"] }
 rubato = "0.15"
 reqwest = { version = "0.12", features = ["stream", "json"] }
 futures-util = "0.3"

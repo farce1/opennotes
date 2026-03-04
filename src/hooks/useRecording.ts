@@ -102,6 +102,40 @@ export function useRecording() {
     setAudioLevel(0);
   }, []);
 
+  const applySessionState = useCallback(
+    (payload: SessionStatePayload) => {
+      const { phase, startedAt } = payload;
+
+      if (phase === 'idle') {
+        applyRecordingStopped();
+        return;
+      }
+
+      const startedAtMs = parseStartedAt(startedAt);
+      if (!startTimeRef.current) {
+        applyRecordingStarted(startedAtMs);
+      }
+
+      if (phase === 'paused') {
+        if (!pausedAtRef.current) {
+          pausedAtRef.current = Date.now();
+        }
+        setIsRecording(true);
+        setIsPaused(true);
+        return;
+      }
+
+      if (pausedAtRef.current) {
+        pausedAccumulatedMsRef.current += Date.now() - pausedAtRef.current;
+        pausedAtRef.current = null;
+      }
+
+      setIsRecording(true);
+      setIsPaused(false);
+    },
+    [applyRecordingStarted, applyRecordingStopped],
+  );
+
   const refreshPermissions = useCallback(async () => {
     try {
       const status = await invoke<PermissionPayload>('check_audio_permissions');
@@ -335,34 +369,7 @@ export function useRecording() {
     let unlisten: (() => void) | null = null;
 
     void listen<SessionStatePayload>('session-state-changed', (event) => {
-      const { phase, startedAt } = event.payload;
-
-      if (phase === 'idle') {
-        applyRecordingStopped();
-        return;
-      }
-
-      const startedAtMs = parseStartedAt(startedAt);
-      if (!startTimeRef.current) {
-        applyRecordingStarted(startedAtMs);
-      }
-
-      if (phase === 'paused') {
-        if (!pausedAtRef.current) {
-          pausedAtRef.current = Date.now();
-        }
-        setIsRecording(true);
-        setIsPaused(true);
-        return;
-      }
-
-      if (pausedAtRef.current) {
-        pausedAccumulatedMsRef.current += Date.now() - pausedAtRef.current;
-        pausedAtRef.current = null;
-      }
-
-      setIsRecording(true);
-      setIsPaused(false);
+      applySessionState(event.payload);
     }).then((cleanup) => {
       if (disposed) {
         cleanup();
@@ -371,13 +378,25 @@ export function useRecording() {
       unlisten = cleanup;
     });
 
+    void invoke<SessionStatePayload>('get_session_state')
+      .then((state) => {
+        if (!disposed) {
+          applySessionState(state);
+        }
+      })
+      .catch(() => {
+        if (!disposed) {
+          applyRecordingStopped();
+        }
+      });
+
     return () => {
       disposed = true;
       if (unlisten) {
         unlisten();
       }
     };
-  }, [applyRecordingStarted, applyRecordingStopped]);
+  }, [applyRecordingStopped, applySessionState]);
 
   return {
     isRecording,

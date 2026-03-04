@@ -5307,6 +5307,7 @@ dependencies = [
 name = "tauri-app"
 version = "0.1.0"
 dependencies = [
+ "cc",
  "chrono",
  "cpal",
  "futures-util",
@@ -5316,6 +5317,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sherpa-rs",
+ "sherpa-rs-sys",
  "sqlx",
  "tauri",
  "tauri-build",

@@ -3,8 +3,10 @@ use std::sync::{mpsc, Arc};
 use std::time::Duration;
 
 use sherpa_rs::silero_vad::{SileroVad, SileroVadConfig};
-use sherpa_rs::transducer::{TransducerConfig, TransducerRecognizer};
+use sherpa_rs::transducer::TransducerConfig;
 use sherpa_rs::whisper::{WhisperConfig, WhisperRecognizer};
+
+use super::safe_recognizer::SafeTransducerRecognizer;
 
 use super::model::AsrBackend;
 use super::resampler::{AudioResampler, RingAccumulator};
@@ -23,7 +25,7 @@ pub struct WorkerConfig {
 }
 
 enum TranscriptionRecognizer {
-    Transducer(TransducerRecognizer),
+    Transducer(SafeTransducerRecognizer),
     Whisper(WhisperRecognizer),
 }
 
@@ -42,7 +44,7 @@ fn process_completed_segments(
     result_tx: &mpsc::Sender<SegmentResult>,
     recording_start_ms: u64,
 ) {
-    while vad.is_speech() {
+    while !vad.is_empty() {
         let segment = vad.front();
         let text = recognizer.transcribe(16_000, &segment.samples).trim().to_string();
 
@@ -67,6 +69,7 @@ pub fn run_worker(
         config.backend, config.language
     );
 
+    eprintln!("[transcription] creating audio resampler...");
     let mut resampler = match AudioResampler::new(48_000, 16_000, 1_536) {
         Ok(resampler) => resampler,
         Err(err) => {
@@ -77,6 +80,7 @@ pub fn run_worker(
 
     let mut ring = RingAccumulator::new(1_536);
 
+    eprintln!("[transcription] loading VAD model: {}", config.vad_model);
     let mut vad = match SileroVad::new(
         SileroVadConfig {
             model: config.vad_model.clone(),
@@ -95,6 +99,7 @@ pub fn run_worker(
             return;
         }
     };
+    eprintln!("[transcription] VAD loaded OK");
 
     let mut recognizer = match config.backend {
         AsrBackend::ParakeetTransducer => {
@@ -106,7 +111,11 @@ pub fn run_worker(
                 }
             };
 
-            match TransducerRecognizer::new(TransducerConfig {
+            eprintln!(
+                "[transcription] loading transducer — encoder={}, decoder={}, joiner={}, tokens={}",
+                config.asr_encoder, config.asr_decoder, joiner, config.asr_tokens
+            );
+            match SafeTransducerRecognizer::new(TransducerConfig {
                 decoder: config.asr_decoder.clone(),
                 encoder: config.asr_encoder.clone(),
                 joiner,
@@ -115,29 +124,44 @@ pub fn run_worker(
                 num_threads: 2,
                 sample_rate: 16_000,
                 feature_dim: 80,
+                provider: Some("cpu".to_string()),
+                debug: true,
                 ..Default::default()
             }) {
-                Ok(recognizer) => TranscriptionRecognizer::Transducer(recognizer),
+                Ok(recognizer) => {
+                    eprintln!("[transcription] transducer loaded OK");
+                    TranscriptionRecognizer::Transducer(recognizer)
+                }
                 Err(err) => {
                     eprintln!("failed to initialize transducer recognizer: {err}");
                     return;
                 }
             }
         }
-        AsrBackend::Whisper => match WhisperRecognizer::new(WhisperConfig {
-            encoder: config.asr_encoder.clone(),
-            decoder: config.asr_decoder.clone(),
-            tokens: config.asr_tokens.clone(),
-            language: config.language.clone(),
-            num_threads: Some(2),
-            ..Default::default()
-        }) {
-            Ok(recognizer) => TranscriptionRecognizer::Whisper(recognizer),
-            Err(err) => {
-                eprintln!("failed to initialize whisper recognizer: {err}");
-                return;
+        AsrBackend::Whisper => {
+            eprintln!(
+                "[transcription] loading whisper — encoder={}, decoder={}, tokens={}",
+                config.asr_encoder, config.asr_decoder, config.asr_tokens
+            );
+            match WhisperRecognizer::new(WhisperConfig {
+                encoder: config.asr_encoder.clone(),
+                decoder: config.asr_decoder.clone(),
+                tokens: config.asr_tokens.clone(),
+                language: config.language.clone(),
+                num_threads: Some(2),
+                provider: Some("cpu".to_string()),
+                ..Default::default()
+            }) {
+                Ok(recognizer) => {
+                    eprintln!("[transcription] whisper loaded OK");
+                    TranscriptionRecognizer::Whisper(recognizer)
+                }
+                Err(err) => {
+                    eprintln!("failed to initialize whisper recognizer: {err}");
+                    return;
+                }
             }
-        },
+        }
     };
 
     while !shutdown.load(Ordering::Relaxed) {

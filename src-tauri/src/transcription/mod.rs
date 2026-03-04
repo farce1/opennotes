@@ -1,5 +1,6 @@
 pub mod model;
 pub mod resampler;
+pub mod safe_recognizer;
 pub mod worker;
 
 use std::sync::atomic::{AtomicBool, Ordering};

@@ -1,4 +1,5 @@
 import { AlertCircle, Pause, Play, Square } from 'lucide-react';
+import { getCurrentWindow } from '@tauri-apps/api/window';
 
 import { useRecording } from '../../hooks/useRecording';
 import { useSession } from '../../hooks/useSession';
@@ -25,10 +26,20 @@ export function RecordingWidget() {
     await pauseSession();
   };
 
+  const onStartDrag = (event: React.MouseEvent<HTMLElement>) => {
+    const target = event.target as HTMLElement;
+    if (target.closest('button, a, input, textarea, select, [data-no-drag]')) {
+      return;
+    }
+
+    void getCurrentWindow().startDragging();
+  };
+
   return (
     <section
       data-tauri-drag-region
-      className="flex h-[72px] w-[300px] items-center gap-3 rounded-full border border-white/15 bg-black/80 px-4 shadow-xl backdrop-blur-sm"
+      onMouseDown={onStartDrag}
+      className="flex h-[72px] w-[300px] cursor-grab items-center gap-3 rounded-full border border-white/15 bg-black/80 px-4 shadow-xl backdrop-blur-sm active:cursor-grabbing"
     >
       <div className="min-w-[78px]">
         <ElapsedTimer elapsedMs={elapsedMs} />
