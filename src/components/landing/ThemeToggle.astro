@@ -1,0 +1,32 @@
+---
+import { Moon, Sun } from '@lucide/astro';
+---
+
+<button
+  id="theme-toggle"
+  type="button"
+  aria-label="Toggle dark/light mode"
+  class="cursor-pointer rounded-lg p-2 transition-colors hover:bg-[var(--sl-color-gray-6)]"
+>
+  <Sun class="hidden h-5 w-5 text-[var(--sl-color-gray-2)] dark:block" />
+  <Moon class="block h-5 w-5 text-[var(--sl-color-gray-2)] dark:hidden" />
+</button>
+
+<script>
+  const storageKey = 'starlight-theme';
+
+  const getTheme = () => {
+    const stored = localStorage.getItem(storageKey);
+    if (stored === 'light' || stored === 'dark') return stored;
+    return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+  };
+
+  const setTheme = (theme) => {
+    document.documentElement.dataset.theme = theme;
+    localStorage.setItem(storageKey, theme);
+  };
+
+  document.getElementById('theme-toggle')?.addEventListener('click', () => {
+    setTheme(getTheme() === 'dark' ? 'light' : 'dark');
+  });
+</script>
