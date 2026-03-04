@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Speaker Intelligence & Templates
 status: roadmap_ready
-last_updated: "2026-03-04T18:03:00Z"
+last_updated: "2026-03-04T18:46:02Z"
 progress:
   total_phases: 5
-  completed_phases: 2
-  total_plans: 4
-  completed_plans: 4
+  completed_phases: 3
+  total_plans: 6
+  completed_plans: 6
 ---
 
 # Project State
@@ -18,23 +18,23 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-04)
 
 **Core value:** One-click meeting recording that produces structured, actionable meeting notes — entirely local, entirely free.
-**Current focus:** Phase 16 — Summary Templates
+**Current focus:** Phase 17 — Diarization Core
 
 ## Current Position
 
-Phase: 16 of 18 (Summary Templates)
+Phase: 17 of 18 (Diarization Core)
 Plan: — (not yet planned)
 Status: Ready to plan
-Last activity: 2026-03-04 — Phase 15 executed and verified (2/2 plans)
+Last activity: 2026-03-04 — Phase 16 executed and verified (2/2 plans)
 
-Progress: [████░░░░░░] 40%
+Progress: [██████░░░░] 60%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 4 (v1.2)
-- Average duration: 10 min
-- Total execution time: 41 min
+- Total plans completed: 6 (v1.2)
+- Average duration: 8 min
+- Total execution time: 45 min
 
 **By Phase:**
 
@@ -42,6 +42,7 @@ Progress: [████░░░░░░] 40%
 |-------|-------|-------|----------|
 | 14 | 2 | 20 min | 10 min |
 | 15 | 2 | 21 min | 11 min |
+| 16 | 2 | 4 min | 2 min |
 
 *Updated after each plan completion*
 
@@ -58,6 +59,9 @@ Recent decisions affecting current work:
 - Phase 15 persists `meetings.detected_language` and `meetings.asr_engine` on first detected Whisper segment.
 - Phase 15 model download now supports resumable HTTP Range requests for Whisper Turbo archive downloads.
 - Phase 15 frontend removed transcription language selection and now displays detected meeting language metadata.
+- [Phase 16]: Kept default summary prompt behavior byte-identical when no template is selected — Extracted the existing base prompt into DEFAULT_STANDARD_PROMPT and only switched when template_prompt is provided.
+- [Phase 16]: Template prompts are now threaded end-to-end from frontend selection to Rust generation — Added template_prompt argument on generate_summary and run_summary, including chunked synthesis path.
+- [Phase 16]: Summary generation now resolves selected templates at call-time and forwards prompt text to backend — MeetingCompleteView uses getTemplateById for regenerate, auto-generate, and model-switch retry paths.
 
 ### Pending Todos
 
@@ -72,5 +76,5 @@ Recent decisions affecting current work:
 ## Session Continuity
 
 Last session: 2026-03-04
-Stopped at: Phase 15 complete — ready to plan Phase 16
+Stopped at: Phase 16 complete — ready to plan Phase 17
 Resume file: None

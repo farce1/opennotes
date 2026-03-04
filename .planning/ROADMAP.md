@@ -43,7 +43,7 @@ Full details: `.planning/milestones/v1.1-ROADMAP.md`
 
 - [x] **Phase 14: Post-Recording Performance** - Fix UI freeze on stop; async post-processing path (completed 2026-03-04)
 - [x] **Phase 15: ASR Migration to Whisper** - Replace dual Parakeet TDT with single Whisper Large V3 Turbo (2 plans) (completed 2026-03-04)
-- [ ] **Phase 16: Summary Templates** - Built-in and custom summary templates with re-generate support
+- [x] **Phase 16: Summary Templates** - Built-in and custom summary templates with re-generate support (completed 2026-03-04)
 - [ ] **Phase 17: Diarization Core** - Rust diarization backend, speaker labels, per-session renaming
 - [ ] **Phase 18: Speaker Timeline & Attributed Summaries** - Interactive timeline, click-to-jump, speaker-attributed prompts
 
@@ -88,9 +88,9 @@ Full details: `.planning/milestones/v1.1-ROADMAP.md`
   4. User creates a custom template by typing a prompt in a textarea, saves it, and uses it to generate a summary
   5. User can edit or delete a custom template; built-in templates cannot be deleted but display a "Reset to default" option
   6. Long meetings (2+ hours) summarized with any template complete without truncation (template works with map-reduce chunking)
-**Plans:** 2 plans
-- [ ] 16-01-PLAN.md — Backend template_prompt threading, built-in template constants, template store module and hook
-- [ ] 16-02-PLAN.md — TemplatePicker UI, create/manage modals, SummaryPanel integration, i18n
+**Plans:** 2/2 plans complete
+- [x] 16-01-PLAN.md — Backend template_prompt threading, built-in template constants, template store module and hook
+- [x] 16-02-PLAN.md — TemplatePicker UI, create/manage modals, SummaryPanel integration, i18n
 
 ### Phase 17: Diarization Core
 **Goal**: After a recording finishes, users can run speaker diarization to identify who said what — with speaker labels on every transcript segment and the ability to rename speakers to real names
@@ -135,6 +135,6 @@ Full details: `.planning/milestones/v1.1-ROADMAP.md`
 | 13. LLM Quality Tuning | v1.1 | 1/1 | Complete | 2026-03-03 |
 | 14. Post-Recording Performance | v1.2 | 2/2 | Complete | 2026-03-04 |
 | 15. ASR Migration to Whisper | v1.2 | 2/2 | Complete | 2026-03-04 |
-| 16. Summary Templates | v1.2 | 0/2 | Planned | - |
+| 16. Summary Templates | v1.2 | 2/2 | Complete | 2026-03-04 |
 | 17. Diarization Core | v1.2 | 0/TBD | Not started | - |
 | 18. Speaker Timeline & Attributed Summaries | v1.2 | 0/TBD | Not started | - |

@@ -31,14 +31,14 @@ Requirements for v1.2 Speaker Intelligence & Templates. Each maps to roadmap pha
 
 ### Summary Templates
 
-- [ ] **TMPL-01**: User can select a summary template before generating a summary
-- [ ] **TMPL-02**: App ships with built-in templates for common meeting types (research-informed selection, ~5-6 templates)
-- [ ] **TMPL-03**: User can re-generate a summary with a different template
-- [ ] **TMPL-04**: User can create custom summary templates with a prompt editor
-- [ ] **TMPL-05**: User can edit and delete custom templates
-- [ ] **TMPL-06**: Built-in templates cannot be deleted but can be customized (reset to default available)
+- [x] **TMPL-01**: User can select a summary template before generating a summary
+- [x] **TMPL-02**: App ships with built-in templates for common meeting types (research-informed selection, ~5-6 templates)
+- [x] **TMPL-03**: User can re-generate a summary with a different template
+- [x] **TMPL-04**: User can create custom summary templates with a prompt editor
+- [x] **TMPL-05**: User can edit and delete custom templates
+- [x] **TMPL-06**: Built-in templates cannot be deleted but can be customized (reset to default available)
 - [ ] **TMPL-07**: When diarization data is available, summary prompt includes speaker names for attributed output
-- [ ] **TMPL-08**: Template system works with the existing map-reduce chunking for long meetings (2+ hours)
+- [x] **TMPL-08**: Template system works with the existing map-reduce chunking for long meetings (2+ hours)
 
 ### ASR Migration
 
@@ -99,13 +99,13 @@ Which phases cover which requirements. Updated during roadmap creation.
 | ASR-04 | Phase 15 | Complete |
 | ASR-05 | Phase 15 | Complete |
 | ASR-06 | Phase 15 | Complete |
-| TMPL-01 | Phase 16 | Pending |
-| TMPL-02 | Phase 16 | Pending |
-| TMPL-03 | Phase 16 | Pending |
-| TMPL-04 | Phase 16 | Pending |
-| TMPL-05 | Phase 16 | Pending |
-| TMPL-06 | Phase 16 | Pending |
-| TMPL-08 | Phase 16 | Pending |
+| TMPL-01 | Phase 16 | Complete |
+| TMPL-02 | Phase 16 | Complete |
+| TMPL-03 | Phase 16 | Complete |
+| TMPL-04 | Phase 16 | Complete |
+| TMPL-05 | Phase 16 | Complete |
+| TMPL-06 | Phase 16 | Complete |
+| TMPL-08 | Phase 16 | Complete |
 | DIAR-01 | Phase 17 | Pending |
 | DIAR-02 | Phase 17 | Pending |
 | DIAR-03 | Phase 17 | Pending |
@@ -126,4 +126,4 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 ---
 *Requirements defined: 2026-03-04*
-*Last updated: 2026-03-04 after Phase 15 completion*
+*Last updated: 2026-03-04 after Phase 16 completion*
