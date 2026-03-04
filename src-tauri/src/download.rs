@@ -1,11 +1,11 @@
-use std::fs::File;
+use std::fs::{File, OpenOptions};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 use futures_util::StreamExt;
-use reqwest::Client;
+use reqwest::{header, Client, StatusCode};
 use serde::Serialize;
 use tauri::ipc::Channel;
 
@@ -15,9 +15,9 @@ pub type DownloadCancelFlag = Arc<AtomicBool>;
 
 const VAD_URL: &str =
     "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/silero_vad.onnx";
-const PARAKEET_URL: &str = "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-nemo-parakeet-tdt-0.6b-v2-int8.tar.bz2";
-const WHISPER_TINY_URL: &str =
-    "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-whisper-tiny.tar.bz2";
+const WHISPER_TURBO_URL: &str =
+    "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-whisper-turbo.tar.bz2";
+const WHISPER_TURBO_TMP_NAME: &str = "whisper-turbo-model.tar.bz2.tmp";
 const PROGRESS_EMIT_STEP_BYTES: u64 = 512 * 1024;
 
 #[derive(Clone, Serialize)]
@@ -69,12 +69,28 @@ async fn download_to_file(
     base_downloaded: u64,
     on_event: &Channel<DownloadEvent>,
     cancel_flag: &DownloadCancelFlag,
+    resumable: bool,
 ) -> Result<u64, String> {
-    let response = client
-        .get(url)
+    let mut existing_bytes = 0u64;
+    if resumable {
+        if let Ok(metadata) = std::fs::metadata(destination_tmp) {
+            existing_bytes = metadata.len();
+        }
+    }
+
+    let mut request = client.get(url);
+    if existing_bytes > 0 {
+        request = request.header(header::RANGE, format!("bytes={existing_bytes}-"));
+    }
+
+    let response = request
         .send()
         .await
         .map_err(|_| "Unable to connect to model download server".to_string())?;
+
+    if response.status() == StatusCode::RANGE_NOT_SATISFIABLE {
+        return Err("range_not_satisfiable".to_string());
+    }
 
     if !response.status().is_success() {
         return Err(format!(
@@ -83,17 +99,41 @@ async fn download_to_file(
         ));
     }
 
+    let append_mode = existing_bytes > 0 && response.status() == StatusCode::PARTIAL_CONTENT;
+
+    if existing_bytes > 0 && !append_mode {
+        cleanup_tmp(destination_tmp);
+        existing_bytes = 0;
+    }
+
+    let mut file = if append_mode {
+        OpenOptions::new()
+            .append(true)
+            .open(destination_tmp)
+            .map_err(|_| {
+                format!(
+                    "Failed to open temporary download file for resume: {}",
+                    destination_tmp.display()
+                )
+            })?
+    } else {
+        File::create(destination_tmp).map_err(|_| {
+            format!(
+                "Failed to create temporary download file: {}",
+                destination_tmp.display()
+            )
+        })?
+    };
+
+    let effective_base_downloaded = base_downloaded.saturating_add(existing_bytes);
     let response_content_length = response.content_length().unwrap_or(0);
     let effective_total = if total_bytes > 0 {
         total_bytes
     } else {
-        base_downloaded.saturating_add(response_content_length)
+        effective_base_downloaded.saturating_add(response_content_length)
     };
 
     let mut stream = response.bytes_stream();
-    let mut file = File::create(destination_tmp)
-        .map_err(|_| format!("Failed to create temporary download file: {}", destination_tmp.display()))?;
-
     let mut downloaded = 0u64;
     let mut last_emitted = 0u64;
 
@@ -108,7 +148,11 @@ async fn download_to_file(
 
         downloaded = downloaded.saturating_add(chunk.len() as u64);
         if downloaded.saturating_sub(last_emitted) >= PROGRESS_EMIT_STEP_BYTES {
-            send_progress(on_event, base_downloaded.saturating_add(downloaded), effective_total);
+            send_progress(
+                on_event,
+                effective_base_downloaded.saturating_add(downloaded),
+                effective_total,
+            );
             last_emitted = downloaded;
         }
     }
@@ -116,28 +160,18 @@ async fn download_to_file(
     file.flush()
         .map_err(|_| "Failed to flush downloaded model file to disk".to_string())?;
 
-    send_progress(on_event, base_downloaded.saturating_add(downloaded), effective_total);
-    Ok(downloaded)
-}
+    send_progress(
+        on_event,
+        effective_base_downloaded.saturating_add(downloaded),
+        effective_total,
+    );
 
-fn model_archive_url(kind: model::TranscriptionModelKind) -> &'static str {
-    match kind {
-        model::TranscriptionModelKind::ParakeetTdt => PARAKEET_URL,
-        model::TranscriptionModelKind::WhisperTiny => WHISPER_TINY_URL,
-    }
-}
-
-fn model_archive_tmp_name(kind: model::TranscriptionModelKind) -> &'static str {
-    match kind {
-        model::TranscriptionModelKind::ParakeetTdt => "parakeet-model.tar.bz2.tmp",
-        model::TranscriptionModelKind::WhisperTiny => "whisper-model.tar.bz2.tmp",
-    }
+    Ok(existing_bytes.saturating_add(downloaded))
 }
 
 pub async fn download_model(
     on_event: Channel<DownloadEvent>,
     models_dir: PathBuf,
-    transcription_language: Option<String>,
     cancel_flag: DownloadCancelFlag,
 ) -> Result<(), String> {
     cancel_flag.store(false, Ordering::SeqCst);
@@ -147,19 +181,15 @@ pub async fn download_model(
     let data_dir = models_dir
         .parent()
         .ok_or_else(|| "invalid models directory path".to_string())?;
-    let normalized_language = model::normalize_language(transcription_language.as_deref());
-    let selected_model = model::resolve_model(data_dir, Some(normalized_language.as_str()));
 
-    if model::check_model_ready(data_dir, Some(normalized_language.as_str())) {
+    if model::check_model_ready(data_dir) {
         let _ = on_event.send(DownloadEvent::Complete);
         return Ok(());
     }
 
     let client = Client::new();
     let needs_vad = !model::vad_model_path(data_dir).exists();
-    let needs_transcription_assets =
-        !model::check_transcription_assets_ready(data_dir, Some(normalized_language.as_str()));
-    let selected_archive_url = model_archive_url(selected_model.kind);
+    let needs_transcription_assets = !model::check_transcription_assets_ready(data_dir);
 
     let vad_total = if needs_vad {
         content_length(&client, VAD_URL).await
@@ -167,7 +197,7 @@ pub async fn download_model(
         0
     };
     let model_total = if needs_transcription_assets {
-        content_length(&client, selected_archive_url).await
+        content_length(&client, WHISPER_TURBO_URL).await
     } else {
         0
     };
@@ -179,23 +209,33 @@ pub async fn download_model(
         let vad_final = model::vad_model_path(data_dir);
         cleanup_tmp(&vad_tmp);
 
-        let vad_downloaded =
-            match download_to_file(&client, VAD_URL, &vad_tmp, total_bytes, 0, &on_event, &cancel_flag).await {
-                Ok(bytes) => bytes,
-                Err(err) if err == "cancelled" => {
-                    cleanup_tmp(&vad_tmp);
-                    let _ = on_event.send(DownloadEvent::Cancelled);
-                    return Err(err);
-                }
-                Err(err) => {
-                    cleanup_tmp(&vad_tmp);
-                    send_error(
-                        &on_event,
-                        "Unable to download voice activity detector model. Please retry.",
-                    );
-                    return Err(err);
-                }
-            };
+        let vad_downloaded = match download_to_file(
+            &client,
+            VAD_URL,
+            &vad_tmp,
+            total_bytes,
+            0,
+            &on_event,
+            &cancel_flag,
+            false,
+        )
+        .await
+        {
+            Ok(bytes) => bytes,
+            Err(err) if err == "cancelled" => {
+                cleanup_tmp(&vad_tmp);
+                let _ = on_event.send(DownloadEvent::Cancelled);
+                return Err(err);
+            }
+            Err(err) => {
+                cleanup_tmp(&vad_tmp);
+                send_error(
+                    &on_event,
+                    "Unable to download voice activity detector model. Please retry.",
+                );
+                return Err(err);
+            }
+        };
 
         if let Err(err) = std::fs::rename(&vad_tmp, &vad_final) {
             cleanup_tmp(&vad_tmp);
@@ -207,20 +247,52 @@ pub async fn download_model(
     }
 
     if needs_transcription_assets {
-        let model_archive_tmp = models_dir.join(model_archive_tmp_name(selected_model.kind));
-        cleanup_tmp(&model_archive_tmp);
+        let model_archive_tmp = models_dir.join(WHISPER_TURBO_TMP_NAME);
 
-        match download_to_file(
+        let download_attempt = download_to_file(
             &client,
-            selected_archive_url,
+            WHISPER_TURBO_URL,
             &model_archive_tmp,
             total_bytes,
             downloaded_so_far,
             &on_event,
             &cancel_flag,
+            true,
         )
-        .await
-        {
+        .await;
+
+        match download_attempt {
+            Ok(bytes) => bytes,
+            Err(err) if err == "range_not_satisfiable" => {
+                cleanup_tmp(&model_archive_tmp);
+                match download_to_file(
+                    &client,
+                    WHISPER_TURBO_URL,
+                    &model_archive_tmp,
+                    total_bytes,
+                    downloaded_so_far,
+                    &on_event,
+                    &cancel_flag,
+                    false,
+                )
+                .await
+                {
+                    Ok(bytes) => bytes,
+                    Err(err) if err == "cancelled" => {
+                        cleanup_tmp(&model_archive_tmp);
+                        let _ = on_event.send(DownloadEvent::Cancelled);
+                        return Err(err);
+                    }
+                    Err(err) => {
+                        cleanup_tmp(&model_archive_tmp);
+                        send_error(
+                            &on_event,
+                            "Unable to download transcription model archive. Please retry.",
+                        );
+                        return Err(err);
+                    }
+                }
+            }
             Err(err) if err == "cancelled" => {
                 cleanup_tmp(&model_archive_tmp);
                 let _ = on_event.send(DownloadEvent::Cancelled);
@@ -234,8 +306,7 @@ pub async fn download_model(
                 );
                 return Err(err);
             }
-            Ok(_) => {}
-        }
+        };
 
         let _ = on_event.send(DownloadEvent::Extracting);
 
@@ -258,19 +329,19 @@ pub async fn download_model(
 
         cleanup_tmp(&model_archive_tmp);
 
-        if !selected_model.model_dir.exists() {
+        if !model::whisper_turbo_model_dir(data_dir).exists() {
             send_error(
                 &on_event,
                 "Model extraction did not produce expected files. Please retry.",
             );
             return Err(format!(
                 "extracted model directory not found: {}",
-                selected_model.model_dir.display()
+                model::whisper_turbo_model_dir(data_dir).display()
             ));
         }
     }
 
-    if !model::check_model_ready(data_dir, Some(normalized_language.as_str())) {
+    if !model::check_model_ready(data_dir) {
         send_error(
             &on_event,
             "Model files are incomplete after download. Please retry.",

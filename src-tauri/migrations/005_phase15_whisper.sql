@@ -1,0 +1,2 @@
+ALTER TABLE meetings ADD COLUMN detected_language TEXT DEFAULT NULL;
+ALTER TABLE meetings ADD COLUMN asr_engine TEXT DEFAULT NULL;

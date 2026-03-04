@@ -187,7 +187,6 @@ pub async fn start_session(
     on_segment: Channel<transcription::TranscriptEvent>,
     audio_source: Option<String>,
     preferred_mic_device: Option<String>,
-    transcription_language: Option<String>,
 ) -> Result<i64, String> {
     let session_handle = app.state::<SessionHandle>().inner().clone();
     let session_handle_for_start = session_handle.clone();
@@ -208,7 +207,6 @@ pub async fn start_session(
             on_segment,
             audio_source,
             preferred_mic_device,
-            transcription_language,
         })
     })
     .await
@@ -446,7 +444,6 @@ pub async fn start_transcription(
         db_pool: None,
         meeting_id: None,
         on_worker_disconnected: None,
-        language: None,
     })?;
 
     let _ = app.emit("transcribing-active", ());
@@ -469,12 +466,8 @@ pub async fn stop_transcription(
 #[tauri::command]
 pub async fn check_model_ready(
     data_dir: tauri::State<'_, DataDir>,
-    transcription_language: Option<String>,
 ) -> Result<bool, String> {
-    Ok(transcription::model::check_model_ready(
-        data_dir.inner().0.as_path(),
-        transcription_language.as_deref(),
-    ))
+    Ok(transcription::model::check_model_ready(data_dir.inner().0.as_path()))
 }
 
 #[tauri::command]
@@ -482,12 +475,10 @@ pub async fn download_model(
     data_dir: tauri::State<'_, DataDir>,
     cancel_flag: tauri::State<'_, download::DownloadCancelFlag>,
     on_event: Channel<crate::download::DownloadEvent>,
-    transcription_language: Option<String>,
 ) -> Result<(), String> {
     crate::download::download_model(
         on_event,
         data_dir.inner().0.join("models"),
-        transcription_language,
         cancel_flag.inner().clone(),
     )
     .await

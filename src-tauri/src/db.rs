@@ -45,6 +45,7 @@ async fn run_migrations(pool: &SqlitePool) -> Result<(), sqlx::Error> {
         (2, include_str!("../migrations/002_phase4_session.sql")),
         (3, include_str!("../migrations/003_phase6_library.sql")),
         (4, include_str!("../migrations/004_phase14_post_processing.sql")),
+        (5, include_str!("../migrations/005_phase15_whisper.sql")),
     ];
 
     for &(version, sql) in migrations {
@@ -81,6 +82,17 @@ async fn detect_schema_version(pool: &SqlitePool) -> Result<i64, sqlx::Error> {
 
     if has_meetings == 0 {
         return Ok(0);
+    }
+
+    // detected_language column added in migration 5
+    let has_detected_language: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM pragma_table_info('meetings') WHERE name='detected_language'",
+    )
+    .fetch_one(pool)
+    .await?;
+
+    if has_detected_language > 0 {
+        return Ok(5);
     }
 
     // post_processing_status column added in migration 4

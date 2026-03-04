@@ -1,14 +1,11 @@
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{mpsc, Arc};
 use std::time::Duration;
 
 use sherpa_rs::silero_vad::{SileroVad, SileroVadConfig};
-use sherpa_rs::transducer::TransducerConfig;
 use sherpa_rs::whisper::{WhisperConfig, WhisperRecognizer};
 
-use super::safe_recognizer::SafeTransducerRecognizer;
-
-use super::model::AsrBackend;
 use super::resampler::{AudioResampler, RingAccumulator};
 use super::{SegmentResult, WorkerCommand};
 
@@ -17,50 +14,21 @@ const WHISPER_MAX_DECODE_SECONDS: usize = 25;
 const WHISPER_MAX_DECODE_SAMPLES: usize = (ASR_SAMPLE_RATE as usize) * WHISPER_MAX_DECODE_SECONDS;
 
 pub struct WorkerConfig {
-    pub backend: AsrBackend,
+    pub model_dir: PathBuf,
     pub vad_model: String,
-    pub asr_encoder: String,
-    pub asr_decoder: String,
-    pub asr_joiner: Option<String>,
-    pub asr_tokens: String,
     pub recording_start_ms: u64,
     pub result_tx: mpsc::Sender<SegmentResult>,
-    pub language: String,
-}
-
-enum TranscriptionRecognizer {
-    Transducer(SafeTransducerRecognizer),
-    Whisper(WhisperRecognizer),
-}
-
-impl TranscriptionRecognizer {
-    fn transcribe(&mut self, sample_rate: u32, samples: &[f32]) -> String {
-        match self {
-            Self::Transducer(recognizer) => recognizer.transcribe(sample_rate, samples),
-            Self::Whisper(recognizer) => recognizer.transcribe(sample_rate, samples).text,
-        }
-    }
-
-    fn max_decode_samples(&self) -> Option<usize> {
-        match self {
-            Self::Whisper(_) => Some(WHISPER_MAX_DECODE_SAMPLES),
-            Self::Transducer(_) => None,
-        }
-    }
 }
 
 fn process_completed_segments(
     vad: &mut SileroVad,
-    recognizer: &mut TranscriptionRecognizer,
+    recognizer: &mut WhisperRecognizer,
     result_tx: &mpsc::Sender<SegmentResult>,
     recording_start_ms: u64,
 ) {
     while !vad.is_empty() {
         let segment = vad.front();
-        let max_decode_samples = recognizer
-            .max_decode_samples()
-            .unwrap_or(segment.samples.len())
-            .max(1);
+        let max_decode_samples = WHISPER_MAX_DECODE_SAMPLES.max(1);
         let segment_start_samples = segment.start.max(0) as u64;
 
         for (chunk_index, samples) in segment.samples.chunks(max_decode_samples).enumerate() {
@@ -68,16 +36,29 @@ fn process_completed_segments(
                 continue;
             }
 
-            let text = recognizer.transcribe(ASR_SAMPLE_RATE, samples).trim().to_string();
+            let result = recognizer.transcribe(ASR_SAMPLE_RATE, samples);
+            let text = result.text.trim().to_string();
             if text.is_empty() {
                 continue;
             }
+
+            let lang = result.lang.trim();
+            let detected_language = if lang.is_empty() {
+                None
+            } else {
+                Some(lang.to_string())
+            };
 
             let chunk_offset_samples = (chunk_index as u64) * (max_decode_samples as u64);
             let elapsed_ms = recording_start_ms.saturating_add(
                 ((segment_start_samples + chunk_offset_samples) * 1000) / (ASR_SAMPLE_RATE as u64),
             );
-            let _ = result_tx.send(SegmentResult { text, elapsed_ms });
+
+            let _ = result_tx.send(SegmentResult {
+                text,
+                elapsed_ms,
+                detected_language,
+            });
         }
 
         vad.pop();
@@ -91,8 +72,8 @@ pub fn run_worker(
     shutdown: Arc<AtomicBool>,
 ) {
     eprintln!(
-        "[transcription] worker started, backend={:?}, language={}",
-        config.backend, config.language
+        "[transcription] worker started, model_dir={}",
+        config.model_dir.display()
     );
 
     eprintln!("[transcription] creating audio resampler...");
@@ -106,14 +87,9 @@ pub fn run_worker(
 
     let mut ring = RingAccumulator::new(1_536);
 
-    let vad_max_speech_duration = match config.backend {
-        AsrBackend::Whisper => 10.0,
-        AsrBackend::ParakeetTransducer => 30.0,
-    };
-
     eprintln!(
-        "[transcription] loading VAD model: {} (max_speech_duration={}s)",
-        config.vad_model, vad_max_speech_duration
+        "[transcription] loading VAD model: {} (max_speech_duration=10s)",
+        config.vad_model
     );
     let mut vad = match SileroVad::new(
         SileroVadConfig {
@@ -121,7 +97,7 @@ pub fn run_worker(
             window_size: 512,
             min_silence_duration: 1.2,
             min_speech_duration: 0.15,
-            max_speech_duration: vad_max_speech_duration,
+            max_speech_duration: 10.0,
             threshold: 0.45,
             sample_rate: ASR_SAMPLE_RATE,
             ..Default::default()
@@ -136,66 +112,34 @@ pub fn run_worker(
     };
     eprintln!("[transcription] VAD loaded OK");
 
-    let mut recognizer = match config.backend {
-        AsrBackend::ParakeetTransducer => {
-            let joiner = match &config.asr_joiner {
-                Some(path) => path.clone(),
-                None => {
-                    eprintln!("missing joiner model path for parakeet transducer backend");
-                    return;
-                }
-            };
+    let asr_encoder = config.model_dir.join("turbo-encoder.int8.onnx");
+    let asr_decoder = config.model_dir.join("turbo-decoder.int8.onnx");
+    let asr_tokens = config.model_dir.join("turbo-tokens.txt");
 
-            eprintln!(
-                "[transcription] loading transducer — encoder={}, decoder={}, joiner={}, tokens={}",
-                config.asr_encoder, config.asr_decoder, joiner, config.asr_tokens
-            );
-            match SafeTransducerRecognizer::new(TransducerConfig {
-                decoder: config.asr_decoder.clone(),
-                encoder: config.asr_encoder.clone(),
-                joiner,
-                tokens: config.asr_tokens.clone(),
-                model_type: "nemo_transducer".to_string(),
-                num_threads: 2,
-                sample_rate: 16_000,
-                feature_dim: 80,
-                provider: Some("cpu".to_string()),
-                debug: false,
-                ..Default::default()
-            }) {
-                Ok(recognizer) => {
-                    eprintln!("[transcription] transducer loaded OK");
-                    TranscriptionRecognizer::Transducer(recognizer)
-                }
-                Err(err) => {
-                    eprintln!("failed to initialize transducer recognizer: {err}");
-                    return;
-                }
-            }
+    eprintln!(
+        "[transcription] loading whisper turbo — encoder={}, decoder={}, tokens={}",
+        asr_encoder.display(),
+        asr_decoder.display(),
+        asr_tokens.display()
+    );
+
+    let mut recognizer = match WhisperRecognizer::new(WhisperConfig {
+        encoder: asr_encoder.to_string_lossy().to_string(),
+        decoder: asr_decoder.to_string_lossy().to_string(),
+        tokens: asr_tokens.to_string_lossy().to_string(),
+        language: "".to_string(),
+        num_threads: Some(2),
+        provider: Some("cpu".to_string()),
+        debug: false,
+        ..Default::default()
+    }) {
+        Ok(recognizer) => {
+            eprintln!("[transcription] whisper turbo loaded OK");
+            recognizer
         }
-        AsrBackend::Whisper => {
-            eprintln!(
-                "[transcription] loading whisper — encoder={}, decoder={}, tokens={}",
-                config.asr_encoder, config.asr_decoder, config.asr_tokens
-            );
-            match WhisperRecognizer::new(WhisperConfig {
-                encoder: config.asr_encoder.clone(),
-                decoder: config.asr_decoder.clone(),
-                tokens: config.asr_tokens.clone(),
-                language: config.language.clone(),
-                num_threads: Some(2),
-                provider: Some("cpu".to_string()),
-                ..Default::default()
-            }) {
-                Ok(recognizer) => {
-                    eprintln!("[transcription] whisper loaded OK");
-                    TranscriptionRecognizer::Whisper(recognizer)
-                }
-                Err(err) => {
-                    eprintln!("failed to initialize whisper recognizer: {err}");
-                    return;
-                }
-            }
+        Err(err) => {
+            eprintln!("failed to initialize whisper recognizer: {err}");
+            return;
         }
     };
 

@@ -1,13 +1,12 @@
 pub mod model;
 pub mod resampler;
-pub mod safe_recognizer;
 pub mod worker;
 
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{mpsc, Arc};
 use std::thread::{self, JoinHandle};
 use std::time::Duration;
-use std::path::PathBuf;
 
 use serde::Serialize;
 use sqlx::SqlitePool;
@@ -29,7 +28,6 @@ pub struct StartWorkerArgs {
     pub db_pool: Option<SqlitePool>,
     pub meeting_id: Option<i64>,
     pub on_worker_disconnected: Option<Arc<dyn Fn() + Send + Sync>>,
-    pub language: Option<String>,
 }
 
 #[derive(Debug)]
@@ -42,6 +40,7 @@ pub enum WorkerCommand {
 pub struct SegmentResult {
     pub text: String,
     pub elapsed_ms: u64,
+    pub detected_language: Option<String>,
 }
 
 #[derive(Clone, Serialize)]
@@ -92,12 +91,9 @@ pub fn start_transcription_worker(
         db_pool,
         meeting_id,
         on_worker_disconnected,
-        language,
     } = args;
 
-    let normalized_language = model::normalize_language(language.as_deref());
-
-    if !model::check_model_ready(data_dir.as_path(), Some(normalized_language.as_str())) {
+    if !model::check_model_ready(data_dir.as_path()) {
         return Err("transcription model is not ready; download required model files first".to_string());
     }
 
@@ -108,29 +104,12 @@ pub fn start_transcription_worker(
     let (command_tx, command_rx) = mpsc::channel::<WorkerCommand>();
     let (result_tx, result_rx) = mpsc::channel::<SegmentResult>();
     let vad_model = model::vad_model_path(data_dir.as_path());
-    let resolved_model = model::resolve_model(data_dir.as_path(), Some(normalized_language.as_str()));
 
     let config = worker::WorkerConfig {
-        backend: resolved_model.backend,
+        model_dir: model::whisper_turbo_model_dir(data_dir.as_path()),
         vad_model: vad_model.to_string_lossy().to_string(),
-        asr_encoder: resolved_model
-            .encoder_path
-            .to_string_lossy()
-            .to_string(),
-        asr_decoder: resolved_model
-            .decoder_path
-            .to_string_lossy()
-            .to_string(),
-        asr_joiner: resolved_model
-            .joiner_path
-            .map(|path| path.to_string_lossy().to_string()),
-        asr_tokens: resolved_model
-            .tokens_path
-            .to_string_lossy()
-            .to_string(),
         recording_start_ms: 0,
         result_tx,
-        language: normalized_language,
     };
 
     let worker_shutdown = Arc::new(AtomicBool::new(false));
@@ -148,11 +127,13 @@ pub fn start_transcription_worker(
     let pool_for_forwarder = db_pool.clone();
     let meeting_for_forwarder = meeting_id;
     let on_worker_disconnected_for_forwarder = on_worker_disconnected.clone();
+    let models_dir_for_cleanup = model::models_dir(data_dir.as_path());
 
     let forwarder_handle = thread::Builder::new()
         .name("transcription-forwarder".to_string())
         .spawn(move || {
             let mut segment_index = 0u32;
+            let mut language_written = false;
             let _ = on_segment.send(TranscriptEvent::Transcribing { active: true });
 
             loop {
@@ -200,6 +181,73 @@ pub fn start_transcription_worker(
                             eprintln!("failed to checkpoint transcript segment: {err}");
                         }
                     });
+                }
+
+                if !language_written {
+                    if let Some(detected_language) = segment
+                        .detected_language
+                        .as_deref()
+                        .map(str::trim)
+                        .filter(|lang| !lang.is_empty())
+                        .map(|lang| lang.to_string())
+                    {
+                        language_written = true;
+
+                        if let (Some(pool), Some(mid)) = (&pool_for_forwarder, meeting_for_forwarder) {
+                            let pool_clone = pool.clone();
+                            let models_dir_clone = models_dir_for_cleanup.clone();
+                            tauri::async_runtime::spawn(async move {
+                                if let Err(err) = sqlx::query(
+                                    "UPDATE meetings SET detected_language = ?, asr_engine = 'whisper' WHERE id = ?",
+                                )
+                                .bind(&detected_language)
+                                .bind(mid)
+                                .execute(&pool_clone)
+                                .await
+                                {
+                                    eprintln!("failed to persist detected language: {err}");
+                                    return;
+                                }
+
+                                let parakeet_dir =
+                                    models_dir_clone.join("sherpa-onnx-nemo-parakeet-tdt-0.6b-v2-int8");
+                                if parakeet_dir.exists() {
+                                    match std::fs::remove_dir_all(&parakeet_dir) {
+                                        Ok(_) => {
+                                            eprintln!(
+                                                "[transcription] removed legacy parakeet model dir: {}",
+                                                parakeet_dir.display()
+                                            );
+                                        }
+                                        Err(err) => {
+                                            eprintln!(
+                                                "[transcription] failed to remove legacy parakeet model dir {}: {err}",
+                                                parakeet_dir.display()
+                                            );
+                                        }
+                                    }
+                                }
+
+                                let whisper_tiny_dir = models_dir_clone.join("sherpa-onnx-whisper-tiny");
+                                if whisper_tiny_dir.exists() {
+                                    match std::fs::remove_dir_all(&whisper_tiny_dir) {
+                                        Ok(_) => {
+                                            eprintln!(
+                                                "[transcription] removed legacy whisper-tiny model dir: {}",
+                                                whisper_tiny_dir.display()
+                                            );
+                                        }
+                                        Err(err) => {
+                                            eprintln!(
+                                                "[transcription] failed to remove legacy whisper-tiny model dir {}: {err}",
+                                                whisper_tiny_dir.display()
+                                            );
+                                        }
+                                    }
+                                }
+                            });
+                        }
+                    }
                 }
 
                 segment_index = segment_index.saturating_add(1);
