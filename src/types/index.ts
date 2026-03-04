@@ -18,6 +18,7 @@ export interface Meeting {
   deleted_at: string | null;
   detected_language: string | null;
   asr_engine: string | null;
+  diarization_status: 'running' | 'complete' | 'failed' | null;
 }
 
 export type SortField = 'date' | 'duration' | 'title';
@@ -68,6 +69,7 @@ export interface AppSettings {
   ollamaModel: string;
   ollamaServerUrl: string;
   autoSummary: boolean;
+  autoDiarize: boolean;
 }
 
 export interface TranscriptSegment {
@@ -87,6 +89,36 @@ export interface TranscriptRow {
   segment_index: number;
   text: string;
   start_time_ms: number;
+  speaker_id: number | null;
+}
+
+export type DiarizationEvent =
+  | { event: 'progress'; data: { percent: number } }
+  | { event: 'complete' }
+  | { event: 'error'; data: { message: string } };
+
+export type DiarizationStatus = 'idle' | 'running' | 'complete' | 'error';
+
+export interface SpeakerRow {
+  id: number;
+  meeting_id: number;
+  speaker_index: number;
+  display_name: string;
+  color_index: number;
+}
+
+export interface SpeakerTurnRow {
+  id: number;
+  meeting_id: number;
+  speaker_index: number;
+  start_ms: number;
+  end_ms: number;
+}
+
+export interface DiarizationData {
+  speakers: SpeakerRow[];
+  speakerTurns: SpeakerTurnRow[];
+  diarizationStatus: string | null;
 }
 
 export type ModelStatus =

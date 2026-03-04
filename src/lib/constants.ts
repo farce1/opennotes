@@ -18,6 +18,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   ollamaModel: 'phi4-mini',
   ollamaServerUrl: 'http://localhost:11434',
   autoSummary: true,
+  autoDiarize: false,
 };
 
 let cachedDataDir: string | null = null;

@@ -13,18 +13,26 @@ interface ModelSetupContextValue {
   modelStatus: ModelStatus;
   downloadProgress: DownloadProgress | null;
   errorMessage: string | null;
+  diarizationModelReady: boolean | null;
+  diarizationDownloadProgress: DownloadProgress | null;
   startDownload: () => Promise<void>;
   cancelDownload: () => Promise<void>;
   checkModelReady: () => Promise<boolean>;
+  checkDiarizationModelReady: () => Promise<boolean>;
+  downloadDiarizationModel: () => Promise<void>;
 }
 
 const ModelSetupContext = createContext<ModelSetupContextValue>({
   modelStatus: 'unknown',
   downloadProgress: null,
   errorMessage: null,
+  diarizationModelReady: null,
+  diarizationDownloadProgress: null,
   startDownload: async () => {},
   cancelDownload: async () => {},
   checkModelReady: async () => false,
+  checkDiarizationModelReady: async () => false,
+  downloadDiarizationModel: async () => {},
 });
 
 export function useModelSetup() {
@@ -36,6 +44,8 @@ export function ModelSetupProvider({ children }: { children: ReactNode }) {
   const [modelStatus, setModelStatus] = useState<ModelStatus>('unknown');
   const [downloadProgress, setDownloadProgress] = useState<DownloadProgress | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [diarizationModelReady, setDiarizationModelReady] = useState<boolean | null>(null);
+  const [diarizationDownloadProgress, setDiarizationDownloadProgress] = useState<DownloadProgress | null>(null);
   const downloadChannelRef = useRef<Channel<DownloadEvent> | null>(null);
 
   const checkModelReady = useCallback(async () => {
@@ -117,15 +127,76 @@ export function ModelSetupProvider({ children }: { children: ReactNode }) {
     void checkModelReady();
   }, [checkModelReady]);
 
+  const checkDiarizationModelReady = useCallback(async () => {
+    try {
+      const ready = await invoke<boolean>('check_diarization_model_ready');
+      setDiarizationModelReady(ready);
+      return ready;
+    } catch {
+      setErrorMessage(t('stt_errorFallback'));
+      setDiarizationModelReady(false);
+      return false;
+    }
+  }, [t]);
+
+  const downloadDiarizationModel = useCallback(async () => {
+    setErrorMessage(null);
+    setDiarizationDownloadProgress({ downloaded: 0, total: 0 });
+
+    const channel = new Channel<DownloadEvent>();
+    channel.onmessage = (event) => {
+      if (event.event === 'progress') {
+        setDiarizationDownloadProgress({
+          downloaded: event.data.downloadedBytes,
+          total: event.data.totalBytes,
+        });
+        return;
+      }
+
+      if (event.event === 'extracting') {
+        return;
+      }
+
+      if (event.event === 'complete') {
+        setDiarizationModelReady(true);
+        setDiarizationDownloadProgress(null);
+        return;
+      }
+
+      if (event.event === 'cancelled') {
+        setDiarizationDownloadProgress(null);
+        return;
+      }
+
+      if (event.event === 'error') {
+        setErrorMessage(event.data.message || t('stt_errorFallback'));
+      }
+    };
+
+    try {
+      await invoke('download_diarization_model', { onEvent: channel });
+      setDiarizationModelReady(true);
+    } catch {
+      setErrorMessage((current) => current ?? t('stt_errorFallback'));
+      setDiarizationModelReady(false);
+    } finally {
+      setDiarizationDownloadProgress(null);
+    }
+  }, [t]);
+
   return (
     <ModelSetupContext.Provider
       value={{
         modelStatus,
         downloadProgress,
         errorMessage,
+        diarizationModelReady,
+        diarizationDownloadProgress,
         startDownload,
         cancelDownload,
         checkModelReady,
+        checkDiarizationModelReady,
+        downloadDiarizationModel,
       }}
     >
       {children}
