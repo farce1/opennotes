@@ -28,6 +28,8 @@
 
   "recording_title": "Nagrywanie",
   "recording_description": "Ustaw domy\u015blne urz\u0105dzenia przechwytywania i zachowanie \u017ar\u00f3d\u0142a d\u017awi\u0119ku dla nowych sesji.",
+  "recording_autoDiarize": "Automatyczna analiza mówców",
+  "recording_autoDiarize_description": "Automatycznie identyfikuj mówców po każdym nagraniu",
 
   "mic_title": "Urz\u0105dzenie mikrofonu",
   "mic_description": "Wybierz preferowane urz\u0105dzenie wej\u015bciowe lub pozostaw domy\u015blne systemowe.",

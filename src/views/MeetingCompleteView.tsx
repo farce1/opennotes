@@ -1,17 +1,20 @@
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
-import { AlertCircle, CheckCircle2, Copy, Download, Loader2, Plus, RotateCcw, TriangleAlert } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Copy, Download, Loader2, Plus, RotateCcw, TriangleAlert, UserCheck } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router';
 
 import { ManageTemplatesModal } from '../components/ManageTemplatesModal';
+import { SpeakerStatsPanel } from '../components/SpeakerStatsPanel';
+import { SpeakerTranscript } from '../components/SpeakerTranscript';
 import { SummaryError } from '../components/SummaryError';
 import { SummaryExport } from '../components/SummaryExport';
 import { SummaryPanel } from '../components/SummaryPanel';
 import { TemplateCreateModal } from '../components/TemplateCreateModal';
 import { TemplatePicker } from '../components/TemplatePicker';
 import { useSessionContext } from '../contexts/SessionContext';
+import { useDiarization } from '../hooks/useDiarization';
 import { useSummary } from '../hooks/useSummary';
 import { useTemplates } from '../hooks/useTemplates';
 import { getDb } from '../lib/db';
@@ -68,6 +71,7 @@ export function MeetingCompleteView() {
   const navigate = useNavigate();
   const location = useLocation();
   const [meeting, setMeeting] = useState<Meeting | null>(null);
+  const [transcriptRows, setTranscriptRows] = useState<TranscriptRow[]>([]);
   const [segments, setSegments] = useState<TranscriptSegment[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -90,6 +94,17 @@ export function MeetingCompleteView() {
 
   const state = (location.state as MeetingCompleteRouteState | null) ?? null;
   const meetingId = typeof state?.meetingId === 'number' ? state.meetingId : null;
+  const {
+    status: diarStatus,
+    percent: diarPercent,
+    speakers,
+    speakerTurns,
+    errorMessage: diarError,
+    modelDownloading,
+    modelDownloadPercent,
+    startDiarization,
+    renameSpeaker,
+  } = useDiarization(meetingId);
   const { phase, processingStage, processingFailed, processingMeetingId } = useSessionContext();
   const {
     builtInTemplates,
@@ -137,7 +152,7 @@ export function MeetingCompleteView() {
       try {
         const db = await getDb();
         const meetings = await db.select<Meeting[]>(
-          'SELECT id, title, started_at, ended_at, duration_seconds, status, post_processing_status, audio_path, audio_sources, created_at, updated_at, deleted_at, detected_language, asr_engine FROM meetings WHERE id = $1 LIMIT 1',
+          'SELECT id, title, started_at, ended_at, duration_seconds, status, post_processing_status, audio_path, audio_sources, created_at, updated_at, deleted_at, detected_language, asr_engine, diarization_status FROM meetings WHERE id = $1 LIMIT 1',
           [meetingId],
         );
 
@@ -159,6 +174,7 @@ export function MeetingCompleteView() {
         }
 
         setMeeting(selectedMeeting);
+        setTranscriptRows(rows);
         setSegments(mapRowsToSegments(rows));
         setHadSummaryOnLoad(Boolean(existingSummary));
         setPostProcessingFailed(selectedMeeting.post_processing_status === 'failed');
@@ -299,6 +315,25 @@ export function MeetingCompleteView() {
     };
   }, [meetingId]);
 
+  useEffect(() => {
+    if (!meetingId || !justCompleted || diarStatus !== 'idle') {
+      return;
+    }
+
+    let active = true;
+    void (async () => {
+      const autoDiarize = await getSetting('autoDiarize');
+      if (!active || !autoDiarize) {
+        return;
+      }
+      await startDiarization();
+    })();
+
+    return () => {
+      active = false;
+    };
+  }, [diarStatus, justCompleted, meetingId, startDiarization]);
+
   const isCurrentMeetingProcessing =
     typeof meetingId === 'number' && phase === 'processing' && processingMeetingId === meetingId;
 
@@ -317,6 +352,7 @@ export function MeetingCompleteView() {
     () => formatDetectedLanguage(meeting?.detected_language, i18n.language),
     [i18n.language, meeting?.detected_language],
   );
+  const hasSpeakerLayout = diarStatus === 'complete' && speakers.length > 0;
 
   const onCopyTranscript = useCallback(async () => {
     try {
@@ -649,20 +685,97 @@ export function MeetingCompleteView() {
           </div>
         ) : (
           <div className="space-y-4">
-            <div className="rounded-lg bg-gray-50 p-4 dark:bg-gray-800/50">
-              {segments.length ? (
-                <div className="space-y-3">
-                  {segments.map((segment) => (
-                    <article key={segment.index} className="grid grid-cols-[auto_1fr] gap-x-4">
-                      <span className="font-mono text-xs text-gray-500 dark:text-gray-400">{formatElapsed(segment.elapsedMs)}</span>
-                      <p className="text-sm leading-relaxed text-gray-700 dark:text-gray-100">{segment.text}</p>
-                    </article>
-                  ))}
+            <div className="rounded-lg border border-gray-200 bg-white/80 p-3 dark:border-gray-700 dark:bg-gray-900/55">
+              {modelDownloading ? (
+                <div className="space-y-2">
+                  <p className="text-sm font-medium text-gray-700 dark:text-gray-200">{t('diarize_downloading')}</p>
+                  <div className="h-2 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
+                    <div
+                      className="h-full rounded-full bg-accent transition-[width] duration-300"
+                      style={{ width: `${modelDownloadPercent}%` }}
+                    />
+                  </div>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    {t('diarize_model_progress', { percent: modelDownloadPercent })}
+                  </p>
+                </div>
+              ) : diarStatus === 'running' ? (
+                <div className="space-y-2">
+                  <p className="text-sm font-medium text-gray-700 dark:text-gray-200">
+                    {t('diarize_running', { percent: diarPercent })}
+                  </p>
+                  <div className="h-2 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
+                    <div
+                      className="h-full rounded-full bg-accent transition-[width] duration-300"
+                      style={{ width: `${diarPercent}%` }}
+                    />
+                  </div>
+                </div>
+              ) : diarStatus === 'complete' ? (
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-sm font-medium text-emerald-700 dark:text-emerald-300">{t('diarize_complete')}</span>
+                  <button
+                    type="button"
+                    onClick={() => void startDiarization()}
+                    className="text-xs font-semibold text-accent hover:underline"
+                  >
+                    {t('diarize_rerun')}
+                  </button>
                 </div>
               ) : (
-                <p className="text-sm text-gray-500 dark:text-gray-400">{t('transcript_empty')}</p>
+                <button
+                  type="button"
+                  onClick={() => void startDiarization()}
+                  className="inline-flex items-center gap-2 rounded-md border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+                >
+                  <UserCheck size={14} />
+                  {t('diarize_button')}
+                </button>
               )}
+
+              {diarStatus === 'error' ? (
+                <div className="mt-2 flex items-center gap-2 text-xs text-red-600 dark:text-red-300">
+                  <span>{diarError ?? t('diarize_error')}</span>
+                  <button
+                    type="button"
+                    onClick={() => void startDiarization()}
+                    className="font-semibold underline"
+                  >
+                    {t('diarize_retry')}
+                  </button>
+                </div>
+              ) : null}
             </div>
+
+            {hasSpeakerLayout ? (
+              <div className="space-y-3">
+                <SpeakerStatsPanel speakers={speakers} speakerTurns={speakerTurns} />
+                <SpeakerTranscript
+                  segments={segments}
+                  speakers={speakers}
+                  speakerTurns={speakerTurns}
+                  transcriptRows={transcriptRows}
+                  onRenameSpeaker={(speakerId, name) => {
+                    void renameSpeaker(speakerId, name);
+                  }}
+                />
+              </div>
+            ) : (
+              <div className="rounded-lg bg-gray-50 p-4 dark:bg-gray-800/50">
+                {segments.length ? (
+                  <div className="space-y-3">
+                    {segments.map((segment) => (
+                      <article key={segment.index} className="grid grid-cols-[auto_1fr] gap-x-4">
+                        <span className="font-mono text-xs text-gray-500 dark:text-gray-400">{formatElapsed(segment.elapsedMs)}</span>
+                        <p className="text-sm leading-relaxed text-gray-700 dark:text-gray-100">{segment.text}</p>
+                      </article>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-500 dark:text-gray-400">{t('transcript_empty')}</p>
+                )}
+              </div>
+            )}
 
             <div className="flex flex-wrap items-center gap-2">
               <button

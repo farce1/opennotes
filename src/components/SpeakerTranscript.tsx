@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 
 import type { SpeakerRow, SpeakerTurnRow, TranscriptRow, TranscriptSegment } from '../types';
 import { SpeakerPopover } from './SpeakerPopover';
-import { getSpeakerColor, getSpeakerDisplayName } from './speakerUtils';
+import { getSpeakerColor } from './speakerUtils';
 
 interface SpeakerTranscriptProps {
   segments: TranscriptSegment[];
@@ -94,8 +94,8 @@ export function SpeakerTranscript({
         const speaker = group.speakerRow;
         const color = speaker ? getSpeakerColor(speaker.color_index) : '#9ca3af';
         const label = speaker
-          ? getSpeakerDisplayName(speaker)
-          : `Speaker ${group.speakerId != null ? group.speakerId + 1 : '?'}`;
+          ? (speaker.display_name.trim() || t('speaker_default', { n: speaker.speaker_index + 1 }))
+          : t('speaker_default', { n: group.speakerId != null ? group.speakerId + 1 : 0 });
 
         return (
           <article key={group.id} className="grid grid-cols-[140px_1fr] gap-3 rounded-xl bg-gray-50 p-3 dark:bg-gray-800/40">

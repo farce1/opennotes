@@ -28,6 +28,8 @@
 
   "recording_title": "Recording",
   "recording_description": "Set default capture devices and audio source behavior for new sessions.",
+  "recording_autoDiarize": "Auto-analyze speakers",
+  "recording_autoDiarize_description": "Automatically identify speakers after each recording",
 
   "mic_title": "Microphone Device",
   "mic_description": "Choose a preferred input device, or keep system default fallback.",

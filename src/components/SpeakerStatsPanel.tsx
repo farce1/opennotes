@@ -1,8 +1,9 @@
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import { useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import type { SpeakerRow, SpeakerTurnRow } from '../types';
-import { getSpeakerColor, getSpeakerDisplayName } from './speakerUtils';
+import { getSpeakerColor } from './speakerUtils';
 
 interface SpeakerStatsPanelProps {
   speakers: SpeakerRow[];
@@ -20,6 +21,7 @@ function formatDuration(ms: number): string {
 }
 
 export function SpeakerStatsPanel({ speakers, speakerTurns }: SpeakerStatsPanelProps) {
+  const { t } = useTranslation('meeting');
   const [expanded, setExpanded] = useState(true);
 
   const totals = useMemo(() => {
@@ -47,9 +49,9 @@ export function SpeakerStatsPanel({ speakers, speakerTurns }: SpeakerStatsPanelP
         onClick={() => setExpanded((value) => !value)}
         className="flex w-full items-center justify-between text-left"
       >
-        <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-100">Speaker Statistics</h3>
+        <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-100">{t('speaker_stats_title')}</h3>
         <span className="inline-flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
-          {expanded ? 'Hide speaker stats' : 'Show speaker stats'}
+          {expanded ? t('speaker_stats_collapse') : t('speaker_stats_expand')}
           {expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
         </span>
       </button>
@@ -71,7 +73,7 @@ export function SpeakerStatsPanel({ speakers, speakerTurns }: SpeakerStatsPanelP
                   <div className="flex items-center gap-2">
                     <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: color }} />
                     <span className="text-sm font-medium text-gray-800 dark:text-gray-100">
-                      {getSpeakerDisplayName(speaker)}
+                      {speaker.display_name.trim() || t('speaker_default', { n: speaker.speaker_index + 1 })}
                     </span>
                   </div>
                   <span className="text-xs font-semibold text-gray-600 dark:text-gray-300">{percent}%</span>
@@ -88,7 +90,7 @@ export function SpeakerStatsPanel({ speakers, speakerTurns }: SpeakerStatsPanelP
                 </div>
 
                 <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                  Duration: {formatDuration(talkTimeMs)}
+                  {t('speaker_stats_duration', { duration: formatDuration(talkTimeMs) })}
                 </p>
               </article>
             );
