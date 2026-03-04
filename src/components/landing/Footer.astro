@@ -1,0 +1,93 @@
+---
+import { Github } from '@lucide/astro';
+---
+
+<footer class="border-t border-[var(--sl-color-hairline-light)] bg-[var(--sl-color-bg-nav)]">
+  <div class="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
+    <div class="grid grid-cols-1 gap-8 sm:grid-cols-3">
+      <div>
+        <h3 class="text-sm font-semibold uppercase tracking-wider text-[var(--sl-color-white)]">Product</h3>
+        <ul class="mt-4 space-y-2">
+          <li>
+            <a
+              href="/getting-started/"
+              class="text-sm text-[var(--sl-color-gray-2)] no-underline transition-colors hover:text-[var(--sl-color-text)]"
+            >
+              Documentation
+            </a>
+          </li>
+          <li>
+            <a
+              href="/installation/"
+              class="text-sm text-[var(--sl-color-gray-2)] no-underline transition-colors hover:text-[var(--sl-color-text)]"
+            >
+              Installation
+            </a>
+          </li>
+          <li>
+            <a
+              href="/quick-start/"
+              class="text-sm text-[var(--sl-color-gray-2)] no-underline transition-colors hover:text-[var(--sl-color-text)]"
+            >
+              Quick Start
+            </a>
+          </li>
+        </ul>
+      </div>
+      <div>
+        <h3 class="text-sm font-semibold uppercase tracking-wider text-[var(--sl-color-white)]">Community</h3>
+        <ul class="mt-4 space-y-2">
+          <li>
+            <a
+              href="https://github.com/nicodeforge/opennotes"
+              class="text-sm text-[var(--sl-color-gray-2)] no-underline transition-colors hover:text-[var(--sl-color-text)]"
+            >
+              GitHub
+            </a>
+          </li>
+          <li>
+            <a
+              href="https://github.com/nicodeforge/opennotes/issues"
+              class="text-sm text-[var(--sl-color-gray-2)] no-underline transition-colors hover:text-[var(--sl-color-text)]"
+            >
+              Issues
+            </a>
+          </li>
+          <li>
+            <a
+              href="/reference/contributing/"
+              class="text-sm text-[var(--sl-color-gray-2)] no-underline transition-colors hover:text-[var(--sl-color-text)]"
+            >
+              Contributing
+            </a>
+          </li>
+        </ul>
+      </div>
+      <div>
+        <h3 class="text-sm font-semibold uppercase tracking-wider text-[var(--sl-color-white)]">Legal</h3>
+        <ul class="mt-4 space-y-2">
+          <li>
+            <a
+              href="https://github.com/nicodeforge/opennotes/blob/main/LICENSE"
+              class="text-sm text-[var(--sl-color-gray-2)] no-underline transition-colors hover:text-[var(--sl-color-text)]"
+            >
+              MIT License
+            </a>
+          </li>
+        </ul>
+      </div>
+    </div>
+    <div class="mt-8 flex flex-col items-center justify-between gap-4 border-t border-[var(--sl-color-hairline-light)] pt-8 sm:flex-row">
+      <p class="text-sm text-[var(--sl-color-gray-3)]">
+        &copy; {new Date().getFullYear()} openNotes. Open-source under the MIT License.
+      </p>
+      <a
+        href="https://github.com/nicodeforge/opennotes"
+        class="text-[var(--sl-color-gray-3)] transition-colors hover:text-[var(--sl-color-text)]"
+        aria-label="GitHub"
+      >
+        <Github class="h-5 w-5" />
+      </a>
+    </div>
+  </div>
+</footer>
