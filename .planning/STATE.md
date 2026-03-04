@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Documentation Site
-status: phase_14_complete
+status: unknown
 stopped_at: phase 14 execution complete
-last_updated: "2026-03-04T13:08:00Z"
+last_updated: "2026-03-04T13:00:19.349Z"
 progress:
   total_phases: 5
-  completed_phases: 1
-  total_plans: 1
-  completed_plans: 1
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
   percent: 20
 ---
 
@@ -24,8 +24,7 @@ See: .planning/PROJECT.md (updated 2026-03-04)
 
 ## Current Position
 
-Phase 14 executed and verified. Milestone v1.2 now at 1/5 phases complete.
-Ready for `/gsd-plan-phase 15` to plan the next phase.
+Phase 15 planned and verified. Ready for `/gsd:execute-phase 15`.
 
 Progress: [██░░░░░░░░] 20%
 
@@ -40,6 +39,7 @@ Progress: [██░░░░░░░░] 20%
 - Static deployment on Vercel (no SSR needed)
 - Pagefind for built-in search (zero config)
 - Phase 14 scaffold complete: Astro Starlight + React + Tailwind + sitemap configured
+- [Phase 15]: Download platform cards use Lucide generic OS icons — Brand-specific Apple icon availability is not guaranteed in Lucide; generic icons keep build stable and still communicate platform choices.
 
 ### Pending Todos
 
