@@ -1,6 +1,7 @@
 {
   "deck_label": "Panel nagrywania",
-  "status_saving": "Zapisywanie",
+  "status_processing": "Kończenie\u2026",
+  "status_autoStopped": "Automatycznie zatrzymano po 4 godzinach \u2014 Kończenie\u2026",
   "status_paused": "Wstrzymano",
   "status_recording": "Nagrywanie",
   "status_ready": "Gotowe do nagrywania",
@@ -16,7 +17,7 @@
   "btn_pause": "Pauza",
   "btn_resume": "Wzn\u00f3w",
   "btn_stopRecording": "Zatrzymaj nagrywanie",
-  "btn_saving": "Zapisywanie\u2026",
+  "btn_processing": "Przetwarzanie\u2026",
   "transcript_label": "Strumie\u0144 transkrypcji",
   "transcript_title": "Notatki na \u017cywo",
   "transcript_segmentCount": "{{count}} segment",

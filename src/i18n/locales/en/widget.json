@@ -1,4 +1,6 @@
 {
+  "status_processing": "Finishing up\u2026",
+  "status_autoStopped": "Auto-stopped (4h limit) \u2014 Finishing up\u2026",
   "status_transcribing": "Transcribing",
   "status_transcriptionIssue": "Transcription issue",
   "aria_pauseRecording": "Pause recording",

@@ -19,7 +19,9 @@ export function useSession() {
   const [meetingId, setMeetingId] = useState<number | null>(null);
   const [transcriptionDegraded, setTranscriptionDegraded] = useState(false);
   const [startedAt, setStartedAt] = useState<string | null>(null);
-  const [isSaving, setIsSaving] = useState(false);
+  const [processingStage, setProcessingStage] = useState<string | null>(null);
+  const [processingFailed, setProcessingFailed] = useState(false);
+  const [processingMeetingId, setProcessingMeetingId] = useState<number | null>(null);
   const channelRef = useRef<Channel<TranscriptEvent> | null>(null);
 
   const applyState = useCallback((nextState: SessionStatePayload) => {
@@ -48,19 +50,16 @@ export function useSession() {
     });
 
     setMeetingId(nextMeetingId);
+    setProcessingFailed(false);
+    setProcessingStage(null);
+    setProcessingMeetingId(null);
     return nextMeetingId;
   }, []);
 
   const stopSession = useCallback(async () => {
-    setIsSaving(true);
-
-    try {
-      const completedMeetingId = await invoke<number>('stop_session');
-      channelRef.current = null;
-      return completedMeetingId;
-    } finally {
-      setIsSaving(false);
-    }
+    const completedMeetingId = await invoke<number>('stop_session');
+    channelRef.current = null;
+    return completedMeetingId;
   }, []);
 
   const pauseSession = useCallback(async () => {
@@ -90,10 +89,25 @@ export function useSession() {
     void Promise.all([
       listen<SessionStatePayload>('session-state-changed', (event) => {
         applyState(event.payload);
+        if (event.payload.phase === 'processing') {
+          setProcessingFailed(false);
+          setProcessingMeetingId(event.payload.meetingId ?? null);
+        }
       }),
       listen<number>('session-complete', (event) => {
         setPhase('idle');
         setMeetingId(event.payload ?? null);
+        setProcessingStage(null);
+        setProcessingFailed(false);
+        setProcessingMeetingId(null);
+      }),
+      listen<string>('processing-stage', (event) => {
+        setProcessingStage(event.payload);
+      }),
+      listen<number>('processing-failed', (event) => {
+        setProcessingFailed(true);
+        setProcessingStage(null);
+        setProcessingMeetingId(event.payload);
       }),
     ]).then((handlers) => {
       if (disposed) {
@@ -110,12 +124,17 @@ export function useSession() {
     };
   }, [applyState]);
 
+  const isSaving = phase === 'processing';
+
   return {
     phase,
     meetingId,
     transcriptionDegraded,
     startedAt,
     isSaving,
+    processingStage,
+    processingFailed,
+    processingMeetingId,
     startSession,
     stopSession,
     pauseSession,

@@ -1,6 +1,7 @@
 {
   "deck_label": "Record Deck",
-  "status_saving": "Saving",
+  "status_processing": "Finishing up\u2026",
+  "status_autoStopped": "Auto-stopped at 4-hour limit \u2014 Finishing up\u2026",
   "status_paused": "Paused",
   "status_recording": "Recording",
   "status_ready": "Ready to Record",
@@ -16,7 +17,7 @@
   "btn_pause": "Pause",
   "btn_resume": "Resume",
   "btn_stopRecording": "Stop Recording",
-  "btn_saving": "Saving\u2026",
+  "btn_processing": "Processing\u2026",
   "transcript_label": "Transcript Stream",
   "transcript_title": "Live Notes",
   "transcript_segmentCount": "{{count}} segment",

@@ -56,6 +56,7 @@ export function RecordView() {
   const lastShortcutTriggeredAtRef = useRef(0);
   const [recordingError, setRecordingError] = useState<string | null>(null);
   const [startingSession, setStartingSession] = useState(false);
+  const [autoStopReason, setAutoStopReason] = useState<string | null>(null);
   const macOS = useMemo(() => isMacOS(), []);
   const systemAudioLabel = useMemo(
     () => (macOS ? t('preflight_systemAudioMac') : t('preflight_systemAudio')),
@@ -89,7 +90,7 @@ export function RecordView() {
     resumeSession,
   } = useSession();
 
-  const sessionActive = phase === 'recording' || phase === 'paused' || phase === 'stopping';
+  const sessionActive = phase === 'recording' || phase === 'paused' || phase === 'processing';
   const phaseRef = useRef(phase);
 
   useEffect(() => {
@@ -110,8 +111,8 @@ export function RecordView() {
   );
 
   const stateLabel = useMemo(() => {
-    if (phase === 'stopping') {
-      return t('status_saving');
+    if (phase === 'processing') {
+      return autoStopReason ?? t('status_processing');
     }
 
     if (isRecording) {
@@ -119,14 +120,14 @@ export function RecordView() {
     }
 
     return t('status_ready');
-  }, [isPaused, isRecording, phase, t]);
+  }, [autoStopReason, isPaused, isRecording, phase, t]);
 
   const modelReady = modelStatus === 'ready';
   const modelBlocked = modelStatus === 'not_ready' || modelStatus === 'error';
   const isModelChecking = modelStatus === 'checking' || modelStatus === 'unknown';
   const modelSettingUp = modelStatus === 'downloading' || modelStatus === 'extracting';
   const remainingAutoStopMs = Math.max(0, FOUR_HOURS_MS - elapsedMs);
-  const canChangeSessionState = phase !== 'stopping' && !isSaving;
+  const canChangeSessionState = phase !== 'processing' && !isSaving;
   const hasOperationalAlert =
     transcriptionDegraded || Boolean(permissionHint) || Boolean(recordingError) || modelBlocked || isModelChecking;
 
@@ -236,6 +237,7 @@ export function RecordView() {
           addEvent(event);
         });
         autoStopTriggeredRef.current = false;
+        setAutoStopReason(null);
         return true;
       } catch {
         setRecordingError(t('error_sessionStart'));
@@ -246,13 +248,16 @@ export function RecordView() {
     }
   }, [addEvent, checkModelReady, ensurePermissions, resetTranscript, startSession, t]);
 
-  const handleStopRecording = useCallback(async () => {
+  const handleStopRecording = useCallback(async (autoStopped = false) => {
+    setAutoStopReason(autoStopped ? t('status_autoStopped') : null);
+
     try {
       const completedMeetingId = await stopSession();
       if (typeof completedMeetingId === 'number') {
         await navigateToMeetingComplete(completedMeetingId);
       }
     } catch {
+      setAutoStopReason(null);
       setRecordingError(t('error_sessionStop'));
     }
   }, [navigateToMeetingComplete, stopSession, t]);
@@ -272,7 +277,7 @@ export function RecordView() {
   }, [navigate]);
 
   useEffect(() => {
-    if (!sessionActive || !startTime || phase === 'stopping') {
+    if (!sessionActive || !startTime || phase === 'processing') {
       autoStopTriggeredRef.current = false;
       return;
     }
@@ -281,7 +286,7 @@ export function RecordView() {
     if (remainingMs <= 0) {
       if (!autoStopTriggeredRef.current) {
         autoStopTriggeredRef.current = true;
-        void handleStopRecording();
+        void handleStopRecording(true);
       }
       return;
     }
@@ -289,7 +294,7 @@ export function RecordView() {
     const timer = window.setTimeout(() => {
       if (!autoStopTriggeredRef.current) {
         autoStopTriggeredRef.current = true;
-        void handleStopRecording();
+        void handleStopRecording(true);
       }
     }, remainingMs);
 
@@ -315,7 +320,7 @@ export function RecordView() {
 
       try {
         const currentPhase = phaseRef.current;
-        if (currentPhase === 'stopping') {
+        if (currentPhase === 'processing') {
           return;
         }
 
@@ -479,11 +484,17 @@ export function RecordView() {
                         className="inline-flex items-center gap-2 rounded-xl bg-red-500 px-5 py-2.5 text-sm font-semibold text-white shadow-[0_14px_30px_-18px_rgba(239,68,68,0.8)] transition hover:bg-red-600 disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         <Square size={13} />
-                        {isSaving || phase === 'stopping' ? t('btn_saving') : t('btn_stopRecording')}
+                        {phase === 'processing' ? t('btn_processing') : t('btn_stopRecording')}
                       </button>
                     </>
                   )}
                 </div>
+
+                {phase === 'processing' && autoStopReason ? (
+                  <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50/80 px-3 py-2 text-sm text-amber-700 dark:border-amber-500/35 dark:bg-amber-500/10 dark:text-amber-200">
+                    {autoStopReason}
+                  </p>
+                ) : null}
 
                 {recordingError ? (
                   <p className="mt-3 rounded-xl border border-red-200 bg-red-50/80 px-3 py-2.5 text-sm text-red-700 dark:border-red-500/35 dark:bg-red-500/10 dark:text-red-200">

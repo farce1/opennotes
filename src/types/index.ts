@@ -1,7 +1,7 @@
 export type AppView = 'record' | 'library' | 'settings';
 export type AppTheme = 'light' | 'dark' | 'system';
 export type RecordingState = 'idle' | 'recording' | 'processing';
-export type SessionPhase = 'idle' | 'recording' | 'paused' | 'stopping';
+export type SessionPhase = 'idle' | 'recording' | 'paused' | 'processing';
 
 export interface Meeting {
   id: number;
@@ -10,6 +10,7 @@ export interface Meeting {
   ended_at: string | null;
   duration_seconds: number | null;
   status: 'recording' | 'paused' | 'processing' | 'completed' | 'failed' | 'recovered';
+  post_processing_status: 'processing' | 'failed' | 'complete' | null;
   audio_path: string | null;
   audio_sources: string | null;
   created_at: string;
