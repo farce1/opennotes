@@ -10,6 +10,11 @@ export default defineConfig({
   integrations: [
     starlight({
       title: 'openNotes',
+      logo: {
+        light: './src/assets/logo-dark.svg',
+        dark: './src/assets/logo-light.svg',
+        replacesTitle: false,
+      },
       social: [
         {
           icon: 'github',
