@@ -3,14 +3,30 @@ node_modules/
 
 # Output
 dist/
+build/Release
 
 # Astro
 .astro/
+
+# Vite
+vite.config.js.timestamp-*
+vite.config.ts.timestamp-*
+
+# TypeScript
+*.tsbuildinfo
+
+# Test coverage
+coverage
+*.lcov
+.nyc_output
 
 # Environment
 .env
 .env.*
 !.env.example
+
+# Logs
+*.log
 
 # IDE
 .vscode/
