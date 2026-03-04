@@ -52,7 +52,7 @@ export function useSummary() {
     }
   }, []);
 
-  const generate = useCallback(async (meetingId: number) => {
+  const generate = useCallback(async (meetingId: number, templatePrompt?: string) => {
     setGenerating(true);
     setGlobalGenerating(true);
     setSummaryText('');
@@ -103,6 +103,7 @@ export function useSummary() {
         serverUrl: serverUrl || undefined,
         model: model || undefined,
         language: language || undefined,
+        templatePrompt: templatePrompt || undefined,
         onToken: channel,
       });
 
