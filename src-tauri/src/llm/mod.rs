@@ -452,10 +452,34 @@ fn build_language_instruction(language: &str) -> &'static str {
     }
 }
 
-fn build_summary_prompt(transcript: &str, language: &str) -> String {
+const DEFAULT_STANDARD_PROMPT: &str = "You are a meeting notes assistant. Summarize ONLY what is explicitly said in the transcript below. Do NOT invent, assume, or hallucinate any information that is not directly present in the transcript. If the transcript is short or lacks substance, reflect that honestly — write a brief summary and use \"None identified.\" for empty sections.\n\nProduce structured meeting notes in Markdown with exactly these four sections:\n\n## Overview\n[Summarize only what was actually discussed. For very short or minimal transcripts, write 1-2 sentences. For longer meetings, write up to 8-12 sentences. Only mention participants if they are named in the transcript.]\n\n## Key Points\n[Bullet list of the most important facts, insights, or information shared. Only include points explicitly stated in the transcript. If nothing substantive was discussed, write \"None identified.\"]\n\n## Decisions Made\n[Bullet list of decisions that were made during the meeting. Only include decisions explicitly stated. If none, write \"None identified.\"]\n\n## Action Items\n[List ALL action items as: - @[person]: [task] by [deadline]. Only include action items explicitly assigned in the transcript. If no action items were mentioned, write \"None identified.\"]\n\nCRITICAL: Every claim in your summary must be directly traceable to the transcript. If the transcript contains only greetings or filler words, say so. Do NOT fabricate meeting content.\n\nAlso generate a concise meeting title (max 10 words) on the very first line as: TITLE: [title]";
+
+fn build_prompt_from_template(
+    transcript: &str,
+    language: &str,
+    template_prompt: Option<&str>,
+) -> String {
+    let base = template_prompt.unwrap_or(DEFAULT_STANDARD_PROMPT);
     let lang_instruction = build_language_instruction(language);
     format!(
-        "You are a meeting notes assistant. Summarize ONLY what is explicitly said in the transcript below. Do NOT invent, assume, or hallucinate any information that is not directly present in the transcript. If the transcript is short or lacks substance, reflect that honestly — write a brief summary and use \"None identified.\" for empty sections.\n\nProduce structured meeting notes in Markdown with exactly these four sections:\n\n## Overview\n[Summarize only what was actually discussed. For very short or minimal transcripts, write 1-2 sentences. For longer meetings, write up to 8-12 sentences. Only mention participants if they are named in the transcript.]\n\n## Key Points\n[Bullet list of the most important facts, insights, or information shared. Only include points explicitly stated in the transcript. If nothing substantive was discussed, write \"None identified.\"]\n\n## Decisions Made\n[Bullet list of decisions that were made during the meeting. Only include decisions explicitly stated. If none, write \"None identified.\"]\n\n## Action Items\n[List ALL action items as: - @[person]: [task] by [deadline]. Only include action items explicitly assigned in the transcript. If no action items were mentioned, write \"None identified.\"]\n\nCRITICAL: Every claim in your summary must be directly traceable to the transcript. If the transcript contains only greetings or filler words, say so. Do NOT fabricate meeting content.\n\nAlso generate a concise meeting title (max 10 words) on the very first line as: TITLE: [title]\n\n{lang_instruction}Transcript:\n{transcript}",
+        "{base}\n\n{lang_instruction}Transcript:\n{transcript}",
+    )
+}
+
+fn build_synthesis_prompt(
+    stitched: &str,
+    language: &str,
+    template_prompt: Option<&str>,
+) -> String {
+    let lang_instruction = build_language_instruction(language);
+    if let Some(prompt) = template_prompt {
+        return format!(
+            "Synthesize these partial summaries into a single coherent summary. Follow the structure and tone of this template:\n\n{prompt}\n\n{lang_instruction}Partial summaries:\n\n{stitched}",
+        );
+    }
+
+    format!(
+        "You are given partial meeting summaries from consecutive sections. Synthesize them into a single coherent summary with the same four-section structure.\n\nYou MUST include every action item from every section below. Do not merge, summarize, or drop any @person assignments. Each action item from each section must appear in the final Action Items list.\n\nThe Overview should be 8-12 sentences since this is a long meeting.\n\nReturn the result in Markdown with:\n- First line as TITLE: [concise title]\n- ## Overview\n- ## Key Points\n- ## Decisions Made\n- ## Action Items\n\n{lang_instruction}Partial summaries:\n\n{stitched}",
     )
 }
 
@@ -486,6 +510,7 @@ pub async fn generate_summary_stream(
     server_url: &str,
     model: &str,
     language: &str,
+    template_prompt: Option<&str>,
     on_token: &Channel<LlmTokenEvent>,
 ) -> Result<String, String> {
     let model_context_length = query_model_context_length(server_url, model).await;
@@ -500,7 +525,7 @@ pub async fn generate_summary_stream(
         let _ = on_token.send(LlmTokenEvent::ContextTruncated { minutes_covered: 0 });
     }
 
-    let prompt = build_summary_prompt(transcript_for_prompt, language);
+    let prompt = build_prompt_from_template(transcript_for_prompt, language, template_prompt);
     let num_ctx = choose_num_ctx(model_context_length, transcript_for_prompt);
     run_generate_stream(&prompt, server_url, model, num_ctx, on_token).await
 }
@@ -510,6 +535,7 @@ pub async fn generate_summary_chunked(
     server_url: &str,
     model: &str,
     language: &str,
+    template_prompt: Option<&str>,
     on_token: &Channel<LlmTokenEvent>,
 ) -> Result<String, String> {
     let chunks = chunk_transcript(transcript);
@@ -517,7 +543,7 @@ pub async fn generate_summary_chunked(
     let mut partial_summaries = Vec::with_capacity(chunks.len());
 
     for chunk in chunks {
-        let prompt = build_summary_prompt(&chunk, language);
+        let prompt = build_prompt_from_template(&chunk, language, template_prompt);
         let num_ctx = choose_num_ctx(model_context_length, &chunk);
         partial_summaries.push(run_generate_non_stream(&prompt, server_url, model, num_ctx).await?);
     }
@@ -529,10 +555,7 @@ pub async fn generate_summary_chunked(
         .collect::<Vec<_>>()
         .join("\n\n");
 
-    let lang_instruction = build_language_instruction(language);
-    let synthesis_prompt = format!(
-        "You are given partial meeting summaries from consecutive sections. Synthesize them into a single coherent summary with the same four-section structure.\n\nYou MUST include every action item from every section below. Do not merge, summarize, or drop any @person assignments. Each action item from each section must appear in the final Action Items list.\n\nThe Overview should be 8-12 sentences since this is a long meeting.\n\nReturn the result in Markdown with:\n- First line as TITLE: [concise title]\n- ## Overview\n- ## Key Points\n- ## Decisions Made\n- ## Action Items\n\n{lang_instruction}Partial summaries:\n\n{stitched}",
-    );
+    let synthesis_prompt = build_synthesis_prompt(&stitched, language, template_prompt);
 
     let synthesis_num_ctx = choose_num_ctx(model_context_length, &stitched);
     run_generate_stream(&synthesis_prompt, server_url, model, synthesis_num_ctx, on_token).await
@@ -543,12 +566,13 @@ pub async fn run_summary(
     server_url: &str,
     model: &str,
     language: &str,
+    template_prompt: Option<&str>,
     on_token: &Channel<LlmTokenEvent>,
 ) -> Result<String, String> {
     let result = if transcript.len() <= MAX_SINGLE_PASS_CHARS {
-        generate_summary_stream(transcript, server_url, model, language, on_token).await
+        generate_summary_stream(transcript, server_url, model, language, template_prompt, on_token).await
     } else {
-        generate_summary_chunked(transcript, server_url, model, language, on_token).await
+        generate_summary_chunked(transcript, server_url, model, language, template_prompt, on_token).await
     };
 
     match result {

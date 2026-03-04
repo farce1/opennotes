@@ -678,6 +678,7 @@ pub async fn generate_summary(
     server_url: Option<String>,
     model: Option<String>,
     language: Option<String>,
+    template_prompt: Option<String>,
     on_token: Channel<llm::LlmTokenEvent>,
 ) -> Result<(), String> {
     let transcript_parts = sqlx::query_scalar::<_, String>(
@@ -699,7 +700,15 @@ pub async fn generate_summary(
     let url = server_url.unwrap_or_else(|| llm::DEFAULT_OLLAMA_URL.to_string());
     let selected_model = model.unwrap_or_else(|| llm::DEFAULT_MODEL.to_string());
     let summary_language = language.as_deref().unwrap_or("en");
-    let full_summary = llm::run_summary(&transcript, &url, &selected_model, summary_language, &on_token).await?;
+    let full_summary = llm::run_summary(
+        &transcript,
+        &url,
+        &selected_model,
+        summary_language,
+        template_prompt.as_deref(),
+        &on_token,
+    )
+    .await?;
     let extracted_title = llm::extract_title(&full_summary);
     let cleaned_summary = llm::strip_title_line(&full_summary).trim().to_string();
     let persisted_summary = if cleaned_summary.is_empty() {
