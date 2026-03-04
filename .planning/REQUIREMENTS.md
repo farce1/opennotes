@@ -23,7 +23,7 @@ Requirements for v1.2 Speaker Intelligence & Templates. Each maps to roadmap pha
 - [x] **DIAR-04**: Transcript segments display speaker labels (Speaker 1, Speaker 2, etc.)
 - [x] **DIAR-05**: User can rename speaker labels to real names within a session (click-to-edit)
 - [x] **DIAR-06**: Renamed speaker labels propagate to all segments with that speaker in the session
-- [ ] **DIAR-07**: User can view an interactive speaker timeline showing who spoke when
+- [x] **DIAR-07**: User can view an interactive speaker timeline showing who spoke when
 - [ ] **DIAR-08**: User can click a timeline segment to jump to that position in the transcript
 - [x] **DIAR-09**: User can see per-speaker talk-time statistics (percentage of total)
 - [x] **DIAR-10**: Diarization runs on a dedicated thread without blocking Ollama or UI
@@ -37,7 +37,7 @@ Requirements for v1.2 Speaker Intelligence & Templates. Each maps to roadmap pha
 - [x] **TMPL-04**: User can create custom summary templates with a prompt editor
 - [x] **TMPL-05**: User can edit and delete custom templates
 - [x] **TMPL-06**: Built-in templates cannot be deleted but can be customized (reset to default available)
-- [ ] **TMPL-07**: When diarization data is available, summary prompt includes speaker names for attributed output
+- [x] **TMPL-07**: When diarization data is available, summary prompt includes speaker names for attributed output
 - [x] **TMPL-08**: Template system works with the existing map-reduce chunking for long meetings (2+ hours)
 
 ### ASR Migration
@@ -115,9 +115,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | DIAR-09 | Phase 17 | Complete |
 | DIAR-10 | Phase 17 | Complete |
 | DIAR-11 | Phase 17 | Complete |
-| DIAR-07 | Phase 18 | Pending |
+| DIAR-07 | Phase 18 | Complete |
 | DIAR-08 | Phase 18 | Pending |
-| TMPL-07 | Phase 18 | Pending |
+| TMPL-07 | Phase 18 | Complete |
 
 **Coverage:**
 - v1.2 requirements: 30 total
@@ -126,4 +126,4 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 ---
 *Requirements defined: 2026-03-04*
-*Last updated: 2026-03-04 after Phase 16 completion*
+*Last updated: 2026-03-04 after Phase 18 Plan 01 completion*

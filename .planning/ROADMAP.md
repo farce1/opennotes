@@ -116,7 +116,9 @@ Full details: `.planning/milestones/v1.1-ROADMAP.md`
   2. User clicks a segment on the timeline and the transcript scrolls to the corresponding position
   3. When diarization data and speaker names are present, the generated summary includes speaker-attributed content (e.g., "@Alice: assigned to follow up on...") instead of generic references
   4. Speaker-attributed summaries work with all built-in templates and with the map-reduce chunking path for long meetings
-**Plans**: TBD
+**Plans:** 1/2 plans complete
+- [x] 18-01-PLAN.md — Speaker roster prompt threading and standalone SpeakerTimeline component
+- [ ] 18-02-PLAN.md — Meeting view integration, click-to-scroll sync, timeline indicator tracking, naming tip
 
 ## Progress
 
@@ -139,4 +141,4 @@ Full details: `.planning/milestones/v1.1-ROADMAP.md`
 | 15. ASR Migration to Whisper | v1.2 | 2/2 | Complete | 2026-03-04 |
 | 16. Summary Templates | v1.2 | 2/2 | Complete | 2026-03-04 |
 | 17. Diarization Core | v1.2 | 2/2 | Complete | 2026-03-04 |
-| 18. Speaker Timeline & Attributed Summaries | v1.2 | 0/TBD | Not started | - |
+| 18. Speaker Timeline & Attributed Summaries | v1.2 | 1/2 | In Progress | - |
