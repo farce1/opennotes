@@ -17,17 +17,17 @@ Requirements for v1.2 Speaker Intelligence & Templates. Each maps to roadmap pha
 
 ### Speaker Diarization
 
-- [ ] **DIAR-01**: App downloads speaker diarization models on first use via existing model wizard pattern
-- [ ] **DIAR-02**: After recording stops, user can trigger speaker diarization on the recorded audio
-- [ ] **DIAR-03**: User sees diarization progress (e.g., "Analyzing speakers... 60%")
-- [ ] **DIAR-04**: Transcript segments display speaker labels (Speaker 1, Speaker 2, etc.)
-- [ ] **DIAR-05**: User can rename speaker labels to real names within a session (click-to-edit)
-- [ ] **DIAR-06**: Renamed speaker labels propagate to all segments with that speaker in the session
+- [x] **DIAR-01**: App downloads speaker diarization models on first use via existing model wizard pattern
+- [x] **DIAR-02**: After recording stops, user can trigger speaker diarization on the recorded audio
+- [x] **DIAR-03**: User sees diarization progress (e.g., "Analyzing speakers... 60%")
+- [x] **DIAR-04**: Transcript segments display speaker labels (Speaker 1, Speaker 2, etc.)
+- [x] **DIAR-05**: User can rename speaker labels to real names within a session (click-to-edit)
+- [x] **DIAR-06**: Renamed speaker labels propagate to all segments with that speaker in the session
 - [ ] **DIAR-07**: User can view an interactive speaker timeline showing who spoke when
 - [ ] **DIAR-08**: User can click a timeline segment to jump to that position in the transcript
-- [ ] **DIAR-09**: User can see per-speaker talk-time statistics (percentage of total)
-- [ ] **DIAR-10**: Diarization runs on a dedicated thread without blocking Ollama or UI
-- [ ] **DIAR-11**: Diarization works cross-platform (macOS, Windows, Linux)
+- [x] **DIAR-09**: User can see per-speaker talk-time statistics (percentage of total)
+- [x] **DIAR-10**: Diarization runs on a dedicated thread without blocking Ollama or UI
+- [x] **DIAR-11**: Diarization works cross-platform (macOS, Windows, Linux)
 
 ### Summary Templates
 
@@ -106,15 +106,15 @@ Which phases cover which requirements. Updated during roadmap creation.
 | TMPL-05 | Phase 16 | Complete |
 | TMPL-06 | Phase 16 | Complete |
 | TMPL-08 | Phase 16 | Complete |
-| DIAR-01 | Phase 17 | Pending |
-| DIAR-02 | Phase 17 | Pending |
-| DIAR-03 | Phase 17 | Pending |
-| DIAR-04 | Phase 17 | Pending |
-| DIAR-05 | Phase 17 | Pending |
-| DIAR-06 | Phase 17 | Pending |
-| DIAR-09 | Phase 17 | Pending |
-| DIAR-10 | Phase 17 | Pending |
-| DIAR-11 | Phase 17 | Pending |
+| DIAR-01 | Phase 17 | Complete |
+| DIAR-02 | Phase 17 | Complete |
+| DIAR-03 | Phase 17 | Complete |
+| DIAR-04 | Phase 17 | Complete |
+| DIAR-05 | Phase 17 | Complete |
+| DIAR-06 | Phase 17 | Complete |
+| DIAR-09 | Phase 17 | Complete |
+| DIAR-10 | Phase 17 | Complete |
+| DIAR-11 | Phase 17 | Complete |
 | DIAR-07 | Phase 18 | Pending |
 | DIAR-08 | Phase 18 | Pending |
 | TMPL-07 | Phase 18 | Pending |

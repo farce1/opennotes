@@ -103,7 +103,9 @@ Full details: `.planning/milestones/v1.1-ROADMAP.md`
   4. User sees per-speaker talk-time statistics showing each speaker's percentage of total speaking time
   5. Diarization models download on first use via the existing model wizard, and the wizard completes on macOS, Windows, and Linux
   6. Running diarization does not stall an in-progress Ollama summary generation (dedicated thread, not Tokio pool)
-**Plans**: TBD
+**Plans:** 2/2 plans complete
+- [x] 17-01-PLAN.md — Rust diarization backend, model download, DB schema, and Tauri command surface
+- [x] 17-02-PLAN.md — Frontend diarization hook, speaker transcript UX, settings toggle, and i18n
 
 ### Phase 18: Speaker Timeline & Attributed Summaries
 **Goal**: Users can visualize who spoke when on an interactive timeline, jump to any moment in the transcript by clicking the timeline, and get summaries that name speakers directly
