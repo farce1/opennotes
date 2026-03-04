@@ -3,6 +3,7 @@ mod commands;
 mod db;
 mod download;
 mod llm;
+mod ollama_catalog;
 mod session;
 mod transcription;
 mod tray;
@@ -219,6 +220,7 @@ pub fn run() {
             commands::cancel_download,
             commands::list_audio_input_devices,
             commands::list_ollama_models,
+            ollama_catalog::list_ollama_library_catalog_models,
             commands::delete_ollama_model,
             commands::update_recording_shortcut,
             commands::auto_setup_ollama,

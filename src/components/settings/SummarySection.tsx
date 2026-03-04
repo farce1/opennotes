@@ -27,7 +27,9 @@ function optionButtonClasses(selected: boolean): string {
 }
 
 function formatModelLabel(model: OllamaModelInfo): string {
-  const size = model.parameterSize ? ` · ${model.parameterSize}` : '';
+  const normalizedSize = model.parameterSize?.toLowerCase();
+  const sizeIncludedInName = normalizedSize ? model.name.toLowerCase().endsWith(`:${normalizedSize}`) : false;
+  const size = model.parameterSize && !sizeIncludedInName ? ` · ${model.parameterSize}` : '';
   const rec = model.name === 'phi4-mini' || model.name === 'phi4-mini:latest' ? ' · Recommended' : '';
   return `${model.name}${size}${rec}`;
 }
@@ -39,8 +41,10 @@ export function SummarySection() {
   const [ollamaServerUrl, updateOllamaServerUrl] = useSetting('ollamaServerUrl');
   const [serverUrlInput, setServerUrlInput] = useState(DEFAULT_SETTINGS.ollamaServerUrl);
   const [models, setModels] = useState<OllamaModelInfo[]>([]);
+  const [availablePullModels, setAvailablePullModels] = useState<OllamaModelInfo[]>([]);
   const [status, setStatus] = useState<OllamaStatus | null>(null);
   const [loading, setLoading] = useState(false);
+  const [loadingAvailablePullModels, setLoadingAvailablePullModels] = useState(false);
   const [pulling, setPulling] = useState(false);
   const [pullProgress, setPullProgress] = useState<PullProgress | null>(null);
   const [pullModelName, setPullModelName] = useState('');
@@ -82,6 +86,21 @@ export function SummarySection() {
     [refreshModels, refreshStatus],
   );
 
+  const refreshAvailablePullModels = useCallback(async () => {
+    setLoadingAvailablePullModels(true);
+    try {
+      const listed = await invoke<OllamaModelInfo[]>('list_ollama_library_catalog_models');
+      setAvailablePullModels(listed);
+      return listed;
+    } catch {
+      setAvailablePullModels([]);
+      setErrorMessage('Unable to load downloadable Ollama model catalog. Check your internet connection and retry.');
+      return [];
+    } finally {
+      setLoadingAvailablePullModels(false);
+    }
+  }, []);
+
   useEffect(() => {
     setServerUrlInput(currentServerUrl);
   }, [currentServerUrl]);
@@ -89,6 +108,10 @@ export function SummarySection() {
   useEffect(() => {
     void refreshAll(currentServerUrl);
   }, [currentServerUrl, refreshAll]);
+
+  useEffect(() => {
+    void refreshAvailablePullModels();
+  }, [refreshAvailablePullModels]);
 
   const persistServerUrl = useCallback(async () => {
     const trimmed = serverUrlInput.trim();
@@ -134,7 +157,7 @@ export function SummarySection() {
   const handlePullModel = useCallback(async () => {
     const modelName = pullModelName.trim();
     if (!modelName) {
-      setErrorMessage('Enter a model name to pull.');
+      setErrorMessage('Select a model to pull.');
       return;
     }
 
@@ -200,6 +223,15 @@ export function SummarySection() {
         label: formatModelLabel(model),
       })),
     [modelOptions],
+  );
+
+  const pullModelDropdownOptions = useMemo(
+    () =>
+      availablePullModels.map((model) => ({
+        value: model.name,
+        label: formatModelLabel(model),
+      })),
+    [availablePullModels],
   );
 
   const connectionOnline = status?.running ?? false;
@@ -340,21 +372,46 @@ export function SummarySection() {
           <div className="mt-4 space-y-2">
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-gray-500 dark:text-gray-400">Pull New Model</p>
             <div className="flex flex-col gap-2 sm:flex-row">
-              <input
+              <Dropdown
                 value={pullModelName}
-                onChange={(event) => setPullModelName(event.target.value)}
-                placeholder="e.g. llama3.2:3b"
-                className="w-full rounded-xl border border-gray-200/80 bg-white/80 px-3 py-2.5 text-sm text-gray-700 shadow-sm transition-all duration-150 outline-none hover:border-gray-300 focus:border-accent/40 focus:ring-2 focus:ring-accent/20 dark:border-gray-700/80 dark:bg-gray-800/70 dark:text-gray-100 dark:hover:border-gray-600"
+                options={pullModelDropdownOptions}
+                onChange={setPullModelName}
+                placeholder={
+                  loadingAvailablePullModels
+                    ? 'Loading available models...'
+                    : pullModelDropdownOptions.length
+                      ? 'Select a model (e.g. llama3.2:3b)'
+                      : 'No models available'
+                }
+                disabled={pulling || loadingAvailablePullModels || !pullModelDropdownOptions.length}
+                size="regular"
+                fullWidth
+                className="w-full"
               />
               <button
                 type="button"
+                onClick={() => void refreshAvailablePullModels()}
+                disabled={loadingAvailablePullModels}
+                className="rounded-xl border border-gray-200/80 bg-white/80 px-3 py-2.5 text-sm text-gray-600 shadow-sm transition-all duration-150 hover:border-gray-300 hover:bg-white disabled:cursor-not-allowed disabled:opacity-70 dark:border-gray-700/80 dark:bg-gray-800/70 dark:text-gray-200 dark:hover:border-gray-600 dark:hover:bg-gray-800"
+                title="Refresh downloadable models"
+              >
+                <RotateCw size={15} className={loadingAvailablePullModels ? 'animate-spin' : ''} />
+              </button>
+              <button
+                type="button"
                 onClick={() => void handlePullModel()}
-                disabled={pulling}
+                disabled={pulling || loadingAvailablePullModels || !pullModelName.trim()}
                 className="rounded-xl border border-accent/40 bg-accent/8 px-3 py-2.5 text-sm font-medium text-accent transition-all duration-150 hover:bg-accent/12 disabled:cursor-not-allowed disabled:opacity-70 dark:border-accent/45 dark:bg-accent/15 dark:text-accent-muted"
               >
                 {pulling ? 'Pulling…' : 'Pull'}
               </button>
             </div>
+
+            {!loadingAvailablePullModels && !pullModelDropdownOptions.length ? (
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                Could not load downloadable models. Refresh the catalog and try again.
+              </p>
+            ) : null}
 
             {pullProgress ? (
               <div className="space-y-1.5">
