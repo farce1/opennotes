@@ -70,12 +70,38 @@ fn sqlite_path_literal(path: &std::path::Path) -> String {
     path.display().to_string().replace('\'', "''")
 }
 
-pub(crate) async fn fts_upsert(pool: &SqlitePool, meeting_id: i64) -> Result<(), String> {
+async fn fts_row_exists(pool: &SqlitePool, meeting_id: i64) -> Result<bool, String> {
+    let exists = sqlx::query_scalar::<_, i64>(
+        "SELECT EXISTS(
+            SELECT 1
+            FROM meetings_fts
+            WHERE rowid = ?
+        )",
+    )
+    .bind(meeting_id)
+    .fetch_one(pool)
+    .await
+    .map_err(|err| format!("FTS existence check failed: {err}"))?;
+
+    Ok(exists != 0)
+}
+
+async fn fts_delete_if_exists(pool: &SqlitePool, meeting_id: i64) -> Result<(), String> {
+    if !fts_row_exists(pool, meeting_id).await? {
+        return Ok(());
+    }
+
     sqlx::query("INSERT INTO meetings_fts(meetings_fts, rowid) VALUES ('delete', ?)")
         .bind(meeting_id)
         .execute(pool)
         .await
         .map_err(|err| format!("FTS delete failed: {err}"))?;
+
+    Ok(())
+}
+
+pub(crate) async fn fts_upsert(pool: &SqlitePool, meeting_id: i64) -> Result<(), String> {
+    fts_delete_if_exists(pool, meeting_id).await?;
 
     sqlx::query(
         "INSERT INTO meetings_fts(rowid, title, transcript_text)
@@ -662,9 +688,7 @@ pub async fn soft_delete_meeting(
     .await
     .map_err(|err| format!("failed to soft-delete meeting: {err}"))?;
 
-    sqlx::query("INSERT INTO meetings_fts(meetings_fts, rowid) VALUES ('delete', ?)")
-        .bind(meeting_id)
-        .execute(pool.inner())
+    fts_delete_if_exists(pool.inner(), meeting_id)
         .await
         .map_err(|err| format!("FTS cleanup on delete failed: {err}"))?;
 
