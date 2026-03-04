@@ -125,7 +125,7 @@ pub fn run_worker(
                 sample_rate: 16_000,
                 feature_dim: 80,
                 provider: Some("cpu".to_string()),
-                debug: true,
+                debug: false,
                 ..Default::default()
             }) {
                 Ok(recognizer) => {

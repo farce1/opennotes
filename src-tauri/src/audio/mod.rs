@@ -84,7 +84,7 @@ pub fn start_recording(
 
     let (mic_tx, mic_rx) = mpsc::sync_channel::<Vec<f32>>(128);
     let (system_tx, system_rx) = mpsc::sync_channel::<Vec<f32>>(128);
-    let (transcription_tx, transcription_rx) = mpsc::sync_channel::<Vec<f32>>(256);
+    let (transcription_tx, transcription_rx) = mpsc::sync_channel::<Vec<f32>>(2048);
     let (encoder_tx, encoder_rx) = mpsc::sync_channel::<Vec<i16>>(128);
 
     let capture_mic = !matches!(source_mode, SourceMode::System);
@@ -102,7 +102,7 @@ pub fn start_recording(
     let mut loopback_stream = None;
     let mut loopback_sample_rate = None;
     if capture_system {
-        let loopback_capture = capture::build_loopback_stream(system_tx.clone());
+        let loopback_capture = capture::build_loopback_stream(system_tx.clone(), app.clone());
         if matches!(source_mode, SourceMode::System) && loopback_capture.is_none() {
             return Err("system audio capture unavailable on this device".to_string());
         }
