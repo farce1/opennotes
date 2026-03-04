@@ -1,5 +1,6 @@
 import { AlertCircle, Pause, Play, Square } from 'lucide-react';
 import { getCurrentWindow } from '@tauri-apps/api/window';
+import { useTranslation } from 'react-i18next';
 
 import { useRecording } from '../../hooks/useRecording';
 import { useSession } from '../../hooks/useSession';
@@ -7,6 +8,7 @@ import { ElapsedTimer } from './ElapsedTimer';
 import { WaveformBar } from './WaveformBar';
 
 export function RecordingWidget() {
+  const { t } = useTranslation('widget');
   const { isPaused, isRecording, audioLevel, audioSpectrum, elapsedMs } = useRecording();
   const { phase, transcriptionDegraded, pauseSession, resumeSession, stopSession } = useSession();
 
@@ -51,10 +53,10 @@ export function RecordingWidget() {
           {transcriptionDegraded ? (
             <>
               <AlertCircle size={10} className="text-amber-300/90" />
-              Transcription issue
+              {t('status_transcriptionIssue')}
             </>
           ) : (
-            'Transcribing'
+            t('status_transcribing')
           )}
         </p>
       </div>
@@ -68,7 +70,7 @@ export function RecordingWidget() {
         onClick={() => void onPauseToggle()}
         disabled={!isRecording || isSaving}
         className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-50"
-        aria-label={isPaused ? 'Resume recording' : 'Pause recording'}
+        aria-label={isPaused ? t('aria_resumeRecording') : t('aria_pauseRecording')}
       >
         {isPaused ? <Play size={14} /> : <Pause size={14} />}
       </button>
@@ -78,7 +80,7 @@ export function RecordingWidget() {
         onClick={() => void stopSession()}
         disabled={!isRecording || isSaving}
         className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-red-500/90 text-white transition hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-50"
-        aria-label="Stop recording"
+        aria-label={t('aria_stopRecording')}
       >
         <Square size={13} />
       </button>

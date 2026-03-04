@@ -13,6 +13,7 @@ import {
   Square,
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router';
 
 import { useModelSetup } from '../hooks/useModelSetup';
@@ -47,6 +48,7 @@ function rowToSegment(row: TranscriptRow) {
 }
 
 export function RecordView() {
+  const { t } = useTranslation('record');
   const navigate = useNavigate();
   const transcriptContainerRef = useRef<HTMLDivElement | null>(null);
   const autoStopTriggeredRef = useRef(false);
@@ -56,8 +58,8 @@ export function RecordView() {
   const [startingSession, setStartingSession] = useState(false);
   const macOS = useMemo(() => isMacOS(), []);
   const systemAudioLabel = useMemo(
-    () => (macOS ? 'System audio (Screen Recording)' : 'System audio'),
-    [macOS],
+    () => (macOS ? t('preflight_systemAudioMac') : t('preflight_systemAudio')),
+    [macOS, t],
   );
 
   const {
@@ -109,15 +111,15 @@ export function RecordView() {
 
   const stateLabel = useMemo(() => {
     if (phase === 'stopping') {
-      return 'Saving';
+      return t('status_saving');
     }
 
     if (isRecording) {
-      return isPaused ? 'Paused' : 'Recording';
+      return isPaused ? t('status_paused') : t('status_recording');
     }
 
-    return 'Ready to Record';
-  }, [isPaused, isRecording, phase]);
+    return t('status_ready');
+  }, [isPaused, isRecording, phase, t]);
 
   const modelReady = modelStatus === 'ready';
   const modelBlocked = modelStatus === 'not_ready' || modelStatus === 'error';
@@ -139,15 +141,15 @@ export function RecordView() {
 
   const transcriptHint = useMemo(() => {
     if (sessionActive && !segments.length) {
-      return 'Listening for speech… segments appear after VAD completes a phrase.';
+      return t('transcript_hintListening');
     }
 
     if (!sessionActive && segments.length) {
-      return 'Recent transcript from the last recording session.';
+      return t('transcript_hintRecent');
     }
 
-    return 'Live transcript appears here while recording.';
-  }, [segments.length, sessionActive]);
+    return t('transcript_hintDefault');
+  }, [segments.length, sessionActive, t]);
 
   useEffect(() => {
     if (!sessionActive || typeof meetingId !== 'number') {
@@ -204,7 +206,7 @@ export function RecordView() {
     try {
       const ready = await checkModelReady();
       if (!ready) {
-        setRecordingError('Transcription model not set up. Open Models to download it before recording.');
+        setRecordingError(t('error_modelNotSetUp'));
         return false;
       }
 
@@ -214,11 +216,11 @@ export function RecordView() {
           serverUrl: serverUrl || undefined,
         });
         if (!ollamaStatus.modelReady) {
-          setRecordingError('AI notes model not ready. Open Models to finish Ollama configuration before recording.');
+          setRecordingError(t('error_ollamaNotReady'));
           return false;
         }
       } catch {
-        setRecordingError('Unable to verify AI notes model readiness. Open Models and retry.');
+        setRecordingError(t('error_ollamaVerify'));
         return false;
       }
 
@@ -236,13 +238,13 @@ export function RecordView() {
         autoStopTriggeredRef.current = false;
         return true;
       } catch {
-        setRecordingError('Session failed to start. Verify audio permissions and model files, then retry.');
+        setRecordingError(t('error_sessionStart'));
         return false;
       }
     } finally {
       setStartingSession(false);
     }
-  }, [addEvent, checkModelReady, ensurePermissions, resetTranscript, startSession]);
+  }, [addEvent, checkModelReady, ensurePermissions, resetTranscript, startSession, t]);
 
   const handleStopRecording = useCallback(async () => {
     try {
@@ -251,9 +253,9 @@ export function RecordView() {
         await navigateToMeetingComplete(completedMeetingId);
       }
     } catch {
-      setRecordingError('Stopping the session failed. Please retry from the widget or tray controls.');
+      setRecordingError(t('error_sessionStop'));
     }
-  }, [navigateToMeetingComplete, stopSession]);
+  }, [navigateToMeetingComplete, stopSession, t]);
 
   const handleGrantMicrophone = useCallback(async () => {
     setRecordingError(null);
@@ -324,7 +326,7 @@ export function RecordView() {
               await navigateToMeetingComplete(completedMeetingId);
             }
           } catch {
-            setRecordingError('Unable to stop session from shortcut.');
+            setRecordingError(t('error_shortcutStop'));
           }
           return;
         }
@@ -347,7 +349,7 @@ export function RecordView() {
           try {
             await pauseSession();
           } catch {
-            setRecordingError('Unable to pause session from shortcut.');
+            setRecordingError(t('error_shortcutPause'));
           }
           return;
         }
@@ -356,7 +358,7 @@ export function RecordView() {
           try {
             await resumeSession();
           } catch {
-            setRecordingError('Unable to resume session from shortcut.');
+            setRecordingError(t('error_shortcutResume'));
           }
         }
       }),
@@ -373,7 +375,7 @@ export function RecordView() {
       disposed = true;
       cleanups.forEach((cleanup) => cleanup());
     };
-  }, [handleStartRecording, navigateToMeetingComplete, pauseSession, resumeSession, stopSession]);
+  }, [handleStartRecording, navigateToMeetingComplete, pauseSession, resumeSession, stopSession, t]);
 
   return (
     <section className="relative flex min-h-full justify-center px-4 py-8 sm:px-6 sm:py-10">
@@ -409,7 +411,7 @@ export function RecordView() {
                     </div>
                     <div>
                       <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-500 dark:text-gray-400">
-                        Record Deck
+                        {t('deck_label')}
                       </p>
                       <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-50">{stateLabel}</h1>
                     </div>
@@ -425,7 +427,7 @@ export function RecordView() {
                     <span
                       className={`h-1.5 w-1.5 rounded-full ${isTranscribing ? 'animate-pulse bg-emerald-500' : 'bg-gray-400 dark:bg-gray-500'}`}
                     />
-                    {isTranscribing ? 'Live Transcription' : 'Idle'}
+                    {isTranscribing ? t('transcription_live') : t('transcription_idle')}
                   </span>
                 </div>
 
@@ -433,10 +435,10 @@ export function RecordView() {
                   <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-gray-500 dark:text-gray-400">
                     <span className="inline-flex items-center gap-1.5">
                       <Clock3 size={13} />
-                      Session Clock
+                      {t('clock_label')}
                     </span>
                     <span className="rounded-full bg-accent/10 px-2 py-0.5 text-accent dark:bg-accent/20 dark:text-accent-muted">
-                      Auto-stop at 4h
+                      {t('clock_autoStop')}
                     </span>
                   </div>
                   <p className="mt-3 font-mono text-4xl font-semibold text-gray-900 dark:text-gray-50 sm:text-5xl">
@@ -444,8 +446,8 @@ export function RecordView() {
                   </p>
                   <p className="mt-3 text-sm text-gray-600 dark:text-gray-300">
                     {sessionActive
-                      ? `Time remaining before auto-stop: ${formatElapsed(remainingAutoStopMs)}.`
-                      : 'Use the tray menu or start recording from this page.'}
+                      ? t('clock_remaining', { time: formatElapsed(remainingAutoStopMs) })
+                      : t('clock_hint')}
                   </p>
                 </div>
 
@@ -458,7 +460,7 @@ export function RecordView() {
                       className="inline-flex items-center gap-2 rounded-xl bg-accent px-5 py-2.5 text-sm font-semibold text-white shadow-[0_14px_30px_-18px_rgba(37,99,235,0.75)] transition hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       {startingSession ? <Loader2 size={16} className="animate-spin" /> : <Mic size={16} />}
-                      {startingSession ? 'Starting…' : permissionLoading ? 'Checking permissions…' : 'Start Recording'}
+                      {startingSession ? t('btn_starting') : permissionLoading ? t('btn_checkingPermissions') : t('btn_startRecording')}
                     </button>
                   ) : (
                     <>
@@ -468,7 +470,7 @@ export function RecordView() {
                         disabled={!canChangeSessionState}
                         className="rounded-xl border border-gray-300 bg-white px-5 py-2.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-600 dark:bg-gray-850 dark:text-gray-100 dark:hover:bg-gray-800"
                       >
-                        {isPaused ? 'Resume' : 'Pause'}
+                        {isPaused ? t('btn_resume') : t('btn_pause')}
                       </button>
                       <button
                         type="button"
@@ -477,7 +479,7 @@ export function RecordView() {
                         className="inline-flex items-center gap-2 rounded-xl bg-red-500 px-5 py-2.5 text-sm font-semibold text-white shadow-[0_14px_30px_-18px_rgba(239,68,68,0.8)] transition hover:bg-red-600 disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         <Square size={13} />
-                        {isSaving || phase === 'stopping' ? 'Saving…' : 'Stop Recording'}
+                        {isSaving || phase === 'stopping' ? t('btn_saving') : t('btn_stopRecording')}
                       </button>
                     </>
                   )}
@@ -495,13 +497,13 @@ export function RecordView() {
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-gray-500 dark:text-gray-400">
-                    Transcript Stream
+                    {t('transcript_label')}
                   </p>
-                  <h2 className="mt-1 text-lg font-semibold text-gray-900 dark:text-gray-50">Live Notes</h2>
+                  <h2 className="mt-1 text-lg font-semibold text-gray-900 dark:text-gray-50">{t('transcript_title')}</h2>
                 </div>
                 <div className="inline-flex items-center gap-2 rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300">
                   <AudioLines size={13} />
-                  {segments.length} segment{segments.length === 1 ? '' : 's'}
+                  {t('transcript_segmentCount', { count: segments.length })}
                 </div>
               </div>
 
@@ -531,7 +533,7 @@ export function RecordView() {
               </div>
 
               {typeof meetingId === 'number' && phase === 'idle' ? (
-                <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">Last saved meeting ID: {meetingId}</p>
+                <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">{t('transcript_lastMeeting', { id: meetingId })}</p>
               ) : null}
             </section>
           </div>
@@ -541,16 +543,16 @@ export function RecordView() {
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-gray-500 dark:text-gray-400">
-                    Session Readiness
+                    {t('preflight_label')}
                   </p>
-                  <h2 className="mt-1 text-lg font-semibold text-gray-900 dark:text-gray-50">Preflight</h2>
+                  <h2 className="mt-1 text-lg font-semibold text-gray-900 dark:text-gray-50">{t('preflight_title')}</h2>
                 </div>
                 <button
                   type="button"
                   onClick={() => void refreshPermissions()}
                   className="rounded-xl border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-600 transition hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-850 dark:text-gray-200 dark:hover:bg-gray-800"
                 >
-                  Refresh
+                  {t('preflight_refresh')}
                 </button>
               </div>
 
@@ -559,17 +561,17 @@ export function RecordView() {
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex items-center gap-2 text-sm font-semibold text-gray-800 dark:text-gray-100">
                       <Mic size={15} />
-                      Microphone
+                      {t('preflight_microphone')}
                     </div>
                     {permissionStatus.mic === 'granted' ? (
                       <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-600 dark:text-emerald-300">
                         <CheckCircle2 size={14} />
-                        Granted
+                        {t('preflight_granted')}
                       </span>
                     ) : (
                       <span className="inline-flex items-center gap-1 text-xs font-medium text-red-600 dark:text-red-300">
                         <AlertTriangle size={14} />
-                        Required
+                        {t('preflight_required')}
                       </span>
                     )}
                   </div>
@@ -580,7 +582,7 @@ export function RecordView() {
                       disabled={permissionLoading}
                       className="mt-3 rounded-lg border border-accent/50 px-3 py-1.5 text-xs font-semibold text-accent transition hover:bg-accent/10 disabled:cursor-not-allowed disabled:opacity-60 dark:text-accent-muted"
                     >
-                      {permissionLoading ? 'Granting…' : 'Grant Access'}
+                      {permissionLoading ? t('preflight_granting') : t('preflight_grantAccess')}
                     </button>
                   ) : null}
                 </div>
@@ -594,12 +596,12 @@ export function RecordView() {
                     {permissionStatus.screenRecording === 'granted' ? (
                       <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-600 dark:text-emerald-300">
                         <CheckCircle2 size={14} />
-                        Granted
+                        {t('preflight_granted')}
                       </span>
                     ) : (
                       <span className="inline-flex items-center gap-1 text-xs font-medium text-amber-600 dark:text-amber-300">
                         <AlertTriangle size={14} />
-                        Setup needed
+                        {t('preflight_setupNeeded')}
                       </span>
                     )}
                   </div>
@@ -610,7 +612,7 @@ export function RecordView() {
                       disabled={permissionLoading}
                       className="mt-3 rounded-lg border border-accent/50 px-3 py-1.5 text-xs font-semibold text-accent transition hover:bg-accent/10 disabled:cursor-not-allowed disabled:opacity-60 dark:text-accent-muted"
                     >
-                      {permissionLoading ? 'Granting…' : 'Grant Access'}
+                      {permissionLoading ? t('preflight_granting') : t('preflight_grantAccess')}
                     </button>
                   ) : null}
                 </div>
@@ -619,19 +621,19 @@ export function RecordView() {
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex items-center gap-2 text-sm font-semibold text-gray-800 dark:text-gray-100">
                       <Cpu size={15} />
-                      Transcription model
+                      {t('preflight_transcriptionModel')}
                     </div>
                     {modelReady ? (
                       <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-600 dark:text-emerald-300">
                         <CheckCircle2 size={14} />
-                        Ready
+                        {t('preflight_ready')}
                       </span>
                     ) : modelSettingUp || isModelChecking ? (
-                      <span className="text-xs font-medium text-gray-500 dark:text-gray-400">Checking…</span>
+                      <span className="text-xs font-medium text-gray-500 dark:text-gray-400">{t('preflight_checking')}</span>
                     ) : (
                       <span className="inline-flex items-center gap-1 text-xs font-medium text-amber-600 dark:text-amber-300">
                         <AlertTriangle size={14} />
-                        Setup needed
+                        {t('preflight_setupNeeded')}
                       </span>
                     )}
                   </div>
@@ -641,7 +643,7 @@ export function RecordView() {
                       onClick={handleGoToModels}
                       className="mt-3 rounded-lg border border-accent/50 px-3 py-1.5 text-xs font-semibold text-accent transition hover:bg-accent/10 dark:text-accent-muted"
                     >
-                      Go to Models
+                      {t('preflight_goToModels')}
                     </button>
                   ) : null}
                 </div>
@@ -652,11 +654,11 @@ export function RecordView() {
               <div className="space-y-4">
                 <div>
                   <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-gray-500 dark:text-gray-400">
-                    Operational Notes
+                    {t('notes_label')}
                   </p>
                   <div className="mt-2 rounded-2xl border border-gray-200/80 bg-gradient-to-br from-gray-50 to-white p-4 dark:border-gray-700 dark:from-gray-850 dark:to-gray-900">
                     <p className="text-sm font-medium text-gray-800 dark:text-gray-100">
-                      Audio never leaves your device. Summaries run through your local Ollama setup.
+                      {t('notes_privacy')}
                     </p>
                   </div>
                 </div>
@@ -667,7 +669,7 @@ export function RecordView() {
                       <Bot size={14} />
                     </span>
                     <p className="text-xs font-medium text-gray-700 dark:text-gray-200">
-                      AI notes model is validated on start.
+                      {t('notes_aiValidation')}
                     </p>
                   </article>
 
@@ -676,7 +678,7 @@ export function RecordView() {
                       <Clock3 size={14} />
                     </span>
                     <p className="text-xs font-medium text-gray-700 dark:text-gray-200">
-                      Sessions stop automatically after 4 hours.
+                      {t('notes_autoStop')}
                     </p>
                   </article>
 
@@ -687,7 +689,7 @@ export function RecordView() {
                 <div className="mt-4 space-y-2.5">
                   {transcriptionDegraded ? (
                     <p className="rounded-xl border border-amber-200 bg-amber-50/80 px-3 py-2 text-xs text-amber-700 dark:border-amber-500/35 dark:bg-amber-500/10 dark:text-amber-200">
-                      Transcription encountered an issue during this session. Audio recording is still active.
+                      {t('alert_transcriptionDegraded')}
                     </p>
                   ) : null}
 
@@ -706,21 +708,21 @@ export function RecordView() {
                   {modelBlocked ? (
                     <div className="rounded-xl border border-accent/25 bg-accent-subtle/60 px-3 py-2.5 dark:border-accent/35 dark:bg-accent/10">
                       <p className="text-xs text-gray-700 dark:text-gray-100">
-                        Transcription model not set up. Go to Models to download it before recording.
+                        {t('alert_modelBlocked')}
                       </p>
                       <button
                         type="button"
                         onClick={handleGoToModels}
                         className="mt-2 rounded-lg border border-accent/45 px-2.5 py-1 text-xs font-semibold text-accent transition hover:bg-accent/10 dark:text-accent-muted"
                       >
-                        Open Models
+                        {t('alert_openModels')}
                       </button>
                     </div>
                   ) : null}
 
                   {isModelChecking ? (
                     <p className="rounded-xl border border-gray-200 bg-white/80 px-3 py-2 text-xs text-gray-600 dark:border-gray-700 dark:bg-gray-850/75 dark:text-gray-300">
-                      Checking transcription model status…
+                      {t('alert_modelChecking')}
                     </p>
                   ) : null}
                 </div>

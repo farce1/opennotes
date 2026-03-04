@@ -1,7 +1,9 @@
 import type { Meeting } from '../../types';
+import i18n from '../../i18n';
 
 export function formatDate(value: string): string {
-  return new Date(value).toLocaleString(undefined, {
+  const locale = i18n.language;
+  return new Date(value).toLocaleString(locale, {
     month: 'short',
     day: 'numeric',
     year: 'numeric',
@@ -11,30 +13,37 @@ export function formatDate(value: string): string {
 }
 
 export function formatShortDate(value: string): string {
-  return new Date(value).toLocaleDateString(undefined, {
+  const locale = i18n.language;
+  return new Date(value).toLocaleDateString(locale, {
     month: 'short',
     day: 'numeric',
   });
 }
 
 export function formatDuration(durationSeconds: number | null): string {
+  const t = i18n.t.bind(i18n);
+
   if (typeof durationSeconds !== 'number' || durationSeconds <= 0) {
-    return 'In progress';
+    return t('duration_inProgress', { ns: 'common' });
   }
 
   const hours = Math.floor(durationSeconds / 3600);
   const minutes = Math.floor((durationSeconds % 3600) / 60);
   const seconds = durationSeconds % 60;
 
+  const h = t('duration_h', { ns: 'common' });
+  const m = t('duration_m', { ns: 'common' });
+  const s = t('duration_s', { ns: 'common' });
+
   if (hours > 0) {
-    return `${hours}h ${minutes}m`;
+    return `${hours}${h} ${minutes}${m}`;
   }
 
   if (minutes > 0) {
-    return `${minutes}m ${seconds}s`;
+    return `${minutes}${m} ${seconds}${s}`;
   }
 
-  return `${seconds}s`;
+  return `${seconds}${s}`;
 }
 
 export function statusClasses(status: Meeting['status']): string {

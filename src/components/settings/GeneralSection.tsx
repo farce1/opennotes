@@ -2,21 +2,18 @@ import { invoke } from '@tauri-apps/api/core';
 import { Laptop, Moon, RotateCcw, SlidersHorizontal, Sun } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { KeyboardEvent } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import { useSetting } from '../../hooks/useSettings';
 import { useTheme } from '../../hooks/useTheme';
+import i18n from '../../i18n';
+import { supportedLanguages, languageLabels } from '../../i18n';
 import { DEFAULT_SETTINGS } from '../../lib/constants';
 import { formatShortcutDisplay } from '../../lib/platform';
 import { getSettingsStore } from '../../lib/settings';
 import type { AppTheme } from '../../types';
 
 const MODIFIER_KEYS = new Set(['Meta', 'Control', 'Alt', 'Shift']);
-
-const themeOptions: Array<{ value: AppTheme; label: string; icon: typeof Sun }> = [
-  { value: 'light', label: 'Light', icon: Sun },
-  { value: 'dark', label: 'Dark', icon: Moon },
-  { value: 'system', label: 'System', icon: Laptop },
-];
 
 const panelClasses =
   'rounded-2xl border border-gray-200/80 bg-white/75 p-4 shadow-sm backdrop-blur-sm dark:border-gray-700/80 dark:bg-gray-900/45';
@@ -60,7 +57,9 @@ function optionButtonClasses(selected: boolean): string {
 }
 
 export function GeneralSection() {
+  const { t } = useTranslation('settings');
   const { theme, setTheme } = useTheme();
+  const [appLanguage, updateAppLanguage] = useSetting('appLanguage');
   const [recordingShortcut, updateRecordingShortcut] = useSetting('recordingShortcut');
   const [pauseShortcut, updatePauseShortcut] = useSetting('pauseShortcut');
   const [capturingShortcut, setCapturingShortcut] = useState<ShortcutKind | null>(null);
@@ -68,6 +67,14 @@ export function GeneralSection() {
   const [resetting, setResetting] = useState(false);
   const recordingShortcutFieldRef = useRef<HTMLButtonElement | null>(null);
   const pauseShortcutFieldRef = useRef<HTMLButtonElement | null>(null);
+
+  const currentLanguage = appLanguage ?? 'en';
+
+  const themeOptions: Array<{ value: AppTheme; label: string; icon: typeof Sun }> = [
+    { value: 'light', label: t('appearance_light'), icon: Sun },
+    { value: 'dark', label: t('appearance_dark'), icon: Moon },
+    { value: 'system', label: t('appearance_system'), icon: Laptop },
+  ];
 
   const recordingShortcutValue = recordingShortcut ?? DEFAULT_SETTINGS.recordingShortcut;
   const pauseShortcutValue = pauseShortcut ?? DEFAULT_SETTINGS.pauseShortcut;
@@ -127,14 +134,14 @@ export function GeneralSection() {
           await updatePauseShortcut(nextShortcut);
         }
       } catch {
-        setShortcutError(`Unable to update ${target} shortcut. Previous shortcut restored.`);
+        setShortcutError(t('shortcuts_errorUpdate', { target }));
         try {
           await invoke(command, {
             oldShortcut: nextShortcut,
             newShortcut: currentShortcut,
           });
         } catch {
-          setShortcutError(`Unable to update or restore ${target} shortcut. Restart the app.`);
+          setShortcutError(t('shortcuts_errorRestore', { target }));
         }
       }
     },
@@ -143,6 +150,7 @@ export function GeneralSection() {
       capturingShortcut,
       pauseShortcutValue,
       recordingShortcutValue,
+      t,
       updatePauseShortcut,
       updateRecordingShortcut,
     ],
@@ -156,7 +164,7 @@ export function GeneralSection() {
   }, [cancelCapture, capturingShortcut]);
 
   const handleResetAll = useCallback(async () => {
-    const confirmed = window.confirm('Reset all settings to defaults? This cannot be undone.');
+    const confirmed = window.confirm(t('reset_confirm'));
     if (!confirmed) {
       return;
     }
@@ -172,7 +180,7 @@ export function GeneralSection() {
     } finally {
       setResetting(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     if (capturingShortcut === 'recording') {
@@ -185,6 +193,12 @@ export function GeneralSection() {
     }
   }, [capturingShortcut]);
 
+  const handleLanguageChange = useCallback(async (lang: string) => {
+    await updateAppLanguage(lang);
+    await i18n.changeLanguage(lang);
+    document.documentElement.lang = lang;
+  }, [updateAppLanguage]);
+
   return (
     <section className="space-y-5">
       <div className="flex items-start gap-3">
@@ -192,14 +206,14 @@ export function GeneralSection() {
           <SlidersHorizontal size={18} />
         </span>
         <div>
-          <h2 className="text-lg font-semibold tracking-tight text-gray-800 dark:text-gray-50">General</h2>
-          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Appearance, shortcuts, and global behavior for the app.</p>
+          <h2 className="text-lg font-semibold tracking-tight text-gray-800 dark:text-gray-50">{t('general_title')}</h2>
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{t('general_description')}</p>
         </div>
       </div>
 
       <div className={panelClasses}>
-        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-100">Appearance</h3>
-        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Choose how openNotes looks across the entire workspace.</p>
+        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-100">{t('appearance_title')}</h3>
+        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t('appearance_description')}</p>
 
         <div className="mt-4 grid gap-2 sm:grid-cols-3">
           {themeOptions.map(({ value, label, icon: Icon }) => {
@@ -221,15 +235,37 @@ export function GeneralSection() {
       </div>
 
       <div className={panelClasses}>
-        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-100">Recording Shortcuts</h3>
+        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-100">{t('language_title')}</h3>
+        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t('language_description')}</p>
+
+        <div className="mt-4 grid gap-2 sm:grid-cols-2">
+          {supportedLanguages.map((lang) => {
+            const selected = currentLanguage === lang;
+
+            return (
+              <button
+                key={lang}
+                type="button"
+                onClick={() => void handleLanguageChange(lang)}
+                className={optionButtonClasses(selected)}
+              >
+                {languageLabels[lang]}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className={panelClasses}>
+        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-100">{t('shortcuts_title')}</h3>
         <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-          Assign separate global hotkeys for start/stop and pause/resume.
+          {t('shortcuts_description')}
         </p>
 
         <div className="mt-4 space-y-4">
           <div>
             <p className="text-xs font-medium uppercase tracking-[0.16em] text-gray-500 dark:text-gray-400">
-              Start or stop recording
+              {t('shortcuts_startStop')}
             </p>
             <button
               ref={recordingShortcutFieldRef}
@@ -244,13 +280,13 @@ export function GeneralSection() {
                   : 'border-gray-200/80 bg-white/80 text-gray-700 hover:border-gray-300 hover:bg-white focus:border-accent/45 focus:ring-2 focus:ring-accent/20 dark:border-gray-700/80 dark:bg-gray-800/70 dark:text-gray-100 dark:hover:border-gray-600 dark:hover:bg-gray-800',
               ].join(' ')}
             >
-              {capturingShortcut === 'recording' ? 'Press shortcut...' : displayRecordingShortcut}
+              {capturingShortcut === 'recording' ? t('shortcuts_pressPrompt') : displayRecordingShortcut}
             </button>
           </div>
 
           <div>
             <p className="text-xs font-medium uppercase tracking-[0.16em] text-gray-500 dark:text-gray-400">
-              Pause or resume recording
+              {t('shortcuts_pauseResume')}
             </p>
             <button
               ref={pauseShortcutFieldRef}
@@ -265,13 +301,13 @@ export function GeneralSection() {
                   : 'border-gray-200/80 bg-white/80 text-gray-700 hover:border-gray-300 hover:bg-white focus:border-accent/45 focus:ring-2 focus:ring-accent/20 dark:border-gray-700/80 dark:bg-gray-800/70 dark:text-gray-100 dark:hover:border-gray-600 dark:hover:bg-gray-800',
               ].join(' ')}
             >
-              {capturingShortcut === 'pause' ? 'Press shortcut...' : displayPauseShortcut}
+              {capturingShortcut === 'pause' ? t('shortcuts_pressPrompt') : displayPauseShortcut}
             </button>
           </div>
         </div>
 
         <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">
-          Click a field to capture a new keyboard combination. Press Escape to cancel.
+          {t('shortcuts_hint')}
         </p>
 
         {shortcutError ? (
@@ -282,9 +318,9 @@ export function GeneralSection() {
       </div>
 
       <div className="rounded-2xl border border-red-200/70 bg-red-50/70 p-4 shadow-sm dark:border-red-500/30 dark:bg-red-500/8">
-        <h3 className="text-sm font-semibold text-red-700 dark:text-red-200">Global Reset</h3>
+        <h3 className="text-sm font-semibold text-red-700 dark:text-red-200">{t('reset_title')}</h3>
         <p className="mt-1 text-xs text-red-600/90 dark:text-red-200/90">
-          Reset every preference to defaults, including theme, shortcuts, models, and storage behavior.
+          {t('reset_description')}
         </p>
         <button
           type="button"
@@ -293,7 +329,7 @@ export function GeneralSection() {
           className="mt-4 inline-flex items-center gap-2 rounded-xl border border-red-300/80 bg-white/80 px-3 py-2 text-sm font-medium text-red-700 transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-70 dark:border-red-500/40 dark:bg-red-500/10 dark:text-red-200 dark:hover:bg-red-500/20"
         >
           <RotateCcw size={15} />
-          {resetting ? 'Resetting…' : 'Reset all settings'}
+          {resetting ? t('btn_resetting') : t('btn_resetAll')}
         </button>
       </div>
     </section>

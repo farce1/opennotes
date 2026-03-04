@@ -60,6 +60,7 @@ export function useSummary() {
     setErrorMessage(null);
     const serverUrl = await getSetting('ollamaServerUrl');
     const model = await getSetting('ollamaModel');
+    const language = await getSetting('summaryLanguage');
 
     const channel = new Channel<LlmTokenEvent>();
     channel.onmessage = (event) => {
@@ -101,6 +102,7 @@ export function useSummary() {
         meetingId,
         serverUrl: serverUrl || undefined,
         model: model || undefined,
+        language: language || undefined,
         onToken: channel,
       });
 

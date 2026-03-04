@@ -1,5 +1,6 @@
 import { Download } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import type { ExportFormat } from '../../lib/export';
 
@@ -8,14 +9,15 @@ type ExportMenuProps = {
   size?: 'sm' | 'md';
 };
 
-const formats: { value: ExportFormat; label: string }[] = [
-  { value: 'md', label: 'Markdown' },
-  { value: 'txt', label: 'Plain Text' },
-  { value: 'json', label: 'JSON' },
-  { value: 'pdf', label: 'PDF' },
+const formatKeys = [
+  { value: 'md' as ExportFormat, labelKey: 'export_markdown' as const },
+  { value: 'txt' as ExportFormat, labelKey: 'export_plainText' as const },
+  { value: 'json' as ExportFormat, labelKey: 'export_json' as const },
+  { value: 'pdf' as ExportFormat, labelKey: 'export_pdf' as const },
 ];
 
 export function ExportMenu({ onExport, size = 'md' }: ExportMenuProps) {
+  const { t } = useTranslation('common');
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -54,7 +56,7 @@ export function ExportMenu({ onExport, size = 'md' }: ExportMenuProps) {
         ].join(' ')}
       >
         <Download size={iconSize} />
-        Export
+        {t('btn_export')}
       </button>
 
       {open && (
@@ -67,7 +69,7 @@ export function ExportMenu({ onExport, size = 'md' }: ExportMenuProps) {
           ].join(' ')}
         >
           <div className="p-1">
-            {formats.map((f) => (
+            {formatKeys.map((f) => (
               <button
                 key={f.value}
                 type="button"
@@ -77,7 +79,7 @@ export function ExportMenu({ onExport, size = 'md' }: ExportMenuProps) {
                 }}
                 className="flex w-full items-center rounded-lg px-2.5 py-1.5 text-left text-xs text-gray-600 transition-colors duration-100 hover:bg-gray-100/80 dark:text-gray-300 dark:hover:bg-gray-800/80"
               >
-                {f.label}
+                {t(f.labelKey)}
               </button>
             ))}
           </div>

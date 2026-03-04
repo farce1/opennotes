@@ -249,6 +249,8 @@ pub fn run() {
             commands::update_meeting_title,
             commands::soft_delete_meeting,
             commands::restore_meeting,
+            commands::delete_meeting_permanently,
+            commands::empty_trash,
             commands::purge_old_trash,
             commands::backup_library,
             commands::restore_library,

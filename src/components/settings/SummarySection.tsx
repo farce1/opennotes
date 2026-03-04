@@ -1,6 +1,7 @@
 import { Channel, invoke } from '@tauri-apps/api/core';
 import { Loader2, RotateCw, Sparkles, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import { useSummaryGeneration } from '../../contexts/SummaryGenerationContext';
 import { useSetting } from '../../hooks/useSettings';
@@ -35,10 +36,17 @@ function formatModelLabel(model: OllamaModelInfo): string {
   return `${model.name}${download}${size}${rec}`;
 }
 
+const summaryLanguageOptions = [
+  { value: 'en', label: 'English' },
+  { value: 'pl', label: 'Polski' },
+];
+
 export function SummarySection() {
+  const { t } = useTranslation('settings');
   const { generating: globalGenerating } = useSummaryGeneration();
   const [ollamaModel, updateOllamaModel] = useSetting('ollamaModel');
   const [autoSummary, updateAutoSummary] = useSetting('autoSummary');
+  const [summaryLanguage, updateSummaryLanguage] = useSetting('summaryLanguage');
   const [ollamaServerUrl, updateOllamaServerUrl] = useSetting('ollamaServerUrl');
   const [serverUrlInput, setServerUrlInput] = useState(DEFAULT_SETTINGS.ollamaServerUrl);
   const [models, setModels] = useState<OllamaModelInfo[]>([]);
@@ -54,6 +62,7 @@ export function SummarySection() {
   const currentServerUrl = ollamaServerUrl ?? DEFAULT_SETTINGS.ollamaServerUrl;
   const currentModel = ollamaModel ?? DEFAULT_SETTINGS.ollamaModel;
   const isAutoSummary = autoSummary ?? DEFAULT_SETTINGS.autoSummary;
+  const currentSummaryLanguage = summaryLanguage ?? 'en';
 
   const refreshModels = useCallback(async (serverUrl: string) => {
     const listed = await invoke<OllamaModelInfo[]>('list_ollama_models', {
@@ -79,12 +88,12 @@ export function SummarySection() {
       try {
         await Promise.all([refreshModels(serverUrl), refreshStatus(serverUrl)]);
       } catch {
-        setErrorMessage('Unable to load Ollama status. Check server URL and connectivity.');
+        setErrorMessage(t('ollama_errorLoad'));
       } finally {
         setLoading(false);
       }
     },
-    [refreshModels, refreshStatus],
+    [refreshModels, refreshStatus, t],
   );
 
   const refreshAvailablePullModels = useCallback(async () => {
@@ -95,12 +104,12 @@ export function SummarySection() {
       return listed;
     } catch {
       setAvailablePullModels([]);
-      setErrorMessage('Unable to load downloadable Ollama model catalog. Check your internet connection and retry.');
+      setErrorMessage(t('ollama_catalogError'));
       return [];
     } finally {
       setLoadingAvailablePullModels(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     setServerUrlInput(currentServerUrl);
@@ -130,13 +139,13 @@ export function SummarySection() {
       await updateOllamaServerUrl(trimmed);
       await refreshAll(trimmed);
     } catch {
-      setErrorMessage(`Cannot connect to ${trimmed}.`);
+      setErrorMessage(t('ollama_errorConnect', { url: trimmed }));
     }
-  }, [refreshAll, serverUrlInput, updateOllamaServerUrl]);
+  }, [refreshAll, serverUrlInput, t, updateOllamaServerUrl]);
 
   const handleDeleteModel = useCallback(
     async (modelName: string) => {
-      const confirmed = window.confirm(`Delete Ollama model "${modelName}"?`);
+      const confirmed = window.confirm(t('ollama_confirmDelete', { model: modelName }));
       if (!confirmed) {
         return;
       }
@@ -149,16 +158,16 @@ export function SummarySection() {
         });
         await refreshAll(currentServerUrl);
       } catch {
-        setErrorMessage(`Unable to delete model "${modelName}".`);
+        setErrorMessage(t('ollama_errorDelete', { model: modelName }));
       }
     },
-    [currentServerUrl, refreshAll],
+    [currentServerUrl, refreshAll, t],
   );
 
   const handlePullModel = useCallback(async () => {
     const modelName = pullModelName.trim();
     if (!modelName) {
-      setErrorMessage('Select a model to pull.');
+      setErrorMessage(t('ollama_pullSelectError'));
       return;
     }
 
@@ -188,7 +197,7 @@ export function SummarySection() {
       }
 
       if (event.event === 'error') {
-        setErrorMessage(event.data.message || 'Model pull failed.');
+        setErrorMessage(event.data.message || t('ollama_pullFailed'));
         setPulling(false);
       }
     };
@@ -202,12 +211,12 @@ export function SummarySection() {
       setPullModelName('');
       await refreshAll(currentServerUrl);
     } catch {
-      setErrorMessage('Unable to pull model. Ensure Ollama is reachable and retry.');
+      setErrorMessage(t('ollama_pullError'));
     } finally {
       setPulling(false);
       setPullProgress(null);
     }
-  }, [currentServerUrl, pullModelName, refreshAll]);
+  }, [currentServerUrl, pullModelName, refreshAll, t]);
 
   const modelOptions = useMemo(() => {
     const hasCurrentModel = models.some((model) => model.name === currentModel);
@@ -237,8 +246,8 @@ export function SummarySection() {
 
   const connectionOnline = status?.running ?? false;
   const connectionLabel = connectionOnline
-    ? `Connected to ${currentServerUrl}`
-    : `Cannot connect to ${currentServerUrl}`;
+    ? t('ollama_connected', { url: currentServerUrl })
+    : t('ollama_disconnected', { url: currentServerUrl });
 
   const pullPercent = useMemo(() => {
     if (!pullProgress || !pullProgress.total) {
@@ -254,14 +263,14 @@ export function SummarySection() {
           <Sparkles size={18} />
         </span>
         <div>
-          <h2 className="text-lg font-semibold tracking-tight text-gray-800 dark:text-gray-50">Summary</h2>
-          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Control generation mode and local Ollama model management.</p>
+          <h2 className="text-lg font-semibold tracking-tight text-gray-800 dark:text-gray-50">{t('summary_title')}</h2>
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{t('summary_description')}</p>
         </div>
       </div>
 
       <div className={panelClasses}>
-        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-100">Ollama Model for Summaries</h3>
-        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Pick which installed model generates post-meeting summaries.</p>
+        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-100">{t('ollamaModel_title')}</h3>
+        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t('ollamaModel_description')}</p>
 
         <div className="mt-4 flex items-center gap-2">
           <Dropdown
@@ -279,7 +288,7 @@ export function SummarySection() {
             onClick={() => void refreshAll(currentServerUrl)}
             disabled={loading}
             className="rounded-xl border border-gray-200/80 bg-white/80 px-3 py-2.5 text-sm text-gray-600 shadow-sm transition-all duration-150 hover:border-gray-300 hover:bg-white disabled:cursor-not-allowed disabled:opacity-70 dark:border-gray-700/80 dark:bg-gray-800/70 dark:text-gray-200 dark:hover:border-gray-600 dark:hover:bg-gray-800"
-            title="Refresh models"
+            title={t('ollamaModel_refreshLabel')}
           >
             <RotateCw size={15} className={loading ? 'animate-spin' : ''} />
           </button>
@@ -289,14 +298,14 @@ export function SummarySection() {
 
         {!models.length ? (
           <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-            No models found. Ensure Ollama is running, then pull a model below.
+            {t('ollamaModel_noModels')}
           </p>
         ) : null}
       </div>
 
       <div className={panelClasses}>
-        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-100">Auto-Summary</h3>
-        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Choose whether summaries generate automatically after recording.</p>
+        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-100">{t('autoSummary_title')}</h3>
+        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t('autoSummary_description')}</p>
 
         <div className="mt-4 grid gap-2 sm:grid-cols-2">
           <button
@@ -304,20 +313,34 @@ export function SummarySection() {
             onClick={() => void updateAutoSummary(true)}
             className={optionButtonClasses(isAutoSummary)}
           >
-            Auto
+            {t('autoSummary_auto')}
           </button>
           <button
             type="button"
             onClick={() => void updateAutoSummary(false)}
             className={optionButtonClasses(!isAutoSummary)}
           >
-            Manual
+            {t('autoSummary_manual')}
           </button>
         </div>
       </div>
 
       <div className={panelClasses}>
-        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-100">Ollama Management</h3>
+        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-100">{t('summaryLanguage_title')}</h3>
+        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t('summaryLanguage_description')}</p>
+
+        <Dropdown
+          value={currentSummaryLanguage}
+          options={summaryLanguageOptions}
+          onChange={(value) => void updateSummaryLanguage(value)}
+          size="regular"
+          fullWidth
+          className="mt-4 w-full"
+        />
+      </div>
+
+      <div className={panelClasses}>
+        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-100">{t('ollama_title')}</h3>
 
         <div className="mt-4 rounded-xl border border-gray-200/70 bg-white/70 p-3 dark:border-gray-700/70 dark:bg-gray-800/55">
           <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-100">
@@ -343,12 +366,12 @@ export function SummarySection() {
               onClick={() => void testConnection()}
               className="rounded-xl border border-accent/40 bg-accent/8 px-3 py-2.5 text-sm font-medium text-accent transition-all duration-150 hover:bg-accent/12 dark:border-accent/45 dark:bg-accent/15 dark:text-accent-muted"
             >
-              Test Connection
+              {t('ollama_btnTest')}
             </button>
           </div>
 
           <div className="mt-4 space-y-2">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-gray-500 dark:text-gray-400">Installed Models</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-gray-500 dark:text-gray-400">{t('ollama_installedModels')}</p>
             {models.length ? (
               <ul className="divide-y divide-gray-200 rounded-xl border border-gray-200/80 bg-white/75 dark:divide-gray-700 dark:border-gray-700/80 dark:bg-gray-900/45">
                 {models.map((model) => (
@@ -360,18 +383,18 @@ export function SummarySection() {
                       className="inline-flex items-center gap-1 rounded-lg border border-red-300/70 px-2.5 py-1.5 text-xs font-medium text-red-700 transition-all duration-150 hover:bg-red-50/80 dark:border-red-500/40 dark:text-red-200 dark:hover:bg-red-500/20"
                     >
                       <Trash2 size={13} />
-                      Delete
+                      {t('ollama_btnDelete')}
                     </button>
                   </li>
                 ))}
               </ul>
             ) : (
-              <p className="text-xs text-gray-500 dark:text-gray-400">No installed models.</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">{t('ollama_noInstalled')}</p>
             )}
           </div>
 
           <div className="mt-4 space-y-2">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-gray-500 dark:text-gray-400">Pull New Model</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-gray-500 dark:text-gray-400">{t('ollama_pullTitle')}</p>
             <div className="flex flex-col gap-2 sm:flex-row">
               <Dropdown
                 value={pullModelName}
@@ -379,10 +402,10 @@ export function SummarySection() {
                 onChange={setPullModelName}
                 placeholder={
                   loadingAvailablePullModels
-                    ? 'Loading available models...'
+                    ? t('ollama_pullPlaceholderLoading')
                     : pullModelDropdownOptions.length
-                      ? 'Select a model (e.g. llama3.2:3b)'
-                      : 'No models available'
+                      ? t('ollama_pullPlaceholderSelect')
+                      : t('ollama_pullPlaceholderNone')
                 }
                 disabled={pulling || loadingAvailablePullModels || !pullModelDropdownOptions.length}
                 size="regular"
@@ -394,7 +417,7 @@ export function SummarySection() {
                 onClick={() => void refreshAvailablePullModels()}
                 disabled={loadingAvailablePullModels}
                 className="rounded-xl border border-gray-200/80 bg-white/80 px-3 py-2.5 text-sm text-gray-600 shadow-sm transition-all duration-150 hover:border-gray-300 hover:bg-white disabled:cursor-not-allowed disabled:opacity-70 dark:border-gray-700/80 dark:bg-gray-800/70 dark:text-gray-200 dark:hover:border-gray-600 dark:hover:bg-gray-800"
-                title="Refresh downloadable models"
+                title={t('ollama_refreshDownloadable')}
               >
                 <RotateCw size={15} className={loadingAvailablePullModels ? 'animate-spin' : ''} />
               </button>
@@ -404,13 +427,13 @@ export function SummarySection() {
                 disabled={pulling || loadingAvailablePullModels || !pullModelName.trim()}
                 className="rounded-xl border border-accent/40 bg-accent/8 px-3 py-2.5 text-sm font-medium text-accent transition-all duration-150 hover:bg-accent/12 disabled:cursor-not-allowed disabled:opacity-70 dark:border-accent/45 dark:bg-accent/15 dark:text-accent-muted"
               >
-                {pulling ? 'Pulling…' : 'Pull'}
+                {pulling ? t('ollama_btnPulling') : t('ollama_btnPull')}
               </button>
             </div>
 
             {!loadingAvailablePullModels && !pullModelDropdownOptions.length ? (
               <p className="text-xs text-gray-500 dark:text-gray-400">
-                Could not load downloadable models. Refresh the catalog and try again.
+                {t('ollama_catalogEmpty')}
               </p>
             ) : null}
 

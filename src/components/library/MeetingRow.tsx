@@ -1,5 +1,6 @@
 import { AudioLines, Mic, Monitor, Pencil, RotateCcw, Trash2, Undo2 } from 'lucide-react';
 import type { KeyboardEvent } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import type { ExportFormat } from '../../lib/export';
 import type { MeetingWithPreview } from '../../types';
@@ -52,6 +53,8 @@ export function MeetingRow({
   onRestore,
   onRetranscribe,
 }: MeetingRowProps) {
+  const { t } = useTranslation('library');
+  const { t: tc } = useTranslation('common');
   const isEditing = editingId === meeting.id;
 
   const onTitleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
@@ -110,7 +113,7 @@ export function MeetingRow({
             type="button"
             onClick={() => onStartRename(meeting.id, meeting.title)}
             className="cursor-pointer rounded-md p-1 text-gray-400 opacity-0 transition-all duration-150 hover:bg-gray-100/80 hover:text-gray-700 group-hover:opacity-100 dark:hover:bg-gray-800 dark:hover:text-gray-100"
-            aria-label="Rename meeting"
+            aria-label={t('card_renameLabel')}
           >
             <Pencil size={12} />
           </button>
@@ -126,7 +129,7 @@ export function MeetingRow({
         <span className="text-gray-400 dark:text-gray-500">{sourceIcon(meeting.audio_sources)}</span>
 
         <span className="hidden max-w-[220px] truncate text-xs text-gray-400 dark:text-gray-500 lg:inline">
-          {meeting.summary_preview?.trim() || 'No summary'}
+          {meeting.summary_preview?.trim() || t('card_noSummaryShort')}
         </span>
 
         <ExportMenu onExport={(format) => onExport(meeting.id, format)} size="sm" />
@@ -138,7 +141,7 @@ export function MeetingRow({
             className="inline-flex cursor-pointer items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-medium text-emerald-600 transition-all duration-150 hover:bg-emerald-500/10 dark:text-emerald-300 dark:hover:bg-emerald-500/10"
           >
             <Undo2 size={11} />
-            Restore
+            {tc('btn_restore')}
           </button>
         ) : (
           <button
@@ -147,7 +150,7 @@ export function MeetingRow({
             className="inline-flex cursor-pointer items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-medium text-red-500 transition-all duration-150 hover:bg-red-500/10 dark:text-red-300 dark:hover:bg-red-500/10"
           >
             <Trash2 size={11} />
-            Delete
+            {tc('btn_delete')}
           </button>
         )}
 
@@ -158,7 +161,7 @@ export function MeetingRow({
             className="inline-flex cursor-pointer items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-medium text-amber-600 transition-all duration-150 hover:bg-amber-500/10 dark:text-amber-300 dark:hover:bg-amber-500/10"
           >
             <RotateCcw size={11} />
-            Re
+            {t('card_re')}
           </button>
         )}
       </div>

@@ -1,5 +1,6 @@
 import clsx from 'clsx';
 import { BookOpen, Circle, Cpu, Settings, Trash2 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { NavLink, useLocation } from 'react-router';
 
 import {
@@ -10,15 +11,16 @@ import {
 import { useUpdate } from '../../hooks/useUpdate';
 
 const navItems = [
-  { to: '/record', label: 'Record', icon: Circle },
-  { to: '/library', label: 'Library', icon: BookOpen },
-  { to: '/setup', label: 'Models', icon: Cpu },
-  { to: settingsTabPath(DEFAULT_SETTINGS_TAB), label: 'Settings', icon: Settings },
-];
+  { to: '/record', labelKey: 'nav_record', icon: Circle },
+  { to: '/library', labelKey: 'nav_library', icon: BookOpen },
+  { to: '/setup', labelKey: 'nav_models', icon: Cpu },
+  { to: settingsTabPath(DEFAULT_SETTINGS_TAB), labelKey: 'nav_settings', icon: Settings },
+] as const;
 
-const librarySubItems = [{ to: '/library/trash', label: 'Trash', icon: Trash2 }];
+const librarySubItems = [{ to: '/library/trash', labelKey: 'nav_trash' as const, icon: Trash2 }];
 
 export function Sidebar() {
+  const { t } = useTranslation('common');
   const { updateAvailable } = useUpdate();
   const location = useLocation();
   const inLibrary = location.pathname.startsWith('/library');
@@ -29,13 +31,13 @@ export function Sidebar() {
       <div data-tauri-drag-region className="h-12 shrink-0" />
 
       <nav className="flex flex-col gap-1 px-3" aria-label="Primary">
-        {navItems.map(({ to, label, icon: Icon }) => (
+        {navItems.map(({ to, labelKey, icon: Icon }) => (
           <div key={to}>
             <NavLink
               to={to}
               className={({ isActive }) => {
-                const isLibraryItem = label === 'Library';
-                const isSettingsItem = label === 'Settings';
+                const isLibraryItem = labelKey === 'nav_library';
+                const isSettingsItem = labelKey === 'nav_settings';
                 const active = isSettingsItem ? inSettings : isLibraryItem ? inLibrary : isActive;
 
                 return clsx(
@@ -48,16 +50,16 @@ export function Sidebar() {
             >
               <span className="relative">
                 <Icon size={18} strokeWidth={2} />
-                {label === 'Settings' && updateAvailable ? (
+                {labelKey === 'nav_settings' && updateAvailable ? (
                   <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-accent" />
                 ) : null}
               </span>
-              <span>{label}</span>
+              <span>{t(labelKey)}</span>
             </NavLink>
 
-            {label === 'Library' && inLibrary ? (
+            {labelKey === 'nav_library' && inLibrary ? (
               <div className="ml-6 mt-1 space-y-1 border-l border-gray-200/80 pl-3 dark:border-gray-700/80">
-                {librarySubItems.map(({ to: subTo, label: subLabel, icon: SubIcon }) => (
+                {librarySubItems.map(({ to: subTo, labelKey: subLabelKey, icon: SubIcon }) => (
                   <NavLink
                     key={subTo}
                     to={subTo}
@@ -71,15 +73,15 @@ export function Sidebar() {
                     }
                   >
                     <SubIcon size={12} />
-                    <span>{subLabel}</span>
+                    <span>{t(subLabelKey)}</span>
                   </NavLink>
                 ))}
               </div>
             ) : null}
 
-            {label === 'Settings' && inSettings ? (
+            {labelKey === 'nav_settings' && inSettings ? (
               <div className="ml-6 mt-1 space-y-1 border-l border-gray-200/80 pl-3 dark:border-gray-700/80">
-                {SETTINGS_TABS.map(({ id, label: tabLabel, icon: TabIcon }) => (
+                {SETTINGS_TABS.map(({ id, labelKey: tabLabelKey, icon: TabIcon }) => (
                   <NavLink
                     key={id}
                     to={settingsTabPath(id)}
@@ -93,7 +95,7 @@ export function Sidebar() {
                     }
                   >
                     <TabIcon size={12} />
-                    <span>{tabLabel}</span>
+                    <span>{t(tabLabelKey)}</span>
                   </NavLink>
                 ))}
               </div>

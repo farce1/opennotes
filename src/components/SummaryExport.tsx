@@ -1,5 +1,6 @@
 import { Copy, Download, FileText } from 'lucide-react';
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 type SummaryExportProps = {
   summaryText: string;
@@ -12,6 +13,7 @@ function safeFileName(title: string): string {
 }
 
 export function SummaryExport({ summaryText, meetingTitle }: SummaryExportProps) {
+  const { t } = useTranslation('meeting');
   const [copyState, setCopyState] = useState<'idle' | 'copied' | 'error'>('idle');
   const [creatingPdf, setCreatingPdf] = useState(false);
   const [pdfError, setPdfError] = useState(false);
@@ -67,7 +69,7 @@ export function SummaryExport({ summaryText, meetingTitle }: SummaryExportProps)
         className="inline-flex items-center gap-2 rounded-md border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
       >
         <Copy size={13} />
-        {copyState === 'copied' ? 'Copied!' : 'Copy'}
+        {copyState === 'copied' ? t('export_copied') : t('export_copy')}
       </button>
 
       <button
@@ -77,7 +79,7 @@ export function SummaryExport({ summaryText, meetingTitle }: SummaryExportProps)
         className="inline-flex items-center gap-2 rounded-md border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
       >
         <Download size={13} />
-        Export Markdown
+        {t('export_markdown')}
       </button>
 
       <button
@@ -87,10 +89,10 @@ export function SummaryExport({ summaryText, meetingTitle }: SummaryExportProps)
         className="inline-flex items-center gap-2 rounded-md border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
       >
         <FileText size={13} />
-        {pdfError ? 'Export failed' : creatingPdf ? 'Generating PDF…' : 'Export PDF'}
+        {pdfError ? t('export_failed') : creatingPdf ? t('export_generatingPdf') : t('export_pdf')}
       </button>
 
-      {copyState === 'error' ? <span className="text-xs text-red-600 dark:text-red-300">Clipboard access failed.</span> : null}
+      {copyState === 'error' ? <span className="text-xs text-red-600 dark:text-red-300">{t('export_clipboardFailed')}</span> : null}
     </div>
   );
 }

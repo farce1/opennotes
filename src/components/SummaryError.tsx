@@ -1,5 +1,6 @@
 import { AlertCircle, TriangleAlert, WifiOff } from 'lucide-react';
 import { useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 type SummaryErrorProps = {
   errorMessage: string;
@@ -26,6 +27,8 @@ function parseSummaryError(errorMessage: string): ParsedSummaryError {
 }
 
 export function SummaryError({ errorMessage, onRetry, onSwitchModel, onCheckConnection }: SummaryErrorProps) {
+  const { t } = useTranslation('meeting');
+  const { t: tc } = useTranslation('common');
   const [showDetails, setShowDetails] = useState(false);
   const parsed = useMemo(() => parseSummaryError(errorMessage), [errorMessage]);
 
@@ -38,16 +41,16 @@ export function SummaryError({ errorMessage, onRetry, onSwitchModel, onCheckConn
     : 'rounded-md border border-red-300/80 px-2.5 py-1 text-xs font-medium text-red-700 transition hover:bg-red-100/70 dark:border-red-500/60 dark:text-red-200 dark:hover:bg-red-500/20';
 
   let icon = <TriangleAlert size={16} className="mt-0.5 shrink-0" />;
-  let message = 'Summary generation failed.';
+  let message = t('error_generationFailed');
 
   if (parsed.kind === 'outOfMemory') {
-    message = 'This model ran out of memory. Try a smaller model.';
+    message = t('error_outOfMemory');
   } else if (parsed.kind === 'connectionRefused') {
     icon = <WifiOff size={16} className="mt-0.5 shrink-0" />;
-    message = 'Ollama is not running. Start it and retry.';
+    message = t('error_connectionRefused');
   } else if (parsed.kind === 'contextTruncated') {
     icon = <AlertCircle size={16} className="mt-0.5 shrink-0" />;
-    message = 'Summary based on partial transcript (model context limit).';
+    message = t('error_contextTruncated');
   }
 
   return (
@@ -61,10 +64,10 @@ export function SummaryError({ errorMessage, onRetry, onSwitchModel, onCheckConn
             {parsed.kind === 'outOfMemory' ? (
               <>
                 <button type="button" onClick={() => onSwitchModel?.('phi4-mini')} className={buttonClass}>
-                  Switch to phi4-mini
+                  {t('error_switchModel', { model: 'phi4-mini' })}
                 </button>
                 <button type="button" onClick={onRetry} className={buttonClass}>
-                  Retry
+                  {tc('btn_retry')}
                 </button>
               </>
             ) : null}
@@ -72,17 +75,17 @@ export function SummaryError({ errorMessage, onRetry, onSwitchModel, onCheckConn
             {parsed.kind === 'connectionRefused' ? (
               <>
                 <button type="button" onClick={() => onCheckConnection?.()} className={buttonClass}>
-                  Check Connection
+                  {t('error_checkConnection')}
                 </button>
                 <button type="button" onClick={onRetry} className={buttonClass}>
-                  Retry
+                  {tc('btn_retry')}
                 </button>
               </>
             ) : null}
 
             {parsed.kind === 'generation' ? (
               <button type="button" onClick={onRetry} className={buttonClass}>
-                Retry
+                {tc('btn_retry')}
               </button>
             ) : null}
 
@@ -91,7 +94,7 @@ export function SummaryError({ errorMessage, onRetry, onSwitchModel, onCheckConn
               onClick={() => setShowDetails((previous) => !previous)}
               className="rounded-md border border-current/30 px-2.5 py-1 text-xs font-medium opacity-90 transition hover:opacity-100"
             >
-              {showDetails ? 'Hide details' : 'Show details'}
+              {showDetails ? t('error_hideDetails') : t('error_showDetails')}
             </button>
           </div>
 

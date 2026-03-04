@@ -11,6 +11,7 @@ import {
   Trash2,
   X,
 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import type { LibraryFilters, SortDirection, SortField, ViewMode } from '../../types';
 import { Dropdown } from '../ui/Dropdown';
 
@@ -42,16 +43,6 @@ function toInputDate(value: Date): string {
   return format(value, 'yyyy-MM-dd');
 }
 
-type SortOption = { label: string; field: SortField; direction: SortDirection };
-const sortOptions: SortOption[] = [
-  { label: 'Newest', field: 'date', direction: 'desc' },
-  { label: 'Oldest', field: 'date', direction: 'asc' },
-  { label: 'Longest', field: 'duration', direction: 'desc' },
-  { label: 'Shortest', field: 'duration', direction: 'asc' },
-  { label: 'A \u2192 Z', field: 'title', direction: 'asc' },
-  { label: 'Z \u2192 A', field: 'title', direction: 'desc' },
-];
-
 function sortIcon(field: SortField, direction: SortDirection) {
   if (field === 'title') {
     return direction === 'asc' ? <ArrowDownAZ size={12} /> : <ArrowUpZA size={12} />;
@@ -61,16 +52,6 @@ function sortIcon(field: SortField, direction: SortDirection) {
   }
   return <SortDesc size={12} />;
 }
-
-const statusOptions = [
-  { value: '' as const, label: 'All statuses' },
-  { value: 'completed' as const, label: 'Completed' },
-  { value: 'recovered' as const, label: 'Recovered' },
-  { value: 'failed' as const, label: 'Failed' },
-  { value: 'processing' as const, label: 'Processing' },
-  { value: 'recording' as const, label: 'Recording' },
-  { value: 'paused' as const, label: 'Paused' },
-];
 
 export function FilterBar({
   filters,
@@ -86,6 +67,28 @@ export function FilterBar({
   onViewModeChange,
   onToggleTrash,
 }: FilterBarProps) {
+  const { t } = useTranslation('library');
+  const { t: tc } = useTranslation('common');
+
+  const sortOptions = [
+    { label: t('sort_newest'), field: 'date' as SortField, direction: 'desc' as SortDirection },
+    { label: t('sort_oldest'), field: 'date' as SortField, direction: 'asc' as SortDirection },
+    { label: t('sort_longest'), field: 'duration' as SortField, direction: 'desc' as SortDirection },
+    { label: t('sort_shortest'), field: 'duration' as SortField, direction: 'asc' as SortDirection },
+    { label: t('sort_aToZ'), field: 'title' as SortField, direction: 'asc' as SortDirection },
+    { label: t('sort_zToA'), field: 'title' as SortField, direction: 'desc' as SortDirection },
+  ];
+
+  const statusOptions = [
+    { value: '' as const, label: t('filter_allStatuses') },
+    { value: 'completed' as const, label: tc('status_completed') },
+    { value: 'recovered' as const, label: tc('status_recovered') },
+    { value: 'failed' as const, label: tc('status_failed') },
+    { value: 'processing' as const, label: tc('status_processing') },
+    { value: 'recording' as const, label: tc('status_recording') },
+    { value: 'paused' as const, label: tc('status_paused') },
+  ];
+
   const sortValue = `${sortField}:${sortDirection}`;
   const hasActiveFilters =
     filters.status !== '' ||
@@ -152,7 +155,7 @@ export function FilterBar({
           <input
             value={filters.search}
             onChange={(event) => onFilterChange('search', event.target.value)}
-            placeholder="Search meetings..."
+            placeholder={t('filter_searchPlaceholder')}
             className={[
               'w-full rounded-xl py-2 pl-9 pr-3 text-sm outline-none transition-all duration-150',
               'border border-gray-200/60 bg-white/50 text-gray-700 placeholder-gray-400 shadow-sm',
@@ -167,21 +170,21 @@ export function FilterBar({
           value={filters.status}
           options={statusOptions}
           onChange={(val) => onFilterChange('status', val as LibraryFilters['status'])}
-          placeholder="All statuses"
+          placeholder={t('filter_allStatuses')}
         />
 
         <div className="flex items-center gap-1 rounded-xl bg-gray-100/40 p-0.5 dark:bg-gray-800/30">
           <button type="button" onClick={() => onFilterChange('durationRange', 'all')} className={chipClasses(filters.durationRange === 'all')}>
-            All
+            {t('filter_durationAll')}
           </button>
           <button type="button" onClick={() => onFilterChange('durationRange', 'short')} className={chipClasses(filters.durationRange === 'short')}>
-            &lt;15m
+            {t('filter_durationShort')}
           </button>
           <button type="button" onClick={() => onFilterChange('durationRange', 'medium')} className={chipClasses(filters.durationRange === 'medium')}>
-            15-60m
+            {t('filter_durationMedium')}
           </button>
           <button type="button" onClick={() => onFilterChange('durationRange', 'long')} className={chipClasses(filters.durationRange === 'long')}>
-            &gt;1h
+            {t('filter_durationLong')}
           </button>
         </div>
       </div>
@@ -190,33 +193,33 @@ export function FilterBar({
       <div className="flex flex-wrap items-center gap-2">
         <div className="flex items-center gap-1 rounded-xl bg-gray-100/40 p-0.5 dark:bg-gray-800/30">
           <button type="button" onClick={() => onFilterChange('audioSource', '')} className={chipClasses(filters.audioSource === '')}>
-            All Audio
+            {t('filter_audioAll')}
           </button>
           <button type="button" onClick={() => onFilterChange('audioSource', 'mic')} className={chipClasses(filters.audioSource === 'mic')}>
-            Mic
+            {t('filter_audioMic')}
           </button>
           <button type="button" onClick={() => onFilterChange('audioSource', 'system')} className={chipClasses(filters.audioSource === 'system')}>
-            System
+            {t('filter_audioSystem')}
           </button>
           <button type="button" onClick={() => onFilterChange('audioSource', 'both')} className={chipClasses(filters.audioSource === 'both')}>
-            Both
+            {t('filter_audioBoth')}
           </button>
         </div>
 
         <div className="flex items-center gap-1 rounded-xl bg-gray-100/40 p-0.5 dark:bg-gray-800/30">
           <button type="button" onClick={() => applyDatePreset('today')} className={chipClasses(datePreset === 'today')}>
-            Today
+            {t('filter_dateToday')}
           </button>
           <button type="button" onClick={() => applyDatePreset('week')} className={chipClasses(datePreset === 'week')}>
-            This Week
+            {t('filter_dateWeek')}
           </button>
           <button type="button" onClick={() => applyDatePreset('month')} className={chipClasses(datePreset === 'month')}>
-            This Month
+            {t('filter_dateMonth')}
           </button>
           <button type="button" onClick={() => applyDatePreset('custom')} className={chipClasses(datePreset === 'custom')}>
             <span className="flex items-center gap-1">
               <Calendar size={11} />
-              Custom
+              {t('filter_dateCustom')}
             </span>
           </button>
           {datePreset !== null && (
@@ -224,7 +227,7 @@ export function FilterBar({
               type="button"
               onClick={() => applyDatePreset('clear')}
               className="rounded-lg p-1.5 text-gray-400 transition-colors duration-150 hover:bg-gray-200/70 hover:text-gray-600 dark:hover:bg-gray-700/60 dark:hover:text-gray-200"
-              aria-label="Clear date filter"
+              aria-label={t('filter_clearDateLabel')}
             >
               <X size={12} />
             </button>
@@ -271,7 +274,7 @@ export function FilterBar({
               const [field, direction] = val.split(':') as [SortField, SortDirection];
               onSortChange(field, direction);
             }}
-            placeholder="Sort by"
+            placeholder={t('filter_sortBy')}
           />
 
           {showViewModeToggle ? (
@@ -285,7 +288,7 @@ export function FilterBar({
                     ? 'bg-white text-accent shadow-sm dark:bg-gray-700/80 dark:text-accent-muted'
                     : 'text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300',
                 ].join(' ')}
-                aria-label="Card view"
+                aria-label={t('view_cardLabel')}
               >
                 <LayoutGrid size={14} />
               </button>
@@ -298,7 +301,7 @@ export function FilterBar({
                     ? 'bg-white text-accent shadow-sm dark:bg-gray-700/80 dark:text-accent-muted'
                     : 'text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300',
                 ].join(' ')}
-                aria-label="Compact view"
+                aria-label={t('view_compactLabel')}
               >
                 <List size={14} />
               </button>
@@ -317,7 +320,7 @@ export function FilterBar({
               ].join(' ')}
             >
               <Trash2 size={13} />
-              Trash
+              {t('filter_trash')}
             </button>
           ) : null}
 
@@ -328,7 +331,7 @@ export function FilterBar({
               className="inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium text-gray-500 transition-all duration-150 hover:bg-gray-200/70 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-700/60 dark:hover:text-gray-200 cursor-pointer"
             >
               <X size={12} />
-              Clear
+              {tc('btn_clear')}
             </button>
           )}
         </div>
@@ -343,7 +346,7 @@ export function FilterBar({
               onClick={() => onFilterChange('status', '')}
               className="inline-flex items-center gap-1 rounded-full bg-accent/8 px-2.5 py-1 text-[11px] font-medium text-accent transition-colors duration-150 hover:bg-accent/15 dark:bg-accent/12 dark:text-accent-muted dark:hover:bg-accent/20 cursor-pointer"
             >
-              Status: {filters.status}
+              {t('pill_status', { value: filters.status })}
               <X size={10} />
             </button>
           )}
@@ -353,7 +356,7 @@ export function FilterBar({
               onClick={() => onFilterChange('durationRange', 'all')}
               className="inline-flex items-center gap-1 rounded-full bg-accent/8 px-2.5 py-1 text-[11px] font-medium text-accent transition-colors duration-150 hover:bg-accent/15 dark:bg-accent/12 dark:text-accent-muted dark:hover:bg-accent/20 cursor-pointer"
             >
-              Duration: {filters.durationRange}
+              {t('pill_duration', { value: filters.durationRange })}
               <X size={10} />
             </button>
           )}
@@ -363,7 +366,7 @@ export function FilterBar({
               onClick={() => onFilterChange('audioSource', '')}
               className="inline-flex items-center gap-1 rounded-full bg-accent/8 px-2.5 py-1 text-[11px] font-medium text-accent transition-colors duration-150 hover:bg-accent/15 dark:bg-accent/12 dark:text-accent-muted dark:hover:bg-accent/20 cursor-pointer"
             >
-              Audio: {filters.audioSource}
+              {t('pill_audio', { value: filters.audioSource })}
               <X size={10} />
             </button>
           )}
@@ -373,7 +376,7 @@ export function FilterBar({
               onClick={() => applyDatePreset('clear')}
               className="inline-flex items-center gap-1 rounded-full bg-accent/8 px-2.5 py-1 text-[11px] font-medium text-accent transition-colors duration-150 hover:bg-accent/15 dark:bg-accent/12 dark:text-accent-muted dark:hover:bg-accent/20 cursor-pointer"
             >
-              Date: {filters.dateFrom || '\u2026'} to {filters.dateTo || '\u2026'}
+              {t('pill_date', { from: filters.dateFrom || t('pill_dateEllipsis'), to: filters.dateTo || t('pill_dateEllipsis') })}
               <X size={10} />
             </button>
           )}

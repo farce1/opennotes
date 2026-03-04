@@ -1,6 +1,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import { Copy, Download, Plus, RotateCcw, TriangleAlert } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router';
 
 import { SummaryError } from '../components/SummaryError';
@@ -44,6 +45,7 @@ function mapRowsToSegments(rows: TranscriptRow[]): TranscriptSegment[] {
 }
 
 export function MeetingCompleteView() {
+  const { t } = useTranslation('meeting');
   const navigate = useNavigate();
   const location = useLocation();
   const [meeting, setMeeting] = useState<Meeting | null>(null);
@@ -125,7 +127,7 @@ export function MeetingCompleteView() {
           return;
         }
 
-        setLoadError('Failed to load meeting transcript from local database.');
+        setLoadError(t('loadError_dbFailed'));
       } finally {
         if (active) {
           setSummaryChecked(true);
@@ -139,7 +141,7 @@ export function MeetingCompleteView() {
     return () => {
       active = false;
     };
-  }, [loadExisting, meetingId]);
+  }, [loadExisting, meetingId, t]);
 
   useEffect(() => {
     if (!meetingId || !state?.autoGenerate || !summaryChecked || autoGenerateTriggered || hadSummaryOnLoad || generating) {
@@ -188,8 +190,8 @@ export function MeetingCompleteView() {
   }, [fallbackTitle, segments, titleInput]);
 
   const onRetranscribe = useCallback(() => {
-    setRetranscribeMessage('Re-transcription is not yet available. Coming in a future update.');
-  }, []);
+    setRetranscribeMessage(t('transcript_retranscribeNotAvailable'));
+  }, [t]);
 
   const onSaveSummary = useCallback(
     async (content: string) => {
@@ -245,16 +247,16 @@ export function MeetingCompleteView() {
       <section className="flex h-full min-h-[calc(100vh-3rem)] items-center justify-center p-6">
         <div className="max-w-md space-y-4 text-center">
           <TriangleAlert className="mx-auto text-amber-500" size={34} />
-          <h1 className="text-xl font-semibold text-gray-700 dark:text-gray-50">No transcript available</h1>
+          <h1 className="text-xl font-semibold text-gray-700 dark:text-gray-50">{t('noTranscript_title')}</h1>
           <p className="text-sm text-gray-500 dark:text-gray-400">
-            Start a recording and complete a session before opening this view.
+            {t('noTranscript_description')}
           </p>
           <button
             type="button"
             onClick={() => navigate('/record')}
             className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-white transition hover:bg-accent-hover"
           >
-            Go to Record
+            {t('noTranscript_goToRecord')}
           </button>
         </div>
       </section>
@@ -264,7 +266,7 @@ export function MeetingCompleteView() {
   if (loading) {
     return (
       <section className="flex h-full min-h-[calc(100vh-3rem)] items-center justify-center p-6">
-        <p className="text-sm text-gray-600 dark:text-gray-300">Loading meeting transcript…</p>
+        <p className="text-sm text-gray-600 dark:text-gray-300">{t('loading')}</p>
       </section>
     );
   }
@@ -274,14 +276,14 @@ export function MeetingCompleteView() {
       <section className="flex h-full min-h-[calc(100vh-3rem)] items-center justify-center p-6">
         <div className="max-w-md space-y-4 text-center">
           <TriangleAlert className="mx-auto text-amber-500" size={34} />
-          <h1 className="text-xl font-semibold text-gray-700 dark:text-gray-50">Unable to load transcript</h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400">{loadError ?? 'Meeting data could not be loaded.'}</p>
+          <h1 className="text-xl font-semibold text-gray-700 dark:text-gray-50">{t('loadError_title')}</h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400">{loadError ?? t('loadError_fallback')}</p>
           <button
             type="button"
             onClick={() => navigate('/library')}
             className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-white transition hover:bg-accent-hover"
           >
-            Open Library
+            {t('loadError_openLibrary')}
           </button>
         </div>
       </section>
@@ -301,18 +303,18 @@ export function MeetingCompleteView() {
             />
             {meeting.status === 'recovered' ? (
               <span className="rounded-full bg-amber-100/70 px-2 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-500/10 dark:text-amber-200">
-                Recovered
+                {t('header_recovered')}
               </span>
             ) : null}
           </div>
 
           <p className="text-sm text-gray-500 dark:text-gray-400">
-            Meeting complete. Summary and transcript are loaded from local storage.
+            {t('header_subtitle')}
           </p>
 
-          {titleSaveState === 'saving' ? <p className="text-xs text-gray-500 dark:text-gray-400">Saving title…</p> : null}
-          {titleSaveState === 'saved' ? <p className="text-xs text-emerald-600 dark:text-emerald-300">Title saved.</p> : null}
-          {titleSaveState === 'error' ? <p className="text-xs text-red-600 dark:text-red-300">Title save failed.</p> : null}
+          {titleSaveState === 'saving' ? <p className="text-xs text-gray-500 dark:text-gray-400">{t('title_saving')}</p> : null}
+          {titleSaveState === 'saved' ? <p className="text-xs text-emerald-600 dark:text-emerald-300">{t('title_saved')}</p> : null}
+          {titleSaveState === 'error' ? <p className="text-xs text-red-600 dark:text-red-300">{t('title_saveFailed')}</p> : null}
         </div>
       </header>
 
@@ -326,7 +328,7 @@ export function MeetingCompleteView() {
               : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-100'
           }`}
         >
-          Summary
+          {t('tab_summary')}
         </button>
 
         <button
@@ -338,7 +340,7 @@ export function MeetingCompleteView() {
               : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-100'
           }`}
         >
-          Transcript
+          {t('tab_transcript')}
         </button>
       </div>
 
@@ -346,7 +348,7 @@ export function MeetingCompleteView() {
         {activeTab === 'summary' ? (
           <div className="space-y-3">
             {summaryLoading && !summaryText ? (
-              <p className="text-sm text-gray-500 dark:text-gray-400">Loading saved summary…</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">{t('summary_loading')}</p>
             ) : null}
 
             {summaryError ? (
@@ -399,7 +401,7 @@ export function MeetingCompleteView() {
                   ))}
                 </div>
               ) : (
-                <p className="text-sm text-gray-500 dark:text-gray-400">No transcript segments were saved for this meeting.</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400">{t('transcript_empty')}</p>
               )}
             </div>
 
@@ -411,7 +413,7 @@ export function MeetingCompleteView() {
                 className="inline-flex items-center gap-2 rounded-md border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
               >
                 <Copy size={13} />
-                {copyState === 'copied' ? 'Copied' : 'Copy'}
+                {copyState === 'copied' ? t('transcript_copied') : t('transcript_copy')}
               </button>
 
               <button
@@ -421,7 +423,7 @@ export function MeetingCompleteView() {
                 className="inline-flex items-center gap-2 rounded-md border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
               >
                 <Download size={13} />
-                Export Markdown
+                {t('transcript_exportMarkdown')}
               </button>
 
               {meeting.status === 'recovered' ? (
@@ -431,11 +433,11 @@ export function MeetingCompleteView() {
                   className="inline-flex items-center gap-2 rounded-lg border border-amber-400 px-3 py-1.5 text-xs font-semibold text-amber-700 transition hover:bg-amber-100/70 dark:border-amber-500 dark:text-amber-200 dark:hover:bg-amber-500/10"
                 >
                   <RotateCcw size={13} />
-                  Re-transcribe
+                  {t('transcript_retranscribe')}
                 </button>
               ) : null}
 
-              {copyState === 'error' ? <span className="text-xs text-red-600 dark:text-red-300">Clipboard access failed.</span> : null}
+              {copyState === 'error' ? <span className="text-xs text-red-600 dark:text-red-300">{t('transcript_clipboardFailed')}</span> : null}
               {retranscribeMessage ? <span className="text-xs text-amber-700 dark:text-amber-200">{retranscribeMessage}</span> : null}
             </div>
           </div>
@@ -449,7 +451,7 @@ export function MeetingCompleteView() {
           className="inline-flex items-center gap-2 rounded-md bg-accent px-4 py-2 text-sm font-semibold text-white transition hover:bg-accent-hover"
         >
           <Plus size={15} />
-          New Recording
+          {t('btn_newRecording')}
         </button>
       </footer>
     </section>

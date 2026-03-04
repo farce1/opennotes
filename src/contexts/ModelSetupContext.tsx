@@ -1,5 +1,6 @@
 import { Channel, invoke } from '@tauri-apps/api/core';
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import { getSetting } from '../lib/settings';
 import type { DownloadEvent, ModelStatus } from '../types';
@@ -32,6 +33,7 @@ export function useModelSetup() {
 }
 
 export function ModelSetupProvider({ children }: { children: ReactNode }) {
+  const { t } = useTranslation('setup');
   const [modelStatus, setModelStatus] = useState<ModelStatus>('unknown');
   const [downloadProgress, setDownloadProgress] = useState<DownloadProgress | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -49,7 +51,7 @@ export function ModelSetupProvider({ children }: { children: ReactNode }) {
       return ready;
     } catch {
       setModelStatus('error');
-      setErrorMessage('Unable to check local transcription model status.');
+      setErrorMessage(t('context_model_checkError'));
       return false;
     }
   }, []);
@@ -92,7 +94,7 @@ export function ModelSetupProvider({ children }: { children: ReactNode }) {
 
       if (event.event === 'error') {
         setModelStatus('error');
-        setErrorMessage(event.data.message || 'Model download failed. Please retry.');
+        setErrorMessage(event.data.message || t('stt_errorFallback'));
       }
     };
 
@@ -105,7 +107,7 @@ export function ModelSetupProvider({ children }: { children: ReactNode }) {
       });
     } catch {
       setModelStatus((current) => (current === 'not_ready' || current === 'ready' ? current : 'error'));
-      setErrorMessage((current) => current ?? 'Model download failed. Please retry.');
+      setErrorMessage((current) => current ?? t('stt_errorFallback'));
     }
   }, []);
 

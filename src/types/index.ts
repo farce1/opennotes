@@ -53,6 +53,8 @@ export interface MeetingWithPreview extends Meeting {
 
 export interface AppSettings {
   theme: AppTheme;
+  appLanguage: string;
+  summaryLanguage: string;
   recordingShortcut: string;
   pauseShortcut: string;
   dataDirectory: string;

@@ -1,4 +1,5 @@
 import { createContext, useCallback, useEffect, useState, type ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 import { check, type Update } from '@tauri-apps/plugin-updater';
 
 type CheckState = 'idle' | 'checking' | 'up-to-date' | 'available' | 'unavailable' | 'error';
@@ -31,7 +32,13 @@ function stringifyError(error: unknown): string {
   return '';
 }
 
-function toUnavailableMessage(rawError: string): string | null {
+type UpdateErrorKey =
+  | 'context_update_noManifest'
+  | 'context_update_noPubkey'
+  | 'context_update_noPermission'
+  | 'context_update_unavailable';
+
+function classifyUnavailableError(rawError: string): UpdateErrorKey | null {
   const normalized = rawError.toLowerCase();
   const matchesUnavailablePrefix = UNAVAILABLE_ERROR_PREFIXES.some((prefix) => normalized.includes(prefix));
 
@@ -40,18 +47,18 @@ function toUnavailableMessage(rawError: string): string | null {
   }
 
   if (normalized.includes('could not fetch a valid release json')) {
-    return 'No updater manifest was found at the release endpoint. Publish a release that includes latest.json.';
+    return 'context_update_noManifest';
   }
 
   if (normalized.includes('pubkey') || normalized.includes('public key') || normalized.includes('replace_with_generated_pubkey')) {
-    return 'Updater is not configured. Set a valid updater pubkey in src-tauri/tauri.conf.json.';
+    return 'context_update_noPubkey';
   }
 
   if (normalized.includes('not allowed') || normalized.includes('permission')) {
-    return 'Updater permission is missing for this window capability.';
+    return 'context_update_noPermission';
   }
 
-  return 'Automatic updates are unavailable in this build.';
+  return 'context_update_unavailable';
 }
 
 export interface UpdateContextValue {
@@ -73,6 +80,7 @@ export const UpdateContext = createContext<UpdateContextValue>({
 });
 
 export function UpdateProvider({ children }: { children: ReactNode }) {
+  const { t } = useTranslation('common');
   const [updateAvailable, setUpdateAvailable] = useState(false);
   const [availableVersion, setAvailableVersion] = useState<string | null>(null);
   const [cachedUpdate, setCachedUpdate] = useState<Update | null>(null);
@@ -98,16 +106,16 @@ export function UpdateProvider({ children }: { children: ReactNode }) {
       }
     } catch (error) {
       const rawMessage = stringifyError(error);
-      const unavailableMessage = toUnavailableMessage(rawMessage);
+      const unavailableKey = classifyUnavailableError(rawMessage);
 
-      if (unavailableMessage) {
+      if (unavailableKey) {
         setCheckState('unavailable');
-        setErrorMessage(unavailableMessage);
+        setErrorMessage(t(unavailableKey));
         return;
       }
 
       setCheckState('error');
-      setErrorMessage(rawMessage || 'Update check failed');
+      setErrorMessage(rawMessage || t('context_update_checkFailed'));
     }
   }, []);
 

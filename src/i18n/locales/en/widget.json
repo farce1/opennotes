@@ -1,0 +1,7 @@
+{
+  "status_transcribing": "Transcribing",
+  "status_transcriptionIssue": "Transcription issue",
+  "aria_pauseRecording": "Pause recording",
+  "aria_resumeRecording": "Resume recording",
+  "aria_stopRecording": "Stop recording"
+}

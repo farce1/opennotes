@@ -1,6 +1,7 @@
 import { Channel, invoke } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-shell';
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import { getSetting } from '../lib/settings';
 import type { OllamaPullEvent, OllamaSetupEvent, OllamaSetupPhase, OllamaStatus } from '../types';
@@ -65,6 +66,7 @@ export function useOllamaSetup() {
 }
 
 export function OllamaSetupProvider({ children }: { children: ReactNode }) {
+  const { t } = useTranslation('setup');
   const [setupPhase, setSetupPhase] = useState<OllamaSetupPhase>('checking');
   const [pullProgress, setPullProgress] = useState<PullProgress | null>(null);
   const [ollamaDownloadProgress, setOllamaDownloadProgress] = useState<OllamaDownloadProgress | null>(null);
@@ -104,7 +106,7 @@ export function OllamaSetupProvider({ children }: { children: ReactNode }) {
         return status;
       } catch {
         setSetupPhase('error');
-        setErrorMessage('Unable to check Ollama status.');
+        setErrorMessage(t('context_ollama_checkError'));
         return null;
       }
     },
@@ -129,7 +131,7 @@ export function OllamaSetupProvider({ children }: { children: ReactNode }) {
       await checkStatus(true);
     } catch {
       setSetupPhase('error');
-      setErrorMessage('Unable to open the Ollama download page.');
+      setErrorMessage(t('context_ollama_openDownloadError'));
     }
   }, [checkStatus, startPollingUntilRunning]);
 
@@ -168,7 +170,7 @@ export function OllamaSetupProvider({ children }: { children: ReactNode }) {
 
       if (event.event === 'error') {
         setSetupPhase('error');
-        setErrorMessage(event.data.message || 'Model pull failed.');
+        setErrorMessage(event.data.message || t('context_ollama_pullFailed'));
       }
     };
 
@@ -179,7 +181,7 @@ export function OllamaSetupProvider({ children }: { children: ReactNode }) {
       await invoke('pull_ollama_model', { model: currentModel || 'phi4-mini', onEvent: channel });
     } catch {
       setSetupPhase('error');
-      setErrorMessage('Unable to pull Ollama model. Ensure Ollama is running and retry.');
+      setErrorMessage(t('context_ollama_pullError'));
     }
   }, []);
 
@@ -235,7 +237,7 @@ export function OllamaSetupProvider({ children }: { children: ReactNode }) {
     } catch {
       if (!errorHandled) {
         setSetupPhase('error');
-        setErrorMessage('Auto-setup failed. Please retry.');
+        setErrorMessage(t('context_ollama_autoSetupFailed'));
       }
     }
   }, []);

@@ -2,52 +2,29 @@ import { Database, FileText, Info, Mic, SlidersHorizontal, Sparkles } from 'luci
 
 import type { SettingsTab } from '../../types';
 
+export type SettingsTabLabelKey =
+  | 'settingsTab_general'
+  | 'settingsTab_recording'
+  | 'settingsTab_transcription'
+  | 'settingsTab_summary'
+  | 'settingsTab_data'
+  | 'settingsTab_about';
+
 export type SettingsTabConfig = {
   id: SettingsTab;
-  label: string;
-  description: string;
+  labelKey: SettingsTabLabelKey;
   icon: typeof SlidersHorizontal;
 };
 
 export const DEFAULT_SETTINGS_TAB: SettingsTab = 'general';
 
 export const SETTINGS_TABS: SettingsTabConfig[] = [
-  {
-    id: 'general',
-    label: 'General',
-    description: 'Theme, shortcuts, and global defaults',
-    icon: SlidersHorizontal,
-  },
-  {
-    id: 'recording',
-    label: 'Recording',
-    description: 'Audio devices and capture source',
-    icon: Mic,
-  },
-  {
-    id: 'transcription',
-    label: 'Transcription',
-    description: 'Model download and language controls',
-    icon: FileText,
-  },
-  {
-    id: 'summary',
-    label: 'Summary',
-    description: 'Ollama models and auto-summary options',
-    icon: Sparkles,
-  },
-  {
-    id: 'data',
-    label: 'Data',
-    description: 'Storage path, backups, and restores',
-    icon: Database,
-  },
-  {
-    id: 'about',
-    label: 'About',
-    description: 'Version, updates, and release status',
-    icon: Info,
-  },
+  { id: 'general', labelKey: 'settingsTab_general', icon: SlidersHorizontal },
+  { id: 'recording', labelKey: 'settingsTab_recording', icon: Mic },
+  { id: 'transcription', labelKey: 'settingsTab_transcription', icon: FileText },
+  { id: 'summary', labelKey: 'settingsTab_summary', icon: Sparkles },
+  { id: 'data', labelKey: 'settingsTab_data', icon: Database },
+  { id: 'about', labelKey: 'settingsTab_about', icon: Info },
 ];
 
 export function isSettingsTab(value: string | undefined): value is SettingsTab {

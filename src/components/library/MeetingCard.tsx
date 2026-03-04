@@ -1,5 +1,6 @@
 import { AudioLines, Mic, Monitor, Pencil, RotateCcw, Trash2, Undo2 } from 'lucide-react';
 import type { KeyboardEvent } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import type { MeetingWithPreview } from '../../types';
 import type { ExportFormat } from '../../lib/export';
@@ -25,7 +26,8 @@ type MeetingCardProps = {
   onRetranscribe?: (id: number) => void;
 };
 
-function sourceBadge(meeting: MeetingWithPreview) {
+function SourceBadge({ meeting }: { meeting: MeetingWithPreview }) {
+  const { t } = useTranslation('common');
   const source = normalizeAudioSource(meeting.audio_sources);
   const base =
     'inline-flex items-center gap-1 rounded-lg bg-gray-100/60 px-2 py-0.5 text-[11px] font-medium text-gray-500 dark:bg-gray-800/40 dark:text-gray-400';
@@ -33,7 +35,7 @@ function sourceBadge(meeting: MeetingWithPreview) {
   if (source === 'mic') {
     return (
       <span className={base}>
-        <Mic size={11} /> Mic
+        <Mic size={11} /> {t('source_mic')}
       </span>
     );
   }
@@ -41,7 +43,7 @@ function sourceBadge(meeting: MeetingWithPreview) {
   if (source === 'system') {
     return (
       <span className={base}>
-        <Monitor size={11} /> System
+        <Monitor size={11} /> {t('source_system')}
       </span>
     );
   }
@@ -49,7 +51,7 @@ function sourceBadge(meeting: MeetingWithPreview) {
   if (source === 'both') {
     return (
       <span className={base}>
-        <AudioLines size={11} /> Both
+        <AudioLines size={11} /> {t('source_both')}
       </span>
     );
   }
@@ -75,6 +77,8 @@ export function MeetingCard({
   onRestore,
   onRetranscribe,
 }: MeetingCardProps) {
+  const { t } = useTranslation('library');
+  const { t: tc } = useTranslation('common');
   const words = meeting.summary_preview?.trim() ? meeting.summary_preview.trim().split(/\s+/).length : 0;
   const isEditing = editingId === meeting.id;
 
@@ -137,7 +141,7 @@ export function MeetingCard({
                   type="button"
                   onClick={() => onStartRename(meeting.id, meeting.title)}
                   className="cursor-pointer rounded-md p-1 text-gray-400 opacity-0 transition-all duration-150 hover:bg-gray-100/80 hover:text-gray-700 group-hover:opacity-100 dark:hover:bg-gray-800 dark:hover:text-gray-100"
-                  aria-label="Rename meeting"
+                  aria-label={t('card_renameLabel')}
                 >
                   <Pencil size={13} />
                 </button>
@@ -154,18 +158,18 @@ export function MeetingCard({
           <span className={`rounded-lg px-2 py-0.5 text-[11px] font-medium ${statusClasses(meeting.status)}`}>
             {meeting.status}
           </span>
-          {sourceBadge(meeting)}
+          <SourceBadge meeting={meeting} />
         </div>
       </div>
 
       <p className="mt-3 line-clamp-2 text-sm leading-relaxed text-gray-600 dark:text-gray-300">
-        {meeting.summary_preview?.trim() || 'No summary available yet.'}
+        {meeting.summary_preview?.trim() || t('card_noSummary')}
       </p>
 
       <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-gray-400 dark:text-gray-500">
-        <span>{meeting.segment_count} segments</span>
+        <span>{t('card_segments', { count: meeting.segment_count })}</span>
         <span>&middot;</span>
-        <span>{words} preview words</span>
+        <span>{t('card_previewWords', { count: words })}</span>
 
         <div className="ml-auto flex items-center gap-1.5">
           <ExportMenu onExport={(format) => onExport(meeting.id, format)} />
@@ -177,7 +181,7 @@ export function MeetingCard({
               className="inline-flex cursor-pointer items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium text-emerald-600 transition-all duration-150 hover:bg-emerald-500/10 dark:text-emerald-300 dark:hover:bg-emerald-500/10"
             >
               <Undo2 size={12} />
-              Restore
+              {tc('btn_restore')}
             </button>
           ) : (
             <button
@@ -186,7 +190,7 @@ export function MeetingCard({
               className="inline-flex cursor-pointer items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium text-red-500 transition-all duration-150 hover:bg-red-500/10 dark:text-red-300 dark:hover:bg-red-500/10"
             >
               <Trash2 size={12} />
-              Delete
+              {tc('btn_delete')}
             </button>
           )}
 
@@ -197,7 +201,7 @@ export function MeetingCard({
               className="inline-flex cursor-pointer items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium text-amber-600 transition-all duration-150 hover:bg-amber-500/10 dark:text-amber-300 dark:hover:bg-amber-500/10"
             >
               <RotateCcw size={12} />
-              Re-transcribe
+              {t('card_reTranscribe')}
             </button>
           )}
         </div>

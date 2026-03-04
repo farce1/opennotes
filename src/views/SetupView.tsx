@@ -12,6 +12,7 @@ import {
   X,
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router';
 
 import { useModelSetup } from '../hooks/useModelSetup';
@@ -77,6 +78,7 @@ function Notice({
 }
 
 export function SetupView() {
+  const { t } = useTranslation('setup');
   const navigate = useNavigate();
   const [transcriptionLanguage] = useSetting('transcriptionLanguage');
   const { modelStatus, downloadProgress, errorMessage: modelErrorMessage, startDownload, cancelDownload } =
@@ -137,18 +139,18 @@ export function SetupView() {
 
   const etaLabel = useMemo(() => {
     if (!downloadStartedAt || !downloadProgress || downloadProgress.total <= 0 || downloadProgress.downloaded <= 0) {
-      return 'estimating...';
+      return t('eta_estimating');
     }
 
     const elapsedSeconds = Math.max(1, (Date.now() - downloadStartedAt) / 1000);
     const bytesPerSecond = downloadProgress.downloaded / elapsedSeconds;
     if (bytesPerSecond <= 0) {
-      return 'estimating...';
+      return t('eta_estimating');
     }
 
     const remainingBytes = Math.max(0, downloadProgress.total - downloadProgress.downloaded);
     return formatEta(remainingBytes / bytesPerSecond);
-  }, [downloadProgress, downloadStartedAt, tick]);
+  }, [downloadProgress, downloadStartedAt, t, tick]);
 
   const ollamaProgressPercent = useMemo(() => {
     if (!pullProgress || pullProgress.total <= 0) {
@@ -173,23 +175,23 @@ export function SetupView() {
       ollamaDownloadProgress.total <= 0 ||
       ollamaDownloadProgress.downloaded <= 0
     ) {
-      return 'estimating...';
+      return t('eta_estimating');
     }
 
     const elapsedSeconds = Math.max(1, (Date.now() - ollamaDownloadStartedAt) / 1000);
     const bytesPerSecond = ollamaDownloadProgress.downloaded / elapsedSeconds;
     if (bytesPerSecond <= 0) {
-      return 'estimating...';
+      return t('eta_estimating');
     }
 
     const remainingBytes = Math.max(0, ollamaDownloadProgress.total - ollamaDownloadProgress.downloaded);
     return formatEta(remainingBytes / bytesPerSecond);
-  }, [ollamaDownloadProgress, ollamaDownloadStartedAt, tick]);
+  }, [ollamaDownloadProgress, ollamaDownloadStartedAt, t, tick]);
 
   const allReady = modelStatus === 'ready' && setupPhase === 'ready';
   const activeLanguage = transcriptionLanguage ?? 'en';
   const sttModelName = activeLanguage === 'pl' ? 'Whisper Tiny (Multilingual)' : 'Parakeet TDT 0.6B';
-  const sttDownloadLabel = activeLanguage === 'pl' ? 'Download Whisper Model' : 'Download Parakeet Model';
+  const sttDownloadLabel = activeLanguage === 'pl' ? t('stt_downloadLabel_pl') : t('stt_downloadLabel_en');
 
   return (
     <section className="relative h-full min-h-[calc(100vh-3rem)] overflow-hidden rounded-[1.75rem] border border-gray-200/70 bg-gradient-to-br from-white/85 via-white/70 to-gray-100/70 p-4 shadow-[0_28px_80px_-50px_rgba(15,23,42,0.45)] dark:border-gray-800/70 dark:from-gray-900/90 dark:via-gray-900/70 dark:to-gray-950/80 sm:p-5 lg:p-6">
@@ -199,10 +201,10 @@ export function SetupView() {
       <div className="relative z-10 flex h-full min-h-0 flex-col gap-4">
         <header className="rounded-2xl border border-gray-200/80 bg-white/80 p-4 shadow-[0_10px_32px_-24px_rgba(15,23,42,0.65)] backdrop-blur-sm dark:border-gray-700/80 dark:bg-gray-900/55 sm:p-5">
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-500 dark:text-gray-400">Workspace</p>
-            <h1 className="mt-1 text-[1.65rem] font-semibold leading-tight text-gray-900 dark:text-gray-50">Models</h1>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-500 dark:text-gray-400">{t('header_label')}</p>
+            <h1 className="mt-1 text-[1.65rem] font-semibold leading-tight text-gray-900 dark:text-gray-50">{t('header_title')}</h1>
             <p className="mt-2 max-w-3xl text-sm text-gray-600 dark:text-gray-300">
-              Manage local transcription and AI notes engines. Both run on-device and keep meeting data on your Mac.
+              {t('header_description')}
             </p>
           </div>
         </header>
@@ -215,9 +217,9 @@ export function SetupView() {
                   <Mic size={18} />
                 </span>
                 <div>
-                  <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">Speech-to-Text</h2>
+                  <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">{t('stt_title')}</h2>
                   <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">
-                    Transcribes your meetings in real-time with local inference.
+                    {t('stt_description')}
                   </p>
                 </div>
               </div>
@@ -230,13 +232,13 @@ export function SetupView() {
             <div className="mt-5 space-y-3">
               {(modelStatus === 'checking' || modelStatus === 'unknown') && (
                 <Notice tone="neutral" icon={Loader2}>
-                  Checking existing model files...
+                  {t('stt_checking')}
                 </Notice>
               )}
 
               {modelStatus === 'not_ready' && (
                 <div className="space-y-3">
-                  <Notice tone="warning">Model is not installed yet.</Notice>
+                  <Notice tone="warning">{t('stt_notInstalled')}</Notice>
                   <button
                     type="button"
                     onClick={() => void startDownload()}
@@ -251,14 +253,14 @@ export function SetupView() {
               {modelStatus === 'downloading' && downloadProgress && (
                 <div className="space-y-2.5 rounded-xl border border-gray-200 bg-gray-50/90 p-3.5 dark:border-gray-700 dark:bg-gray-800/70">
                   <div className="flex items-center justify-between text-sm font-medium text-gray-700 dark:text-gray-100">
-                    <span>Downloading model...</span>
+                    <span>{t('stt_downloading')}</span>
                     <div className="flex items-center gap-2">
                       <span>{Math.round(progressPercent)}%</span>
                       <button
                         type="button"
                         onClick={() => void cancelDownload()}
                         className="inline-flex items-center justify-center rounded-md p-0.5 text-gray-400 transition hover:bg-gray-200 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-200"
-                        title="Cancel download"
+                        title={t('stt_cancelDownload')}
                       >
                         <X size={14} />
                       </button>
@@ -281,14 +283,14 @@ export function SetupView() {
 
               {modelStatus === 'extracting' && (
                 <Notice tone="neutral" icon={Loader2}>
-                  Extracting model files...
+                  {t('stt_extracting')}
                 </Notice>
               )}
 
               {modelStatus === 'error' && (
                 <div className="space-y-3 rounded-xl border border-red-200 bg-red-50/85 p-3.5 dark:border-red-500/40 dark:bg-red-500/10">
                   <p className="text-sm text-red-700 dark:text-red-200">
-                    {modelErrorMessage ?? 'Model download failed. Please retry.'}
+                    {modelErrorMessage ?? t('stt_errorFallback')}
                   </p>
                   <button
                     type="button"
@@ -296,14 +298,14 @@ export function SetupView() {
                     className="inline-flex items-center gap-2 rounded-lg border border-red-300 px-3 py-1.5 text-xs font-semibold text-red-700 transition hover:bg-red-100 dark:border-red-500/40 dark:text-red-200 dark:hover:bg-red-500/20"
                   >
                     <RefreshCw size={14} />
-                    Retry Download
+                    {t('stt_retryDownload')}
                   </button>
                 </div>
               )}
 
               {modelStatus === 'ready' && (
                 <Notice tone="success" icon={CheckCircle2}>
-                  {sttModelName} is ready.
+                  {t('stt_ready', { model: sttModelName })}
                 </Notice>
               )}
             </div>
@@ -316,9 +318,9 @@ export function SetupView() {
                   <Bot size={18} />
                 </span>
                 <div>
-                  <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">AI Notes</h2>
+                  <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">{t('ai_title')}</h2>
                   <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">
-                    Generates summaries and action items using a local Ollama model.
+                    {t('ai_description')}
                   </p>
                 </div>
               </div>
@@ -331,34 +333,34 @@ export function SetupView() {
             <div className="mt-5 space-y-3">
               {setupPhase === 'checking' && (
                 <Notice tone="neutral" icon={Loader2}>
-                  Checking Ollama status...
+                  {t('ai_checking')}
                 </Notice>
               )}
 
               {setupPhase === 'not_installed' && (
                 <div className="space-y-3">
-                  <Notice tone="warning">Ollama is required for local AI notes.</Notice>
+                  <Notice tone="warning">{t('ai_notInstalled')}</Notice>
                   <button
                     type="button"
                     onClick={() => void autoSetup()}
                     className="inline-flex items-center gap-2 rounded-xl bg-accent px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-accent-hover"
                   >
                     <Download size={15} />
-                    Set Up AI Notes
+                    {t('ai_setupButton')}
                   </button>
                 </div>
               )}
 
               {setupPhase === 'not_running' && (
                 <div className="space-y-3">
-                  <Notice tone="warning">Ollama is installed but not running.</Notice>
+                  <Notice tone="warning">{t('ai_notRunning')}</Notice>
                   <button
                     type="button"
                     onClick={() => void autoSetup()}
                     className="inline-flex items-center gap-2 rounded-xl bg-accent px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-accent-hover"
                   >
                     <Loader2 size={15} />
-                    Start Ollama
+                    {t('ai_startButton')}
                   </button>
                 </div>
               )}
@@ -366,7 +368,7 @@ export function SetupView() {
               {setupPhase === 'downloading_ollama' && (
                 <div className="space-y-2.5 rounded-xl border border-gray-200 bg-gray-50/90 p-3.5 dark:border-gray-700 dark:bg-gray-800/70">
                   <div className="flex items-center justify-between text-sm font-medium text-gray-700 dark:text-gray-100">
-                    <span>Downloading Ollama...</span>
+                    <span>{t('ai_downloadingOllama')}</span>
                     <span>{Math.round(ollamaDownloadPercent)}%</span>
                   </div>
                   <div className="h-2 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
@@ -388,32 +390,32 @@ export function SetupView() {
 
               {setupPhase === 'extracting_ollama' && (
                 <Notice tone="neutral" icon={Loader2}>
-                  Extracting Ollama...
+                  {t('ai_extractingOllama')}
                 </Notice>
               )}
 
               {setupPhase === 'installing_ollama' && (
                 <Notice tone="neutral" icon={Loader2}>
-                  Installing Ollama...
+                  {t('ai_installingOllama')}
                 </Notice>
               )}
 
               {setupPhase === 'starting_ollama' && (
                 <Notice tone="neutral" icon={Loader2}>
-                  Starting Ollama...
+                  {t('ai_startingOllama')}
                 </Notice>
               )}
 
               {setupPhase === 'model_not_pulled' && (
                 <div className="space-y-3">
-                  <Notice tone="warning">Ollama is running. Pull Phi-4 Mini to enable summaries.</Notice>
+                  <Notice tone="warning">{t('ai_modelNotPulled')}</Notice>
                   <button
                     type="button"
                     onClick={() => void autoSetup()}
                     className="inline-flex items-center gap-2 rounded-xl bg-accent px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-accent-hover"
                   >
                     <Download size={15} />
-                    Download Phi-4 Mini
+                    {t('ai_downloadPhi')}
                   </button>
                 </div>
               )}
@@ -421,7 +423,7 @@ export function SetupView() {
               {setupPhase === 'pulling' && pullProgress && (
                 <div className="space-y-2.5 rounded-xl border border-gray-200 bg-gray-50/90 p-3.5 dark:border-gray-700 dark:bg-gray-800/70">
                   <div className="flex items-center justify-between text-sm font-medium text-gray-700 dark:text-gray-100">
-                    <span>Downloading Phi-4 Mini...</span>
+                    <span>{t('ai_downloadingPhi')}</span>
                     <span>{Math.round(ollamaProgressPercent)}%</span>
                   </div>
                   <div className="h-2 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
@@ -441,14 +443,14 @@ export function SetupView() {
 
               {setupPhase === 'ready' && (
                 <Notice tone="success" icon={CheckCircle2}>
-                  Phi-4 Mini is ready.
+                  {t('ai_ready')}
                 </Notice>
               )}
 
               {setupPhase === 'error' && (
                 <div className="space-y-3 rounded-xl border border-red-200 bg-red-50/85 p-3.5 dark:border-red-500/40 dark:bg-red-500/10">
                   <p className="text-sm text-red-700 dark:text-red-200">
-                    {ollamaErrorMessage ?? 'Ollama model setup failed. Please retry.'}
+                    {ollamaErrorMessage ?? t('ai_errorFallback')}
                   </p>
                   <button
                     type="button"
@@ -456,7 +458,7 @@ export function SetupView() {
                     className="inline-flex items-center gap-2 rounded-lg border border-red-300 px-3 py-1.5 text-xs font-semibold text-red-700 transition hover:bg-red-100 dark:border-red-500/40 dark:text-red-200 dark:hover:bg-red-500/20"
                   >
                     <RefreshCw size={14} />
-                    Retry Setup
+                    {t('ai_retrySetup')}
                   </button>
                 </div>
               )}
@@ -486,12 +488,12 @@ export function SetupView() {
               </span>
               <div>
                 <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-                  {allReady ? 'All local models are ready' : 'Finish setup to unlock full recording workflow'}
+                  {allReady ? t('footer_allReady') : t('footer_setupNeeded')}
                 </p>
                 <p className="text-xs text-gray-500 dark:text-gray-400">
                   {allReady
-                    ? 'You can start recording with transcription and AI notes enabled.'
-                    : 'Complete both cards above to run transcription and summaries entirely on-device.'}
+                    ? t('footer_allReadyHint')
+                    : t('footer_setupNeededHint')}
                 </p>
               </div>
             </div>
@@ -502,7 +504,7 @@ export function SetupView() {
                 onClick={() => navigate('/record')}
                 className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700"
               >
-                Start Recording
+                {t('footer_startRecording')}
                 <ArrowRight size={15} />
               </button>
             ) : null}

@@ -12,6 +12,10 @@ use super::model::AsrBackend;
 use super::resampler::{AudioResampler, RingAccumulator};
 use super::{SegmentResult, WorkerCommand};
 
+const ASR_SAMPLE_RATE: u32 = 16_000;
+const WHISPER_MAX_DECODE_SECONDS: usize = 25;
+const WHISPER_MAX_DECODE_SAMPLES: usize = (ASR_SAMPLE_RATE as usize) * WHISPER_MAX_DECODE_SECONDS;
+
 pub struct WorkerConfig {
     pub backend: AsrBackend,
     pub vad_model: String,
@@ -36,6 +40,13 @@ impl TranscriptionRecognizer {
             Self::Whisper(recognizer) => recognizer.transcribe(sample_rate, samples).text,
         }
     }
+
+    fn max_decode_samples(&self) -> Option<usize> {
+        match self {
+            Self::Whisper(_) => Some(WHISPER_MAX_DECODE_SAMPLES),
+            Self::Transducer(_) => None,
+        }
+    }
 }
 
 fn process_completed_segments(
@@ -46,11 +57,26 @@ fn process_completed_segments(
 ) {
     while !vad.is_empty() {
         let segment = vad.front();
-        let text = recognizer.transcribe(16_000, &segment.samples).trim().to_string();
+        let max_decode_samples = recognizer
+            .max_decode_samples()
+            .unwrap_or(segment.samples.len())
+            .max(1);
+        let segment_start_samples = segment.start.max(0) as u64;
 
-        if !text.is_empty() {
-            let segment_elapsed_ms = ((segment.start.max(0) as u64) * 1000) / 16_000;
-            let elapsed_ms = recording_start_ms.saturating_add(segment_elapsed_ms);
+        for (chunk_index, samples) in segment.samples.chunks(max_decode_samples).enumerate() {
+            if samples.is_empty() {
+                continue;
+            }
+
+            let text = recognizer.transcribe(ASR_SAMPLE_RATE, samples).trim().to_string();
+            if text.is_empty() {
+                continue;
+            }
+
+            let chunk_offset_samples = (chunk_index as u64) * (max_decode_samples as u64);
+            let elapsed_ms = recording_start_ms.saturating_add(
+                ((segment_start_samples + chunk_offset_samples) * 1000) / (ASR_SAMPLE_RATE as u64),
+            );
             let _ = result_tx.send(SegmentResult { text, elapsed_ms });
         }
 
@@ -80,19 +106,27 @@ pub fn run_worker(
 
     let mut ring = RingAccumulator::new(1_536);
 
-    eprintln!("[transcription] loading VAD model: {}", config.vad_model);
+    let vad_max_speech_duration = match config.backend {
+        AsrBackend::Whisper => 10.0,
+        AsrBackend::ParakeetTransducer => 30.0,
+    };
+
+    eprintln!(
+        "[transcription] loading VAD model: {} (max_speech_duration={}s)",
+        config.vad_model, vad_max_speech_duration
+    );
     let mut vad = match SileroVad::new(
         SileroVadConfig {
             model: config.vad_model.clone(),
             window_size: 512,
             min_silence_duration: 1.2,
             min_speech_duration: 0.15,
-            max_speech_duration: 30.0,
+            max_speech_duration: vad_max_speech_duration,
             threshold: 0.45,
-            sample_rate: 16_000,
+            sample_rate: ASR_SAMPLE_RATE,
             ..Default::default()
         },
-        30.0,
+        60.0,
     ) {
         Ok(vad) => vad,
         Err(err) => {

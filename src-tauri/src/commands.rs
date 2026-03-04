@@ -676,6 +676,7 @@ pub async fn generate_summary(
     meeting_id: i64,
     server_url: Option<String>,
     model: Option<String>,
+    language: Option<String>,
     on_token: Channel<llm::LlmTokenEvent>,
 ) -> Result<(), String> {
     let transcript_parts = sqlx::query_scalar::<_, String>(
@@ -696,7 +697,8 @@ pub async fn generate_summary(
     let transcript = transcript_parts.join("\n");
     let url = server_url.unwrap_or_else(|| llm::DEFAULT_OLLAMA_URL.to_string());
     let selected_model = model.unwrap_or_else(|| llm::DEFAULT_MODEL.to_string());
-    let full_summary = llm::run_summary(&transcript, &url, &selected_model, &on_token).await?;
+    let summary_language = language.as_deref().unwrap_or("en");
+    let full_summary = llm::run_summary(&transcript, &url, &selected_model, summary_language, &on_token).await?;
     let extracted_title = llm::extract_title(&full_summary);
     let cleaned_summary = llm::strip_title_line(&full_summary).trim().to_string();
     let persisted_summary = if cleaned_summary.is_empty() {
@@ -794,6 +796,56 @@ pub async fn restore_meeting(
     .map_err(|err| format!("failed to restore meeting: {err}"))?;
 
     fts_upsert(pool.inner(), meeting_id).await
+}
+
+#[tauri::command]
+pub async fn delete_meeting_permanently(
+    pool: tauri::State<'_, SqlitePool>,
+    meeting_id: i64,
+) -> Result<(), String> {
+    fts_delete_if_exists(pool.inner(), meeting_id)
+        .await
+        .map_err(|err| format!("FTS cleanup before permanent delete failed: {err}"))?;
+
+    let result = sqlx::query("DELETE FROM meetings WHERE id = ?")
+        .bind(meeting_id)
+        .execute(pool.inner())
+        .await
+        .map_err(|err| format!("failed to permanently delete meeting: {err}"))?;
+
+    if result.rows_affected() == 0 {
+        return Err("meeting not found".to_string());
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn empty_trash(pool: tauri::State<'_, SqlitePool>) -> Result<u64, String> {
+    let trashed_ids = sqlx::query_scalar::<_, i64>(
+        "SELECT id
+         FROM meetings
+         WHERE deleted_at IS NOT NULL",
+    )
+    .fetch_all(pool.inner())
+    .await
+    .map_err(|err| format!("failed to list trashed meetings: {err}"))?;
+
+    for meeting_id in trashed_ids {
+        fts_delete_if_exists(pool.inner(), meeting_id)
+            .await
+            .map_err(|err| format!("FTS cleanup while emptying trash failed: {err}"))?;
+    }
+
+    let result = sqlx::query(
+        "DELETE FROM meetings
+         WHERE deleted_at IS NOT NULL",
+    )
+    .execute(pool.inner())
+    .await
+    .map_err(|err| format!("failed to empty trash: {err}"))?;
+
+    Ok(result.rows_affected())
 }
 
 #[tauri::command]

@@ -1,6 +1,7 @@
 import { ChevronDown, Check } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useTranslation } from 'react-i18next';
 import type { ReactNode } from 'react';
 
 type DropdownOption<T extends string> = {
@@ -24,12 +25,13 @@ export function Dropdown<T extends string>({
   value,
   options,
   onChange,
-  placeholder = 'Select...',
+  placeholder,
   className = '',
   size = 'compact',
   fullWidth = false,
   disabled = false,
 }: DropdownProps<T>) {
+  const { t } = useTranslation('common');
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -42,6 +44,8 @@ export function Dropdown<T extends string>({
     maxHeight: number;
   } | null>(null);
   const selectedOption = options.find((o) => o.value === value);
+
+  const resolvedPlaceholder = placeholder ?? t('dropdown_placeholder');
 
   useEffect(() => {
     function onClickOutside(event: MouseEvent) {
@@ -158,7 +162,7 @@ export function Dropdown<T extends string>({
       >
         <span className="flex min-w-0 flex-1 items-center gap-2">
           {selectedOption?.icon}
-          <span className="truncate text-left">{selectedOption?.label ?? placeholder}</span>
+          <span className="truncate text-left">{selectedOption?.label ?? resolvedPlaceholder}</span>
         </span>
         <ChevronDown
           size={12}

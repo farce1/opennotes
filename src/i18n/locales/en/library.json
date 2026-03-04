@@ -1,0 +1,48 @@
+{
+  "filter_searchPlaceholder": "Search meetings...",
+  "filter_allStatuses": "All statuses",
+  "filter_durationAll": "All",
+  "filter_durationShort": "<15m",
+  "filter_durationMedium": "15-60m",
+  "filter_durationLong": ">1h",
+  "filter_audioAll": "All Audio",
+  "filter_audioMic": "Mic",
+  "filter_audioSystem": "System",
+  "filter_audioBoth": "Both",
+  "filter_dateToday": "Today",
+  "filter_dateWeek": "This Week",
+  "filter_dateMonth": "This Month",
+  "filter_dateCustom": "Custom",
+  "filter_clearDateLabel": "Clear date filter",
+  "filter_sortBy": "Sort by",
+
+  "sort_newest": "Newest",
+  "sort_oldest": "Oldest",
+  "sort_longest": "Longest",
+  "sort_shortest": "Shortest",
+  "sort_aToZ": "A \u2192 Z",
+  "sort_zToA": "Z \u2192 A",
+
+  "view_cardLabel": "Card view",
+  "view_compactLabel": "Compact view",
+
+  "pill_status": "Status: {{value}}",
+  "pill_duration": "Duration: {{value}}",
+  "pill_audio": "Audio: {{value}}",
+  "pill_date": "Date: {{from}} to {{to}}",
+  "pill_dateEllipsis": "\u2026",
+
+  "card_noSummary": "No summary available yet.",
+  "card_noSummaryShort": "No summary",
+  "card_segments": "{{count}} segments",
+  "card_previewWords": "{{count}} preview words",
+  "card_renameLabel": "Rename meeting",
+  "card_reTranscribe": "Re-transcribe",
+  "card_re": "Re",
+
+  "bulk_selected": "{{count}} selected",
+  "bulk_selectAll": "Select All",
+  "bulk_deselect": "Deselect",
+
+  "filter_trash": "Trash"
+}

@@ -2,10 +2,12 @@ import { invoke } from '@tauri-apps/api/core';
 import { open, save } from '@tauri-apps/plugin-dialog';
 import { Database, HardDrive, Upload } from 'lucide-react';
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 type ActionState = 'idle' | 'backing_up' | 'restoring' | 'done' | 'error';
 
 export function DataManagement() {
+  const { t } = useTranslation('settings');
   const [backupStatus, setBackupStatus] = useState<ActionState>('idle');
   const [restoreStatus, setRestoreStatus] = useState<ActionState>('idle');
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
@@ -27,25 +29,23 @@ export function DataManagement() {
     try {
       await invoke('backup_library', { destination });
       setBackupStatus('done');
-      setStatusMessage('Backup saved successfully.');
+      setStatusMessage(t('dataManagement_backupSuccess'));
     } catch {
       setBackupStatus('error');
-      setStatusMessage('Backup failed.');
+      setStatusMessage(t('dataManagement_backupFailed'));
     }
   };
 
   const onRestore = async () => {
     setStatusMessage(null);
 
-    const confirmed = window.confirm(
-      'This will replace your current library data. Are you sure? The app will need to restart after restore.',
-    );
+    const confirmed = window.confirm(t('dataManagement_confirmRestore'));
     if (!confirmed) {
       return;
     }
 
     const selected = await open({
-      title: 'Select backup file',
+      title: t('dataManagement_selectBackup'),
       filters: [{ name: 'openNotes Backup', extensions: ['zip'] }],
       multiple: false,
     });
@@ -59,10 +59,10 @@ export function DataManagement() {
     try {
       await invoke('restore_library', { source: selected });
       setRestoreStatus('done');
-      setStatusMessage('Restore complete. Please restart openNotes to use the restored data.');
+      setStatusMessage(t('dataManagement_restoreSuccess'));
     } catch {
       setRestoreStatus('error');
-      setStatusMessage('Restore failed.');
+      setStatusMessage(t('dataManagement_restoreFailed'));
     }
   };
 
@@ -73,9 +73,9 @@ export function DataManagement() {
           <Database size={15} />
         </span>
         <div>
-          <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-100">Data Management</h3>
+          <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-100">{t('dataManagement_title')}</h3>
           <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-            Backup your complete library or restore from a previous archive.
+            {t('dataManagement_description')}
           </p>
         </div>
       </div>
@@ -88,7 +88,7 @@ export function DataManagement() {
           className="inline-flex items-center gap-2 rounded-xl border border-accent/40 bg-accent px-3 py-2 text-sm font-semibold text-white transition-all duration-150 hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-70"
         >
           <HardDrive size={14} />
-          {backupStatus === 'backing_up' ? 'Backing up...' : 'Backup Library'}
+          {backupStatus === 'backing_up' ? t('dataManagement_btnBackingUp') : t('dataManagement_btnBackup')}
         </button>
 
         <button
@@ -98,12 +98,12 @@ export function DataManagement() {
           className="inline-flex items-center gap-2 rounded-xl border border-gray-200/80 bg-white/80 px-3 py-2 text-sm font-semibold text-gray-700 transition-all duration-150 hover:border-gray-300 hover:bg-white disabled:cursor-not-allowed disabled:opacity-70 dark:border-gray-700/80 dark:bg-gray-800/70 dark:text-gray-100 dark:hover:border-gray-600 dark:hover:bg-gray-800"
         >
           <Upload size={14} />
-          {restoreStatus === 'restoring' ? 'Restoring...' : 'Restore from Backup'}
+          {restoreStatus === 'restoring' ? t('dataManagement_btnRestoring') : t('dataManagement_btnRestore')}
         </button>
       </div>
 
       <p className="mt-3 text-xs text-amber-700 dark:text-amber-200">
-        Restoring replaces all current data and cannot be undone.
+        {t('dataManagement_restoreWarning')}
       </p>
 
       {statusMessage ? (

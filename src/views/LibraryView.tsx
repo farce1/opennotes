@@ -1,6 +1,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import { BookOpen, SearchX, Trash2 } from 'lucide-react';
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router';
 
 import { BulkActionBar } from '../components/library/BulkActionBar';
@@ -11,7 +12,6 @@ import { MeetingRow } from '../components/library/MeetingRow';
 import { formatDate, formatDuration, statusClasses } from '../components/library/meetingUtils';
 import { useLibrary } from '../hooks/useLibrary';
 import { bulkExportZip, exportMeeting, type ExportFormat } from '../lib/export';
-import { getDb } from '../lib/db';
 import type { MeetingWithPreview, SortDirection, SortField, ViewMode } from '../types';
 
 function renderSearchSnippet(html: string): { __html: string } {
@@ -73,6 +73,7 @@ type LibraryViewProps = {
 };
 
 export function LibraryView({ scope = 'library' }: LibraryViewProps) {
+  const { t } = useTranslation('meeting');
   const navigate = useNavigate();
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const isTrashScope = scope === 'trash';
@@ -121,71 +122,69 @@ export function LibraryView({ scope = 'library' }: LibraryViewProps) {
   const onRetranscribe = async (meetingId: number) => {
     try {
       await invoke('retranscribe_meeting', { meetingId });
-      setActionMessage('Re-transcription started.');
+      setActionMessage(t('library_retranscribeStarted'));
     } catch (invokeError) {
-      setActionMessage(String(invokeError) || 'Re-transcription is not yet available.');
+      setActionMessage(String(invokeError) || t('library_retranscribeFailed'));
     }
   };
 
   const onSoftDeleteMeeting = async (meetingId: number) => {
     try {
       await invoke('soft_delete_meeting', { meetingId });
-      setActionMessage('Meeting moved to trash.');
+      setActionMessage(t('library_meetingMovedToTrash'));
       await refresh();
       deselectAll();
     } catch {
-      setActionMessage('Failed to move meeting to trash.');
+      setActionMessage(t('library_meetingMoveToTrashFailed'));
     }
   };
 
   const onRestoreMeeting = async (meetingId: number) => {
     try {
       await invoke('restore_meeting', { meetingId });
-      setActionMessage('Meeting restored.');
+      setActionMessage(t('library_meetingRestored'));
       await refresh();
     } catch {
-      setActionMessage('Failed to restore meeting from trash.');
+      setActionMessage(t('library_meetingRestoreFailed'));
     }
   };
 
   const onDeletePermanently = async (meetingId: number) => {
-    const approved = window.confirm('Delete this meeting permanently? This cannot be undone.');
+    const approved = window.confirm(t('library_confirmDelete'));
     if (!approved) {
       return;
     }
 
     try {
-      const db = await getDb();
-      await db.execute('DELETE FROM meetings WHERE id = $1', [meetingId]);
-      setActionMessage('Meeting permanently deleted.');
+      await invoke('delete_meeting_permanently', { meetingId });
+      setActionMessage(t('library_meetingDeleted'));
       await refresh();
     } catch {
-      setActionMessage('Failed to permanently delete meeting.');
+      setActionMessage(t('library_meetingDeleteFailed'));
     }
   };
 
   const onEmptyTrash = async () => {
-    const approved = window.confirm('Permanently delete all meetings in trash? This cannot be undone.');
+    const approved = window.confirm(t('library_confirmEmptyTrash'));
     if (!approved) {
       return;
     }
 
     try {
-      const db = await getDb();
-      await db.execute('DELETE FROM meetings WHERE deleted_at IS NOT NULL');
-      setActionMessage('Trash emptied.');
+      await invoke('empty_trash');
+      setActionMessage(t('library_trashEmptied'));
       await refresh();
     } catch {
-      setActionMessage('Failed to empty trash.');
+      setActionMessage(t('library_trashEmptyFailed'));
     }
   };
 
   const onExportMeeting = async (meetingId: number, format: ExportFormat) => {
     try {
       await exportMeeting(meetingId, format);
-      setActionMessage('Export complete.');
+      setActionMessage(t('library_exportComplete'));
     } catch {
-      setActionMessage('Export failed.');
+      setActionMessage(t('library_exportFailed'));
     }
   };
 
@@ -194,7 +193,7 @@ export function LibraryView({ scope = 'library' }: LibraryViewProps) {
       return;
     }
 
-    const approved = window.confirm(`Move ${selectedIds.size} selected meetings to trash?`);
+    const approved = window.confirm(t('library_confirmBulkDelete', { count: selectedIds.size }));
     if (!approved) {
       return;
     }
@@ -203,11 +202,11 @@ export function LibraryView({ scope = 'library' }: LibraryViewProps) {
       await Promise.all(
         Array.from(selectedIds).map((meetingId) => invoke('soft_delete_meeting', { meetingId })),
       );
-      setActionMessage(`${selectedIds.size} meetings moved to trash.`);
+      setActionMessage(t('library_bulkDeleteDone', { count: selectedIds.size }));
       deselectAll();
       await refresh();
     } catch {
-      setActionMessage('Bulk delete failed.');
+      setActionMessage(t('library_bulkDeleteFailed'));
     }
   };
 
@@ -218,16 +217,16 @@ export function LibraryView({ scope = 'library' }: LibraryViewProps) {
 
     try {
       await bulkExportZip(Array.from(selectedIds), format);
-      setActionMessage('Bulk export complete.');
+      setActionMessage(t('library_bulkExportComplete'));
     } catch {
-      setActionMessage('Bulk export failed.');
+      setActionMessage(t('library_bulkExportFailed'));
     }
   };
 
   const onRenameCommit = async () => {
     const success = await commitRename();
     if (success) {
-      setActionMessage('Meeting title updated.');
+      setActionMessage(t('library_titleUpdated'));
     }
   };
 
@@ -310,9 +309,9 @@ export function LibraryView({ scope = 'library' }: LibraryViewProps) {
               ) : (
                 <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-gray-200/70 bg-white/70 px-4 py-3 dark:border-gray-700/70 dark:bg-gray-900/55">
                   <div>
-                    <p className="text-sm font-semibold text-gray-700 dark:text-gray-100">Deleted Meetings</p>
+                    <p className="text-sm font-semibold text-gray-700 dark:text-gray-100">{t('library_deletedMeetings')}</p>
                     <p className="text-xs text-gray-500 dark:text-gray-400">
-                      {meetings.length} item{meetings.length === 1 ? '' : 's'} in trash. Auto-purged after 30 days.
+                      {t('library_trashCount', { count: meetings.length })}
                     </p>
                   </div>
 
@@ -323,7 +322,7 @@ export function LibraryView({ scope = 'library' }: LibraryViewProps) {
                       className="inline-flex cursor-pointer items-center gap-2 rounded-xl bg-red-500/10 px-4 py-2 text-xs font-semibold text-red-600 transition-all duration-150 hover:bg-red-500/20 dark:text-red-300 dark:hover:bg-red-500/20"
                     >
                       <Trash2 size={14} />
-                      Empty Trash
+                      {t('library_emptyTrash')}
                     </button>
                   ) : null}
                 </div>
@@ -336,7 +335,7 @@ export function LibraryView({ scope = 'library' }: LibraryViewProps) {
               ) : (
                 <>
                   {showRefreshingHint ? (
-                    <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">Refreshing meetings…</p>
+                    <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">{t('library_refreshing')}</p>
                   ) : null}
 
                   {error ? (
@@ -401,7 +400,7 @@ export function LibraryView({ scope = 'library' }: LibraryViewProps) {
                               className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-red-500 transition-all duration-150 hover:bg-red-500/10 dark:text-red-300 dark:hover:bg-red-500/10"
                             >
                               <Trash2 size={12} />
-                              Delete Permanently
+                              {t('library_deletePermanently')}
                             </button>
                           </div>
                         </div>
@@ -414,8 +413,8 @@ export function LibraryView({ scope = 'library' }: LibraryViewProps) {
                       <div className="rounded-2xl bg-gray-100/50 p-4 dark:bg-gray-800/30">
                         <BookOpen size={40} strokeWidth={1.5} className="text-gray-300 dark:text-gray-600" />
                       </div>
-                      <p className="text-base font-medium text-gray-500 dark:text-gray-400">No meetings yet</p>
-                      <p className="text-sm text-gray-400 dark:text-gray-500">Your recorded meetings will appear here</p>
+                      <p className="text-base font-medium text-gray-500 dark:text-gray-400">{t('library_emptyTitle')}</p>
+                      <p className="text-sm text-gray-400 dark:text-gray-500">{t('library_emptyDescription')}</p>
                     </div>
                   ) : null}
 
@@ -424,8 +423,8 @@ export function LibraryView({ scope = 'library' }: LibraryViewProps) {
                       <div className="rounded-2xl bg-gray-100/50 p-4 dark:bg-gray-800/30">
                         <Trash2 size={40} strokeWidth={1.5} className="text-gray-300 dark:text-gray-600" />
                       </div>
-                      <p className="text-base font-medium text-gray-500 dark:text-gray-400">Trash is empty</p>
-                      <p className="text-sm text-gray-400 dark:text-gray-500">Soft-deleted meetings will appear here.</p>
+                      <p className="text-base font-medium text-gray-500 dark:text-gray-400">{t('library_trashEmptyTitle')}</p>
+                      <p className="text-sm text-gray-400 dark:text-gray-500">{t('library_trashEmptyDescription')}</p>
                     </div>
                   ) : null}
 
@@ -434,8 +433,8 @@ export function LibraryView({ scope = 'library' }: LibraryViewProps) {
                       <div className="rounded-2xl bg-gray-100/50 p-4 dark:bg-gray-800/30">
                         <SearchX size={40} strokeWidth={1.5} className="text-gray-300 dark:text-gray-600" />
                       </div>
-                      <p className="text-base font-medium text-gray-500 dark:text-gray-400">No meetings match your search</p>
-                      <p className="text-sm text-gray-400 dark:text-gray-500">Try fewer keywords or clear filters.</p>
+                      <p className="text-base font-medium text-gray-500 dark:text-gray-400">{t('library_noSearchResults')}</p>
+                      <p className="text-sm text-gray-400 dark:text-gray-500">{t('library_noSearchHint')}</p>
                     </div>
                   ) : null}
                 </>

@@ -445,10 +445,17 @@ pub async fn pull_model(
     Ok(())
 }
 
-fn build_summary_prompt(transcript: &str) -> String {
+fn build_language_instruction(language: &str) -> &'static str {
+    match language {
+        "pl" => "\nWrite the entire summary in Polish (język polski). Use Polish for all section headings: use \"## Przegląd\" instead of \"## Overview\", \"## Kluczowe punkty\" instead of \"## Key Points\", \"## Podjęte decyzje\" instead of \"## Decisions Made\", \"## Zadania do wykonania\" instead of \"## Action Items\". Write \"Brak.\" instead of \"None identified.\" The TITLE: line should also be in Polish.\n\n",
+        _ => "",
+    }
+}
+
+fn build_summary_prompt(transcript: &str, language: &str) -> String {
+    let lang_instruction = build_language_instruction(language);
     format!(
-        "You are a meeting notes assistant. Summarize ONLY what is explicitly said in the transcript below. Do NOT invent, assume, or hallucinate any information that is not directly present in the transcript. If the transcript is short or lacks substance, reflect that honestly — write a brief summary and use \"None identified.\" for empty sections.\n\nProduce structured meeting notes in Markdown with exactly these four sections:\n\n## Overview\n[Summarize only what was actually discussed. For very short or minimal transcripts, write 1-2 sentences. For longer meetings, write up to 8-12 sentences. Only mention participants if they are named in the transcript.]\n\n## Key Points\n[Bullet list of the most important facts, insights, or information shared. Only include points explicitly stated in the transcript. If nothing substantive was discussed, write \"None identified.\"]\n\n## Decisions Made\n[Bullet list of decisions that were made during the meeting. Only include decisions explicitly stated. If none, write \"None identified.\"]\n\n## Action Items\n[List ALL action items as: - @[person]: [task] by [deadline]. Only include action items explicitly assigned in the transcript. If no action items were mentioned, write \"None identified.\"]\n\nCRITICAL: Every claim in your summary must be directly traceable to the transcript. If the transcript contains only greetings or filler words, say so. Do NOT fabricate meeting content.\n\nAlso generate a concise meeting title (max 10 words) on the very first line as: TITLE: [title]\n\nTranscript:\n{}",
-        transcript
+        "You are a meeting notes assistant. Summarize ONLY what is explicitly said in the transcript below. Do NOT invent, assume, or hallucinate any information that is not directly present in the transcript. If the transcript is short or lacks substance, reflect that honestly — write a brief summary and use \"None identified.\" for empty sections.\n\nProduce structured meeting notes in Markdown with exactly these four sections:\n\n## Overview\n[Summarize only what was actually discussed. For very short or minimal transcripts, write 1-2 sentences. For longer meetings, write up to 8-12 sentences. Only mention participants if they are named in the transcript.]\n\n## Key Points\n[Bullet list of the most important facts, insights, or information shared. Only include points explicitly stated in the transcript. If nothing substantive was discussed, write \"None identified.\"]\n\n## Decisions Made\n[Bullet list of decisions that were made during the meeting. Only include decisions explicitly stated. If none, write \"None identified.\"]\n\n## Action Items\n[List ALL action items as: - @[person]: [task] by [deadline]. Only include action items explicitly assigned in the transcript. If no action items were mentioned, write \"None identified.\"]\n\nCRITICAL: Every claim in your summary must be directly traceable to the transcript. If the transcript contains only greetings or filler words, say so. Do NOT fabricate meeting content.\n\nAlso generate a concise meeting title (max 10 words) on the very first line as: TITLE: [title]\n\n{lang_instruction}Transcript:\n{transcript}",
     )
 }
 
@@ -478,6 +485,7 @@ pub async fn generate_summary_stream(
     transcript: &str,
     server_url: &str,
     model: &str,
+    language: &str,
     on_token: &Channel<LlmTokenEvent>,
 ) -> Result<String, String> {
     let model_context_length = query_model_context_length(server_url, model).await;
@@ -492,7 +500,7 @@ pub async fn generate_summary_stream(
         let _ = on_token.send(LlmTokenEvent::ContextTruncated { minutes_covered: 0 });
     }
 
-    let prompt = build_summary_prompt(transcript_for_prompt);
+    let prompt = build_summary_prompt(transcript_for_prompt, language);
     let num_ctx = choose_num_ctx(model_context_length, transcript_for_prompt);
     run_generate_stream(&prompt, server_url, model, num_ctx, on_token).await
 }
@@ -501,6 +509,7 @@ pub async fn generate_summary_chunked(
     transcript: &str,
     server_url: &str,
     model: &str,
+    language: &str,
     on_token: &Channel<LlmTokenEvent>,
 ) -> Result<String, String> {
     let chunks = chunk_transcript(transcript);
@@ -508,7 +517,7 @@ pub async fn generate_summary_chunked(
     let mut partial_summaries = Vec::with_capacity(chunks.len());
 
     for chunk in chunks {
-        let prompt = build_summary_prompt(&chunk);
+        let prompt = build_summary_prompt(&chunk, language);
         let num_ctx = choose_num_ctx(model_context_length, &chunk);
         partial_summaries.push(run_generate_non_stream(&prompt, server_url, model, num_ctx).await?);
     }
@@ -520,9 +529,9 @@ pub async fn generate_summary_chunked(
         .collect::<Vec<_>>()
         .join("\n\n");
 
+    let lang_instruction = build_language_instruction(language);
     let synthesis_prompt = format!(
-        "You are given partial meeting summaries from consecutive sections. Synthesize them into a single coherent summary with the same four-section structure.\n\nYou MUST include every action item from every section below. Do not merge, summarize, or drop any @person assignments. Each action item from each section must appear in the final Action Items list.\n\nThe Overview should be 8-12 sentences since this is a long meeting.\n\nReturn the result in Markdown with:\n- First line as TITLE: [concise title]\n- ## Overview\n- ## Key Points\n- ## Decisions Made\n- ## Action Items\n\nPartial summaries:\n\n{}",
-        stitched
+        "You are given partial meeting summaries from consecutive sections. Synthesize them into a single coherent summary with the same four-section structure.\n\nYou MUST include every action item from every section below. Do not merge, summarize, or drop any @person assignments. Each action item from each section must appear in the final Action Items list.\n\nThe Overview should be 8-12 sentences since this is a long meeting.\n\nReturn the result in Markdown with:\n- First line as TITLE: [concise title]\n- ## Overview\n- ## Key Points\n- ## Decisions Made\n- ## Action Items\n\n{lang_instruction}Partial summaries:\n\n{stitched}",
     );
 
     let synthesis_num_ctx = choose_num_ctx(model_context_length, &stitched);
@@ -533,12 +542,13 @@ pub async fn run_summary(
     transcript: &str,
     server_url: &str,
     model: &str,
+    language: &str,
     on_token: &Channel<LlmTokenEvent>,
 ) -> Result<String, String> {
     let result = if transcript.len() <= MAX_SINGLE_PASS_CHARS {
-        generate_summary_stream(transcript, server_url, model, on_token).await
+        generate_summary_stream(transcript, server_url, model, language, on_token).await
     } else {
-        generate_summary_chunked(transcript, server_url, model, on_token).await
+        generate_summary_chunked(transcript, server_url, model, language, on_token).await
     };
 
     match result {
