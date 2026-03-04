@@ -8,10 +8,11 @@ use sqlx::SqlitePool;
 use tauri::ipc::Channel;
 use tauri::{AppHandle, Emitter, Manager};
 
-use crate::{audio, download, llm, session, transcription, tray::TrayMenuHandles, widget, DataDir};
+use crate::{audio, diarization, download, llm, session, transcription, tray::TrayMenuHandles, widget, DataDir};
 
 pub type RecordingStateHandle = Arc<Mutex<audio::RecordingState>>;
 pub type TranscriptionStateHandle = Arc<Mutex<transcription::TranscriptionState>>;
+pub type DiarizationStateHandle = Arc<Mutex<diarization::DiarizationState>>;
 pub type SessionHandle = session::SessionHandle;
 
 #[derive(Serialize)]
@@ -25,6 +26,33 @@ pub struct TranscriptRow {
     pub segment_index: i64,
     pub text: String,
     pub start_time_ms: i64,
+    pub speaker_id: Option<i64>,
+}
+
+#[derive(Serialize, sqlx::FromRow)]
+pub struct SpeakerRow {
+    pub id: i64,
+    pub meeting_id: i64,
+    pub speaker_index: i64,
+    pub display_name: String,
+    pub color_index: i64,
+}
+
+#[derive(Serialize, sqlx::FromRow)]
+pub struct SpeakerTurnRow {
+    pub id: i64,
+    pub meeting_id: i64,
+    pub speaker_index: i64,
+    pub start_ms: i64,
+    pub end_ms: i64,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DiarizationData {
+    pub speakers: Vec<SpeakerRow>,
+    pub speaker_turns: Vec<SpeakerTurnRow>,
+    pub diarization_status: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -323,7 +351,7 @@ pub async fn get_transcript_page(
     limit: i64,
 ) -> Result<Vec<TranscriptRow>, String> {
     sqlx::query_as::<_, TranscriptRow>(
-        "SELECT segment_index, text, start_time_ms
+        "SELECT segment_index, text, start_time_ms, speaker_id
          FROM transcripts
          WHERE meeting_id = ?
          ORDER BY segment_index
@@ -464,10 +492,53 @@ pub async fn stop_transcription(
 }
 
 #[tauri::command]
+pub fn start_diarization(
+    pool: tauri::State<'_, SqlitePool>,
+    data_dir: tauri::State<'_, DataDir>,
+    diarization_state: tauri::State<'_, DiarizationStateHandle>,
+    meeting_id: i64,
+    on_event: Channel<diarization::DiarizationEvent>,
+) -> Result<(), String> {
+    diarization::start_diarization_inner(
+        pool.inner().clone(),
+        data_dir.inner().0.clone(),
+        meeting_id,
+        on_event,
+        diarization_state.inner().clone(),
+    )
+}
+
+#[tauri::command]
+pub async fn rename_speaker(
+    pool: tauri::State<'_, SqlitePool>,
+    speaker_id: i64,
+    display_name: String,
+) -> Result<(), String> {
+    let trimmed = display_name.trim().to_string();
+    sqlx::query("UPDATE speakers SET display_name = ? WHERE id = ?")
+        .bind(trimmed)
+        .bind(speaker_id)
+        .execute(pool.inner())
+        .await
+        .map_err(|err| format!("failed to rename speaker: {err}"))?;
+
+    Ok(())
+}
+
+#[tauri::command]
 pub async fn check_model_ready(
     data_dir: tauri::State<'_, DataDir>,
 ) -> Result<bool, String> {
     Ok(transcription::model::check_model_ready(data_dir.inner().0.as_path()))
+}
+
+#[tauri::command]
+pub async fn check_diarization_model_ready(
+    data_dir: tauri::State<'_, DataDir>,
+) -> Result<bool, String> {
+    Ok(diarization::model::check_diarization_model_ready(
+        data_dir.inner().0.as_path(),
+    ))
 }
 
 #[tauri::command]
@@ -479,6 +550,20 @@ pub async fn download_model(
     crate::download::download_model(
         on_event,
         data_dir.inner().0.join("models"),
+        cancel_flag.inner().clone(),
+    )
+    .await
+}
+
+#[tauri::command]
+pub async fn download_diarization_model(
+    data_dir: tauri::State<'_, DataDir>,
+    cancel_flag: tauri::State<'_, download::DownloadCancelFlag>,
+    on_event: Channel<crate::download::DownloadEvent>,
+) -> Result<(), String> {
+    crate::download::download_diarization_model(
+        on_event,
+        data_dir.inner().0.clone(),
         cancel_flag.inner().clone(),
     )
     .await
@@ -502,6 +587,51 @@ pub async fn cancel_download(
     }
 
     Ok(())
+}
+
+#[tauri::command]
+pub async fn get_diarization_data(
+    pool: tauri::State<'_, SqlitePool>,
+    meeting_id: i64,
+) -> Result<DiarizationData, String> {
+    let speakers = sqlx::query_as::<_, SpeakerRow>(
+        "SELECT id, meeting_id, speaker_index, display_name, color_index
+         FROM speakers
+         WHERE meeting_id = ?
+         ORDER BY speaker_index",
+    )
+    .bind(meeting_id)
+    .fetch_all(pool.inner())
+    .await
+    .map_err(|err| format!("failed to fetch speakers: {err}"))?;
+
+    let speaker_turns = sqlx::query_as::<_, SpeakerTurnRow>(
+        "SELECT id, meeting_id, speaker_index, start_ms, end_ms
+         FROM speaker_turns
+         WHERE meeting_id = ?
+         ORDER BY start_ms",
+    )
+    .bind(meeting_id)
+    .fetch_all(pool.inner())
+    .await
+    .map_err(|err| format!("failed to fetch speaker turns: {err}"))?;
+
+    let diarization_status = sqlx::query_scalar::<_, Option<String>>(
+        "SELECT diarization_status
+         FROM meetings
+         WHERE id = ?",
+    )
+    .bind(meeting_id)
+    .fetch_optional(pool.inner())
+    .await
+    .map_err(|err| format!("failed to fetch diarization status: {err}"))?
+    .flatten();
+
+    Ok(DiarizationData {
+        speakers,
+        speaker_turns,
+        diarization_status,
+    })
 }
 
 #[tauri::command]

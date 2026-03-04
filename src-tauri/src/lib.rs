@@ -2,6 +2,7 @@ mod audio;
 mod commands;
 mod db;
 mod download;
+mod diarization;
 mod llm;
 mod ollama_catalog;
 mod session;
@@ -11,7 +12,7 @@ mod widget;
 
 use std::path::{Path, PathBuf};
 
-use commands::{RecordingStateHandle, SessionHandle, TranscriptionStateHandle};
+use commands::{DiarizationStateHandle, RecordingStateHandle, SessionHandle, TranscriptionStateHandle};
 use tauri::Emitter;
 use tauri::Manager;
 use tauri_plugin_sql::Builder as SqlBuilder;
@@ -108,6 +109,8 @@ pub fn run() {
         std::sync::Arc::new(std::sync::Mutex::new(audio::RecordingState::default()));
     let transcription_state: TranscriptionStateHandle =
         std::sync::Arc::new(std::sync::Mutex::new(transcription::TranscriptionState::default()));
+    let diarization_state: DiarizationStateHandle =
+        std::sync::Arc::new(std::sync::Mutex::new(diarization::DiarizationState::default()));
     let download_cancel_flag: download::DownloadCancelFlag =
         std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
 
@@ -232,6 +235,7 @@ pub fn run() {
         .plugin(tauri_plugin_process::init())
         .manage(recording_state)
         .manage(transcription_state)
+        .manage(diarization_state)
         .manage(download_cancel_flag)
         .invoke_handler(tauri::generate_handler![
             commands::update_tray_icon,
@@ -251,6 +255,11 @@ pub fn run() {
             commands::stop_transcription,
             commands::check_model_ready,
             commands::download_model,
+            commands::start_diarization,
+            commands::rename_speaker,
+            commands::check_diarization_model_ready,
+            commands::download_diarization_model,
+            commands::get_diarization_data,
             commands::cancel_download,
             commands::list_audio_input_devices,
             commands::list_ollama_models,

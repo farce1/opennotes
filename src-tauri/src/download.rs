@@ -9,6 +9,7 @@ use reqwest::{header, Client, StatusCode};
 use serde::Serialize;
 use tauri::ipc::Channel;
 
+use crate::diarization::model as diarization_model;
 use crate::transcription::model;
 
 pub type DownloadCancelFlag = Arc<AtomicBool>;
@@ -18,6 +19,8 @@ const VAD_URL: &str =
 const WHISPER_TURBO_URL: &str =
     "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-whisper-turbo.tar.bz2";
 const WHISPER_TURBO_TMP_NAME: &str = "whisper-turbo-model.tar.bz2.tmp";
+const DIARIZATION_SEGMENTATION_TMP_NAME: &str = "diarization-segmentation-model.tar.bz2.tmp";
+const DIARIZATION_EMBEDDING_TMP_NAME: &str = "nemo_en_titanet_small.onnx.tmp";
 const PROGRESS_EMIT_STEP_BYTES: u64 = 512 * 1024;
 
 #[derive(Clone, Serialize)]
@@ -35,33 +38,33 @@ pub enum DownloadEvent {
     },
 }
 
-fn send_progress(on_event: &Channel<DownloadEvent>, downloaded_bytes: u64, total_bytes: u64) {
+pub(crate) fn send_progress(on_event: &Channel<DownloadEvent>, downloaded_bytes: u64, total_bytes: u64) {
     let _ = on_event.send(DownloadEvent::Progress {
         downloaded_bytes,
         total_bytes,
     });
 }
 
-fn send_error(on_event: &Channel<DownloadEvent>, message: &str) {
+pub(crate) fn send_error(on_event: &Channel<DownloadEvent>, message: &str) {
     let _ = on_event.send(DownloadEvent::Error {
         message: message.to_string(),
     });
 }
 
-fn cleanup_tmp(path: &Path) {
+pub(crate) fn cleanup_tmp(path: &Path) {
     if path.exists() {
         let _ = std::fs::remove_file(path);
     }
 }
 
-async fn content_length(client: &Client, url: &str) -> u64 {
+pub(crate) async fn content_length(client: &Client, url: &str) -> u64 {
     match client.head(url).send().await {
         Ok(response) => response.content_length().unwrap_or(0),
         Err(_) => 0,
     }
 }
 
-async fn download_to_file(
+pub(crate) async fn download_to_file(
     client: &Client,
     url: &str,
     destination_tmp: &Path,
@@ -347,6 +350,219 @@ pub async fn download_model(
             "Model files are incomplete after download. Please retry.",
         );
         return Err("download finished but model readiness check failed".to_string());
+    }
+
+    let _ = on_event.send(DownloadEvent::Complete);
+    Ok(())
+}
+
+pub async fn download_diarization_model(
+    on_event: Channel<DownloadEvent>,
+    data_dir: PathBuf,
+    cancel_flag: DownloadCancelFlag,
+) -> Result<(), String> {
+    cancel_flag.store(false, Ordering::SeqCst);
+
+    let diarization_dir = diarization_model::diarization_models_dir(data_dir.as_path());
+    std::fs::create_dir_all(&diarization_dir)
+        .map_err(|_| format!("Failed to create diarization models directory: {}", diarization_dir.display()))?;
+
+    if diarization_model::check_diarization_model_ready(data_dir.as_path()) {
+        let _ = on_event.send(DownloadEvent::Complete);
+        return Ok(());
+    }
+
+    let client = Client::new();
+    let needs_segmentation = !diarization_model::segmentation_model_path(data_dir.as_path()).exists();
+    let needs_embedding = !diarization_model::embedding_model_path(data_dir.as_path()).exists();
+
+    let segmentation_total = if needs_segmentation {
+        content_length(&client, diarization_model::SEGMENTATION_ARCHIVE_URL).await
+    } else {
+        0
+    };
+    let embedding_total = if needs_embedding {
+        content_length(&client, diarization_model::EMBEDDING_MODEL_URL).await
+    } else {
+        0
+    };
+    let total_bytes = segmentation_total.saturating_add(embedding_total);
+    let mut downloaded_so_far = 0u64;
+
+    if needs_segmentation {
+        let archive_tmp = diarization_dir.join(DIARIZATION_SEGMENTATION_TMP_NAME);
+
+        let segmentation_downloaded = match download_to_file(
+            &client,
+            diarization_model::SEGMENTATION_ARCHIVE_URL,
+            &archive_tmp,
+            total_bytes,
+            downloaded_so_far,
+            &on_event,
+            &cancel_flag,
+            true,
+        )
+        .await
+        {
+            Ok(bytes) => bytes,
+            Err(err) if err == "range_not_satisfiable" => {
+                cleanup_tmp(&archive_tmp);
+                match download_to_file(
+                    &client,
+                    diarization_model::SEGMENTATION_ARCHIVE_URL,
+                    &archive_tmp,
+                    total_bytes,
+                    downloaded_so_far,
+                    &on_event,
+                    &cancel_flag,
+                    false,
+                )
+                .await
+                {
+                    Ok(bytes) => bytes,
+                    Err(err) if err == "cancelled" => {
+                        cleanup_tmp(&archive_tmp);
+                        let _ = on_event.send(DownloadEvent::Cancelled);
+                        return Err(err);
+                    }
+                    Err(err) => {
+                        cleanup_tmp(&archive_tmp);
+                        send_error(
+                            &on_event,
+                            "Unable to download speaker segmentation model archive. Please retry.",
+                        );
+                        return Err(err);
+                    }
+                }
+            }
+            Err(err) if err == "cancelled" => {
+                cleanup_tmp(&archive_tmp);
+                let _ = on_event.send(DownloadEvent::Cancelled);
+                return Err(err);
+            }
+            Err(err) => {
+                cleanup_tmp(&archive_tmp);
+                send_error(
+                    &on_event,
+                    "Unable to download speaker segmentation model archive. Please retry.",
+                );
+                return Err(err);
+            }
+        };
+
+        downloaded_so_far = downloaded_so_far.saturating_add(segmentation_downloaded);
+        let _ = on_event.send(DownloadEvent::Extracting);
+
+        let tar_status = std::process::Command::new("tar")
+            .arg("-xjf")
+            .arg(&archive_tmp)
+            .arg("-C")
+            .arg(&diarization_dir)
+            .status()
+            .map_err(|err| format!("failed to run diarization tar extraction: {err}"))?;
+
+        cleanup_tmp(&archive_tmp);
+
+        if !tar_status.success() {
+            send_error(
+                &on_event,
+                "Failed to extract speaker segmentation model archive. Please retry.",
+            );
+            return Err("tar extraction failed for diarization segmentation archive".to_string());
+        }
+
+        if !diarization_model::segmentation_model_path(data_dir.as_path()).exists() {
+            send_error(
+                &on_event,
+                "Speaker segmentation extraction did not produce expected files. Please retry.",
+            );
+            return Err(format!(
+                "missing expected diarization segmentation model file: {}",
+                diarization_model::segmentation_model_path(data_dir.as_path()).display()
+            ));
+        }
+    }
+
+    if needs_embedding {
+        let embedding_tmp = diarization_dir.join(DIARIZATION_EMBEDDING_TMP_NAME);
+        let embedding_final = diarization_model::embedding_model_path(data_dir.as_path());
+        cleanup_tmp(&embedding_tmp);
+
+        let _embedding_downloaded = match download_to_file(
+            &client,
+            diarization_model::EMBEDDING_MODEL_URL,
+            &embedding_tmp,
+            total_bytes,
+            downloaded_so_far,
+            &on_event,
+            &cancel_flag,
+            true,
+        )
+        .await
+        {
+            Ok(bytes) => bytes,
+            Err(err) if err == "range_not_satisfiable" => {
+                cleanup_tmp(&embedding_tmp);
+                match download_to_file(
+                    &client,
+                    diarization_model::EMBEDDING_MODEL_URL,
+                    &embedding_tmp,
+                    total_bytes,
+                    downloaded_so_far,
+                    &on_event,
+                    &cancel_flag,
+                    false,
+                )
+                .await
+                {
+                    Ok(bytes) => bytes,
+                    Err(err) if err == "cancelled" => {
+                        cleanup_tmp(&embedding_tmp);
+                        let _ = on_event.send(DownloadEvent::Cancelled);
+                        return Err(err);
+                    }
+                    Err(err) => {
+                        cleanup_tmp(&embedding_tmp);
+                        send_error(
+                            &on_event,
+                            "Unable to download speaker embedding model. Please retry.",
+                        );
+                        return Err(err);
+                    }
+                }
+            }
+            Err(err) if err == "cancelled" => {
+                cleanup_tmp(&embedding_tmp);
+                let _ = on_event.send(DownloadEvent::Cancelled);
+                return Err(err);
+            }
+            Err(err) => {
+                cleanup_tmp(&embedding_tmp);
+                send_error(
+                    &on_event,
+                    "Unable to download speaker embedding model. Please retry.",
+                );
+                return Err(err);
+            }
+        };
+
+        if let Some(parent) = embedding_final.parent() {
+            std::fs::create_dir_all(parent)
+                .map_err(|err| format!("failed to create embedding model directory: {err}"))?;
+        }
+
+        std::fs::rename(&embedding_tmp, &embedding_final).map_err(|err| {
+            cleanup_tmp(&embedding_tmp);
+            format!("failed to finalize speaker embedding model file: {err}")
+        })?;
+    }
+
+    if !diarization_model::check_diarization_model_ready(data_dir.as_path()) {
+        send_error(
+            &on_event,
+            "Speaker diarization model files are incomplete after download. Please retry.",
+        );
+        return Err("download finished but diarization model readiness check failed".to_string());
     }
 
     let _ = on_event.send(DownloadEvent::Complete);
