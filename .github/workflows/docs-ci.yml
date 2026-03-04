@@ -1,0 +1,28 @@
+name: docs-ci
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Build site
+        run: bun run build
+
+      - name: Verify build output
+        run: |
+          test -f dist/index.html || (echo "Missing index.html" && exit 1)
+          test -f dist/getting-started/index.html || (echo "Missing getting-started" && exit 1)
+          test -f dist/robots.txt || (echo "Missing robots.txt" && exit 1)
+          test -f dist/sitemap-index.xml || (echo "Missing sitemap" && exit 1)
+          echo "Build verification passed"
