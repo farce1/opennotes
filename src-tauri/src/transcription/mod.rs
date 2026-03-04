@@ -21,6 +21,17 @@ pub struct TranscriptionState {
     pub shutdown: Arc<AtomicBool>,
 }
 
+pub struct StartWorkerArgs {
+    pub audio_tx: mpsc::SyncSender<Vec<f32>>,
+    pub audio_rx: mpsc::Receiver<Vec<f32>>,
+    pub on_segment: Channel<TranscriptEvent>,
+    pub data_dir: PathBuf,
+    pub db_pool: Option<SqlitePool>,
+    pub meeting_id: Option<i64>,
+    pub on_worker_disconnected: Option<Arc<dyn Fn() + Send + Sync>>,
+    pub language: Option<String>,
+}
+
 #[derive(Debug)]
 pub enum WorkerCommand {
     Flush,
@@ -71,15 +82,19 @@ fn join_with_timeout(handle: JoinHandle<()>, timeout: Duration) -> bool {
 
 pub fn start_transcription_worker(
     state: &mut TranscriptionState,
-    audio_tx: mpsc::SyncSender<Vec<f32>>,
-    audio_rx: mpsc::Receiver<Vec<f32>>,
-    on_segment: Channel<TranscriptEvent>,
-    data_dir: PathBuf,
-    db_pool: Option<SqlitePool>,
-    meeting_id: Option<i64>,
-    on_worker_disconnected: Option<Arc<dyn Fn() + Send + Sync>>,
-    language: Option<String>,
+    args: StartWorkerArgs,
 ) -> Result<(), String> {
+    let StartWorkerArgs {
+        audio_tx,
+        audio_rx,
+        on_segment,
+        data_dir,
+        db_pool,
+        meeting_id,
+        on_worker_disconnected,
+        language,
+    } = args;
+
     let normalized_language = model::normalize_language(language.as_deref());
 
     if !model::check_model_ready(data_dir.as_path(), Some(normalized_language.as_str())) {

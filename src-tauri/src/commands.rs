@@ -163,38 +163,32 @@ pub async fn start_session(
     app: AppHandle,
     pool: tauri::State<'_, SqlitePool>,
     data_dir: tauri::State<'_, DataDir>,
-    session_state: tauri::State<'_, SessionHandle>,
-    recording_state: tauri::State<'_, RecordingStateHandle>,
-    transcription_state: tauri::State<'_, TranscriptionStateHandle>,
     on_segment: Channel<transcription::TranscriptEvent>,
     audio_source: Option<String>,
     preferred_mic_device: Option<String>,
     transcription_language: Option<String>,
 ) -> Result<i64, String> {
-    let session_handle = session_state.inner().clone();
+    let session_handle = app.state::<SessionHandle>().inner().clone();
     let session_handle_for_start = session_handle.clone();
     let pool = pool.inner().clone();
     let data_dir = data_dir.inner().0.clone();
-    let recording_state = recording_state.inner().clone();
-    let transcription_state = transcription_state.inner().clone();
+    let recording_state = app.state::<RecordingStateHandle>().inner().clone();
+    let transcription_state = app.state::<TranscriptionStateHandle>().inner().clone();
 
     tokio::task::spawn_blocking(move || {
         let mut coordinator = session_handle
             .lock()
             .map_err(|_| "session state lock poisoned".to_string())?;
 
-        coordinator.start(
-            &app,
-            &pool,
-            data_dir.as_path(),
-            session_handle_for_start,
-            &recording_state,
-            &transcription_state,
+        coordinator.start(&app, &pool, data_dir.as_path(), session::SessionStartArgs {
+            session_handle: session_handle_for_start,
+            recording_state_handle: recording_state,
+            transcription_state_handle: transcription_state,
             on_segment,
             audio_source,
             preferred_mic_device,
             transcription_language,
-        )
+        })
     })
     .await
     .map_err(|err| format!("session start task failed: {err}"))?
@@ -413,17 +407,16 @@ pub async fn start_transcription(
     let mut state = transcription_state
         .lock()
         .map_err(|_| "transcription state lock poisoned".to_string())?;
-    transcription::start_transcription_worker(
-        &mut state,
+    transcription::start_transcription_worker(&mut state, transcription::StartWorkerArgs {
         audio_tx,
         audio_rx,
         on_segment,
-        data_dir.inner().0.clone(),
-        None,
-        None,
-        None,
-        None,
-    )?;
+        data_dir: data_dir.inner().0.clone(),
+        db_pool: None,
+        meeting_id: None,
+        on_worker_disconnected: None,
+        language: None,
+    })?;
 
     let _ = app.emit("transcribing-active", ());
     Ok(())

@@ -48,6 +48,16 @@ pub struct SessionCoordinator {
 
 pub type SessionHandle = Arc<Mutex<SessionCoordinator>>;
 
+pub struct SessionStartArgs {
+    pub session_handle: SessionHandle,
+    pub recording_state_handle: RecordingStateHandle,
+    pub transcription_state_handle: TranscriptionStateHandle,
+    pub on_segment: Channel<TranscriptEvent>,
+    pub audio_source: Option<String>,
+    pub preferred_mic_device: Option<String>,
+    pub transcription_language: Option<String>,
+}
+
 impl SessionCoordinator {
     pub fn new() -> Self {
         Self {
@@ -77,14 +87,18 @@ impl SessionCoordinator {
         app: &AppHandle,
         pool: &SqlitePool,
         data_dir: &Path,
-        session_handle: SessionHandle,
-        recording_state_handle: &RecordingStateHandle,
-        transcription_state_handle: &TranscriptionStateHandle,
-        on_segment: Channel<TranscriptEvent>,
-        audio_source: Option<String>,
-        preferred_mic_device: Option<String>,
-        transcription_language: Option<String>,
+        args: SessionStartArgs,
     ) -> Result<i64, String> {
+        let SessionStartArgs {
+            session_handle,
+            recording_state_handle,
+            transcription_state_handle,
+            on_segment,
+            audio_source,
+            preferred_mic_device,
+            transcription_language,
+        } = args;
+
         if !matches!(self.phase, SessionPhase::Idle) {
             return Err("session is already active".to_string());
         }
@@ -154,17 +168,16 @@ impl SessionCoordinator {
                 .lock()
                 .map_err(|_| "transcription state lock poisoned".to_string())?;
 
-            transcription::start_transcription_worker(
-                &mut transcription_state,
+            transcription::start_transcription_worker(&mut transcription_state, transcription::StartWorkerArgs {
                 audio_tx,
                 audio_rx,
                 on_segment,
-                data_dir.to_path_buf(),
-                Some(pool.clone()),
-                Some(meeting_id),
-                Some(degraded_callback),
-                transcription_language,
-            )
+                data_dir: data_dir.to_path_buf(),
+                db_pool: Some(pool.clone()),
+                meeting_id: Some(meeting_id),
+                on_worker_disconnected: Some(degraded_callback),
+                language: transcription_language,
+            })
         };
 
         if let Err(err) = transcription_start_result {

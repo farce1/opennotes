@@ -4,6 +4,7 @@ import { format, isToday, isYesterday, startOfWeek } from 'date-fns';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { getDb } from '../lib/db';
+import { buildMeetingFilterParams } from '../lib/libraryFilterParams';
 import type {
   DateSection,
   LibraryFilters,
@@ -22,22 +23,6 @@ const DEFAULT_FILTERS: LibraryFilters = {
   dateFrom: '',
   dateTo: '',
 };
-
-function durationBounds(range: LibraryFilters['durationRange']): { min: number; max: number } {
-  if (range === 'short') {
-    return { min: 0, max: 900 };
-  }
-
-  if (range === 'medium') {
-    return { min: 900, max: 3600 };
-  }
-
-  if (range === 'long') {
-    return { min: 3600, max: 0 };
-  }
-
-  return { min: 0, max: 0 };
-}
 
 export function sanitizeFtsQuery(raw: string): string {
   return raw
@@ -119,8 +104,8 @@ export function useLibrary(options: UseLibraryOptions = {}) {
 
     try {
       const db = await getDb();
-      const duration = durationBounds(filters.durationRange);
       const orderBy = toSortClause(sortField, sortDirection);
+      const params = buildMeetingFilterParams(filters);
 
       const rows = await db.select<MeetingWithPreview[]>(
         `SELECT
@@ -152,16 +137,9 @@ export function useLibrary(options: UseLibraryOptions = {}) {
            AND ($3 = 0 OR COALESCE(m.duration_seconds, 0) < $3)
            AND ($4 = '' OR COALESCE(m.audio_sources, '') = $4)
            AND ($5 = '' OR m.started_at >= $5)
-           AND ($6 = '' OR m.started_at <= $6)
+           AND ($6 = '' OR m.started_at < $6)
          ORDER BY ${orderBy}`,
-        [
-          filters.status,
-          duration.min,
-          duration.max,
-          filters.audioSource,
-          filters.dateFrom,
-          filters.dateTo,
-        ],
+        params,
       );
 
       setMeetings(rows);
