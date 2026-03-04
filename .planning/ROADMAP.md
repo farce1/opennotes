@@ -44,7 +44,7 @@ Full details: `.planning/milestones/v1.1-ROADMAP.md`
 - [x] **Phase 14: Post-Recording Performance** - Fix UI freeze on stop; async post-processing path (completed 2026-03-04)
 - [x] **Phase 15: ASR Migration to Whisper** - Replace dual Parakeet TDT with single Whisper Large V3 Turbo (2 plans) (completed 2026-03-04)
 - [x] **Phase 16: Summary Templates** - Built-in and custom summary templates with re-generate support (completed 2026-03-04)
-- [ ] **Phase 17: Diarization Core** - Rust diarization backend, speaker labels, per-session renaming
+- [x] **Phase 17: Diarization Core** - Rust diarization backend, speaker labels, per-session renaming (completed 2026-03-04)
 - [ ] **Phase 18: Speaker Timeline & Attributed Summaries** - Interactive timeline, click-to-jump, speaker-attributed prompts
 
 ## Phase Details
@@ -136,5 +136,5 @@ Full details: `.planning/milestones/v1.1-ROADMAP.md`
 | 14. Post-Recording Performance | v1.2 | 2/2 | Complete | 2026-03-04 |
 | 15. ASR Migration to Whisper | v1.2 | 2/2 | Complete | 2026-03-04 |
 | 16. Summary Templates | v1.2 | 2/2 | Complete | 2026-03-04 |
-| 17. Diarization Core | v1.2 | 1/2 | In Progress | - |
+| 17. Diarization Core | v1.2 | 2/2 | Complete | 2026-03-04 |
 | 18. Speaker Timeline & Attributed Summaries | v1.2 | 0/TBD | Not started | - |
