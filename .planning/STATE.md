@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Documentation Site
-status: phase_16_complete
-stopped_at: phase 16 execution complete
-last_updated: "2026-03-04T13:49:00Z"
+status: phase_17_complete
+stopped_at: phase 17 execution complete
+last_updated: "2026-03-04T14:13:06Z"
 progress:
   total_phases: 5
-  completed_phases: 3
-  total_plans: 3
-  completed_plans: 3
-  percent: 60
+  completed_phases: 4
+  total_plans: 4
+  completed_plans: 4
+  percent: 80
 ---
 
 # Project State
@@ -24,9 +24,9 @@ See: .planning/PROJECT.md (updated 2026-03-04)
 
 ## Current Position
 
-Phase 16 executed and verified. Ready to plan or execute Phase 17.
+Phase 17 executed and verified. Ready to plan or execute Phase 18.
 
-Progress: [██████░░░░] 60%
+Progress: [████████░░] 80%
 
 ## Accumulated Context
 
@@ -43,6 +43,8 @@ Progress: [██████░░░░] 60%
 - [Phase 15]: Download platform cards use Lucide generic OS icons — Brand-specific Apple icon availability is not guaranteed in Lucide; generic icons keep build stable and still communicate platform choices.
 - [Phase 16]: Core docs pages now contain comprehensive end-user content across Getting Started and Guides sections.
 - [Phase 16]: Quick Start intentionally keeps screenshot placeholders as TODO markers until real product captures are available.
+- [Phase 17]: Reference/support pages now provide complete settings, troubleshooting, FAQ, and contributing documentation.
+- [Phase 17]: Build-artifact verification (dist routes, sidebar links, pagefind output) is the default validation path for docs phase completion.
 
 ### Pending Todos
 
@@ -55,5 +57,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-03-04
-Stopped at: phase 16 execution complete
+Stopped at: phase 17 execution complete
 Resume file: None

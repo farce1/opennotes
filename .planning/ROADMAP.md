@@ -158,5 +158,5 @@ Full details: `.planning/milestones/v1.1-ROADMAP.md`
 | 14. Project Scaffold & Repo Cleanup | v1.2 | 1/1 | Complete | 2026-03-04 |
 | 15. Marketing Landing Page | v1.2 | 1/1 | Complete | 2026-03-04 |
 | 16. Documentation Content — Core | v1.2 | 1/1 | Complete | 2026-03-04 |
-| 17. Documentation Content — Reference & Support | v1.2 | — | Pending | — |
+| 17. Documentation Content — Reference & Support | v1.2 | 1/1 | Complete | 2026-03-04 |
 | 18. Branding, SEO & Deployment | v1.2 | — | Pending | — |
