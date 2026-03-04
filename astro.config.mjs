@@ -15,6 +15,36 @@ export default defineConfig({
         dark: './src/assets/logo-light.svg',
         replacesTitle: false,
       },
+      head: [
+        {
+          tag: 'meta',
+          attrs: {
+            property: 'og:image',
+            content: 'https://opennotes.app/og-default.svg',
+          },
+        },
+        {
+          tag: 'meta',
+          attrs: {
+            property: 'og:image:width',
+            content: '1200',
+          },
+        },
+        {
+          tag: 'meta',
+          attrs: {
+            property: 'og:image:height',
+            content: '630',
+          },
+        },
+        {
+          tag: 'meta',
+          attrs: {
+            name: 'twitter:image',
+            content: 'https://opennotes.app/og-default.svg',
+          },
+        },
+      ],
       social: [
         {
           icon: 'github',
