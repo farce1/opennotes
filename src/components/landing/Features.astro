@@ -1,0 +1,60 @@
+---
+import { Brain, FileOutput, Library, Mic, Monitor, WifiOff } from '@lucide/astro';
+
+const features = [
+  {
+    icon: Mic,
+    title: 'One-Click Recording',
+    description: 'Start recording your meeting with a single click. System audio or microphone, your choice.',
+  },
+  {
+    icon: WifiOff,
+    title: 'Offline Transcription',
+    description: 'State-of-the-art Parakeet TDT model runs entirely on your device. No internet required.',
+  },
+  {
+    icon: Brain,
+    title: 'AI Summarization',
+    description: 'Local Ollama models generate structured summaries with key points, decisions, and action items.',
+  },
+  {
+    icon: Library,
+    title: 'Meeting Library',
+    description: 'Browse, search, and manage all your meetings. Full transcripts and summaries at your fingertips.',
+  },
+  {
+    icon: FileOutput,
+    title: 'Flexible Export',
+    description: 'Export to PDF, Markdown, or clipboard. Bulk export as ZIP for easy backup.',
+  },
+  {
+    icon: Monitor,
+    title: 'Cross-Platform',
+    description: 'Native app for macOS, Windows, and Linux. Built with Tauri for a fast, lightweight experience.',
+  },
+];
+---
+
+<section class="py-20 sm:py-28">
+  <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+    <div class="mb-16 text-center">
+      <h2 class="text-3xl font-bold text-[var(--sl-color-white)] sm:text-4xl">Everything you need</h2>
+      <p class="mx-auto mt-4 max-w-2xl text-lg text-[var(--sl-color-gray-2)]">
+        A complete meeting notes pipeline from recording to actionable summaries, running entirely on your machine.
+      </p>
+    </div>
+    <div class="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3 lg:gap-8">
+      {
+        features.map(({ icon: Icon, title, description }) => (
+          <div class="rounded-2xl border border-[var(--sl-color-hairline-light)] bg-[var(--sl-color-bg-nav)] p-6 transition-colors hover:border-[var(--sl-color-accent)]/40">
+            <div class="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-[var(--sl-color-accent)]/10">
+              <Icon class="h-6 w-6 text-[var(--sl-color-accent)]" />
+            </div>
+            <h3 class="text-lg font-semibold text-[var(--sl-color-white)]">{title}</h3>
+            <p class="mt-2 leading-relaxed text-[var(--sl-color-gray-2)]">{description}</p>
+          </div>
+        ))
+      }
+    </div>
+  </div>
+</section>
