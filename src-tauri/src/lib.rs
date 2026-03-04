@@ -148,6 +148,23 @@ pub fn run() {
                 }
             });
 
+            let pool_for_post_processing = pool.clone();
+            let app_handle_for_post_processing = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                let stuck_or_failed = sqlx::query_scalar::<_, i64>(
+                    "SELECT id
+                     FROM meetings
+                     WHERE post_processing_status IN ('processing', 'failed')",
+                )
+                .fetch_all(&pool_for_post_processing)
+                .await
+                .unwrap_or_default();
+
+                for meeting_id in stuck_or_failed {
+                    let _ = app_handle_for_post_processing.emit("processing-failed", meeting_id);
+                }
+            });
+
             let pool_for_fts = pool.clone();
             tauri::async_runtime::spawn(async move {
                 let missing_ids = sqlx::query_scalar::<_, i64>(
@@ -220,6 +237,7 @@ pub fn run() {
             commands::update_tray_icon,
             commands::start_session,
             commands::stop_session,
+            commands::retry_post_processing,
             commands::pause_session,
             commands::resume_session,
             commands::get_session_state,

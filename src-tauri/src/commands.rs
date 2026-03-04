@@ -245,6 +245,16 @@ pub async fn stop_session(
 }
 
 #[tauri::command]
+pub async fn retry_post_processing(
+    app: AppHandle,
+    pool: tauri::State<'_, SqlitePool>,
+    meeting_id: i64,
+) -> Result<(), String> {
+    let pool = pool.inner().clone();
+    session::retry_post_processing_inner(&app, &pool, meeting_id).await
+}
+
+#[tauri::command]
 pub async fn pause_session(
     app: AppHandle,
     pool: tauri::State<'_, SqlitePool>,
