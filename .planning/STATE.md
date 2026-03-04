@@ -1,31 +1,31 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.1
-milestone_name: Hardening & Quality
-status: milestone_complete
-last_updated: "2026-03-03T10:30:00Z"
+milestone: v1.2
+milestone_name: Speaker Intelligence & Templates
+status: defining_requirements
+last_updated: "2026-03-04T00:00:00Z"
 progress:
-  total_phases: 4
-  completed_phases: 4
-  total_plans: 6
-  completed_plans: 6
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-03-03)
+See: .planning/PROJECT.md (updated 2026-03-04)
 
 **Core value:** One-click meeting recording that produces structured, actionable meeting notes — entirely local, entirely free.
-**Current focus:** Planning next milestone
+**Current focus:** Defining requirements for v1.2
 
 ## Current Position
 
-Milestone v1.1 Hardening & Quality shipped on 2026-03-03.
-All 4 phases (10-13) complete, 6 plans executed, 17/17 requirements satisfied.
-
-Progress: [██████████] 100% — SHIPPED
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-03-04 — Milestone v1.2 started
 
 ## Accumulated Context
 
@@ -35,14 +35,14 @@ Full decision log in PROJECT.md Key Decisions table.
 
 ### Pending Todos
 
-None.
+- BENCHMARK.md live phi4-mini scores are PENDING — Ollama was unavailable during Phase 13 execution; fixtures/evaluator ready for rerun.
 
 ### Blockers/Concerns
 
-- BENCHMARK.md live phi4-mini scores are PENDING — Ollama was unavailable during Phase 13 execution; fixtures/evaluator ready for rerun.
+None.
 
 ## Session Continuity
 
-Last session: 2026-03-03
-Stopped at: v1.1 milestone completion
+Last session: 2026-03-04
+Stopped at: Milestone v1.2 initialization
 Resume file: None
