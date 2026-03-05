@@ -98,7 +98,7 @@ export function SpeakerTranscript({
           : t('speaker_default', { n: group.speakerId != null ? group.speakerId + 1 : 0 });
 
         return (
-          <article key={group.id} className="grid grid-cols-[140px_1fr] gap-3 rounded-xl bg-gray-50 p-3 dark:bg-gray-800/40">
+          <article key={group.id} className="grid grid-cols-[140px_1fr] gap-3 rounded-xl bg-gray-50 p-3 scroll-mt-20 dark:bg-gray-800/40">
             <div className="pt-1">
               <button
                 type="button"
@@ -122,7 +122,11 @@ export function SpeakerTranscript({
 
             <div className="space-y-1.5">
               {group.segments.map((segment) => (
-                <div key={segment.index} className="grid grid-cols-[52px_1fr] gap-2">
+                <div
+                  key={segment.index}
+                  data-elapsed-ms={segment.elapsedMs}
+                  className="grid grid-cols-[52px_1fr] gap-2 scroll-mt-20"
+                >
                   <span className="font-mono text-xs text-gray-500 dark:text-gray-400">{formatElapsed(segment.elapsedMs)}</span>
                   <p className="text-sm leading-relaxed text-gray-700 dark:text-gray-100">{segment.text}</p>
                 </div>
