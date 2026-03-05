@@ -1,12 +1,13 @@
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { AlertCircle, CheckCircle2, Copy, Download, Loader2, Plus, RotateCcw, TriangleAlert, UserCheck } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router';
 
 import { ManageTemplatesModal } from '../components/ManageTemplatesModal';
 import { SpeakerStatsPanel } from '../components/SpeakerStatsPanel';
+import { SpeakerTimeline } from '../components/SpeakerTimeline';
 import { SpeakerTranscript } from '../components/SpeakerTranscript';
 import { SummaryError } from '../components/SummaryError';
 import { SummaryExport } from '../components/SummaryExport';
@@ -91,6 +92,8 @@ export function MeetingCompleteView() {
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [manageModalOpen, setManageModalOpen] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<SummaryTemplate | null>(null);
+  const transcriptContainerRef = useRef<HTMLDivElement>(null);
+  const [currentElapsedMs, setCurrentElapsedMs] = useState(0);
 
   const state = (location.state as MeetingCompleteRouteState | null) ?? null;
   const meetingId = typeof state?.meetingId === 'number' ? state.meetingId : null;
@@ -353,6 +356,71 @@ export function MeetingCompleteView() {
     [i18n.language, meeting?.detected_language],
   );
   const hasSpeakerLayout = diarStatus === 'complete' && speakers.length > 0;
+  const effectiveDurationMs = useMemo(() => {
+    const fromMeeting = (meeting?.duration_seconds ?? 0) * 1000;
+    if (fromMeeting > 0) {
+      return fromMeeting;
+    }
+    if (speakerTurns.length > 0) {
+      return Math.max(...speakerTurns.map((turn) => turn.end_ms));
+    }
+    return 0;
+  }, [meeting?.duration_seconds, speakerTurns]);
+  const showTimeline = hasSpeakerLayout && speakers.length >= 2 && effectiveDurationMs > 0;
+  const allSpeakersUnnamed = speakers.length > 0 && speakers.every((speaker) => !speaker.display_name.trim());
+  const showNamingTip = hasSpeakerLayout && allSpeakersUnnamed && Boolean(summaryText);
+
+  const scrollToElapsedMs = useCallback((targetMs: number) => {
+    const container = transcriptContainerRef.current;
+    if (!container) {
+      return;
+    }
+
+    const elements = container.querySelectorAll<HTMLElement>('[data-elapsed-ms]');
+    let bestElement: HTMLElement | null = null;
+    let bestDiff = Number.POSITIVE_INFINITY;
+
+    for (const element of elements) {
+      const elapsedMs = Number(element.dataset.elapsedMs ?? 0);
+      const diff = Math.abs(elapsedMs - targetMs);
+      if (diff < bestDiff) {
+        bestDiff = diff;
+        bestElement = element;
+      }
+    }
+
+    if (!bestElement) {
+      return;
+    }
+
+    bestElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    bestElement.classList.add('ring-2', 'ring-blue-400/50', 'rounded');
+    window.setTimeout(() => {
+      bestElement?.classList.remove('ring-2', 'ring-blue-400/50', 'rounded');
+    }, 1200);
+  }, []);
+
+  useEffect(() => {
+    const container = transcriptContainerRef.current;
+    if (!container || !showTimeline) {
+      return;
+    }
+
+    const handleScroll = () => {
+      const containerTop = container.getBoundingClientRect().top;
+      const elements = container.querySelectorAll<HTMLElement>('[data-elapsed-ms]');
+      for (const element of elements) {
+        if (element.getBoundingClientRect().top >= containerTop) {
+          setCurrentElapsedMs(Number(element.dataset.elapsedMs ?? 0));
+          break;
+        }
+      }
+    };
+
+    handleScroll();
+    container.addEventListener('scroll', handleScroll, { passive: true });
+    return () => container.removeEventListener('scroll', handleScroll);
+  }, [showTimeline]);
 
   const onCopyTranscript = useCallback(async () => {
     try {
@@ -622,7 +690,7 @@ export function MeetingCompleteView() {
         </button>
       </div>
 
-      <div className="mt-5 flex-1 overflow-y-auto">
+      <div ref={transcriptContainerRef} className="mt-5 flex-1 overflow-y-auto">
         {activeTab === 'summary' ? (
           <div className="space-y-3">
             {summaryLoading && !summaryText ? (
@@ -680,6 +748,12 @@ export function MeetingCompleteView() {
                 />
               )}
             />
+
+            {showNamingTip ? (
+              <p className="text-xs italic text-gray-500 dark:text-gray-400">
+                {t('naming_tip', { defaultValue: 'Tip: Name your speakers in the Transcript tab for speaker-attributed summaries.' })}
+              </p>
+            ) : null}
 
             <SummaryExport summaryText={summaryText} meetingTitle={titleInput || fallbackTitle} />
           </div>
@@ -749,6 +823,15 @@ export function MeetingCompleteView() {
 
             {hasSpeakerLayout ? (
               <div className="space-y-3">
+                {showTimeline ? (
+                  <SpeakerTimeline
+                    speakers={speakers}
+                    speakerTurns={speakerTurns}
+                    totalDurationMs={effectiveDurationMs}
+                    onSegmentClick={scrollToElapsedMs}
+                    currentElapsedMs={currentElapsedMs}
+                  />
+                ) : null}
                 <SpeakerStatsPanel speakers={speakers} speakerTurns={speakerTurns} />
                 <SpeakerTranscript
                   segments={segments}
