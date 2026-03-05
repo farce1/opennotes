@@ -46,51 +46,54 @@ export function SpeakerTimeline({
     [speakers],
   );
 
+  const segments = useMemo<ReactNode[]>(
+    () => {
+      if (totalDurationMs <= 0) return [];
+      return speakerTurns.map((turn) => {
+        const speaker = speakerByIndex.get(turn.speaker_index);
+        const speakerName = speaker
+          ? getSpeakerDisplayName(speaker)
+          : getFallbackSpeakerName(turn.speaker_index);
+        const left = Math.max(0, (turn.start_ms / totalDurationMs) * 100);
+        const rawWidth = ((turn.end_ms - turn.start_ms) / totalDurationMs) * 100;
+        const width = Math.max(
+          0,
+          Math.min(100 - left, Math.max(MIN_SEGMENT_PERCENT, rawWidth)),
+        );
+        const color = getSpeakerColor(speaker?.color_index ?? turn.speaker_index);
+
+        return (
+          <button
+            key={turn.id}
+            type="button"
+            aria-label={`${speakerName} at ${formatMs(turn.start_ms)}`}
+            onClick={() => onSegmentClick(turn.start_ms)}
+            onMouseEnter={(event: MouseEvent<HTMLButtonElement>) => {
+              setTooltip({
+                speakerName,
+                startMs: turn.start_ms,
+                endMs: turn.end_ms,
+                x: event.clientX,
+                y: event.clientY,
+              });
+            }}
+            onMouseLeave={() => setTooltip(null)}
+            className="absolute inset-y-0 cursor-pointer opacity-85 transition-opacity hover:opacity-100 focus-visible:outline-none focus-visible:ring-2"
+            style={{
+              left: `${left}%`,
+              width: `${width}%`,
+              backgroundColor: color,
+            }}
+          />
+        );
+      });
+    },
+    [onSegmentClick, speakerByIndex, speakerTurns, totalDurationMs],
+  );
+
   if (totalDurationMs <= 0 || speakers.length < 2) {
     return null;
   }
-
-  const segments = useMemo<ReactNode[]>(
-    () => speakerTurns.map((turn) => {
-      const speaker = speakerByIndex.get(turn.speaker_index);
-      const speakerName = speaker
-        ? getSpeakerDisplayName(speaker)
-        : getFallbackSpeakerName(turn.speaker_index);
-      const left = Math.max(0, (turn.start_ms / totalDurationMs) * 100);
-      const rawWidth = ((turn.end_ms - turn.start_ms) / totalDurationMs) * 100;
-      const width = Math.max(
-        0,
-        Math.min(100 - left, Math.max(MIN_SEGMENT_PERCENT, rawWidth)),
-      );
-      const color = getSpeakerColor(speaker?.color_index ?? turn.speaker_index);
-
-      return (
-        <button
-          key={turn.id}
-          type="button"
-          aria-label={`${speakerName} at ${formatMs(turn.start_ms)}`}
-          onClick={() => onSegmentClick(turn.start_ms)}
-          onMouseEnter={(event: MouseEvent<HTMLButtonElement>) => {
-            setTooltip({
-              speakerName,
-              startMs: turn.start_ms,
-              endMs: turn.end_ms,
-              x: event.clientX,
-              y: event.clientY,
-            });
-          }}
-          onMouseLeave={() => setTooltip(null)}
-          className="absolute inset-y-0 cursor-pointer opacity-85 transition-opacity hover:opacity-100 focus-visible:outline-none focus-visible:ring-2"
-          style={{
-            left: `${left}%`,
-            width: `${width}%`,
-            backgroundColor: color,
-          }}
-        />
-      );
-    }),
-    [onSegmentClick, speakerByIndex, speakerTurns, totalDurationMs],
-  );
 
   const indicatorLeft = Math.max(0, Math.min(100, (currentElapsedMs / totalDurationMs) * 100));
 
