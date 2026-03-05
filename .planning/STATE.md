@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Speaker Intelligence & Templates
 status: in_progress
-last_updated: "2026-03-04T22:21:45.487Z"
+last_updated: "2026-03-05T08:35:10Z"
 progress:
   total_phases: 5
   completed_phases: 4
   total_plans: 10
-  completed_plans: 9
+  completed_plans: 10
 ---
 
 # Project State
@@ -23,18 +23,18 @@ See: .planning/PROJECT.md (updated 2026-03-04)
 ## Current Position
 
 Phase: 18 of 18 (Speaker Timeline & Attributed Summaries)
-Plan: 02 of 02 (18-02-PLAN.md pending)
-Status: In progress (Plan 01 complete, Plan 02 pending)
-Last activity: 2026-03-04 — Completed Phase 18 Plan 01 (1/2 plans)
+Plan: 02 of 02 (completed)
+Status: Ready for phase verification
+Last activity: 2026-03-05 — Completed Phase 18 Plan 02 (2/2 plans)
 
-Progress: [█████████░] 90%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 9 (v1.2)
+- Total plans completed: 10 (v1.2)
 - Average duration: 10 min
-- Total execution time: 92 min
+- Total execution time: 97 min
 
 **By Phase:**
 
@@ -44,7 +44,7 @@ Progress: [█████████░] 90%
 | 15 | 2 | 21 min | 11 min |
 | 16 | 2 | 4 min | 2 min |
 | 17 | 2 | 40 min | 20 min |
-| 18 | 1 | 7 min | 7 min |
+| 18 | 2 | 12 min | 6 min |
 
 *Updated after each plan completion*
 
@@ -68,6 +68,8 @@ Recent decisions affecting current work:
 - [Phase 17]: Meeting transcript view remains full-width before diarization and switches to grouped speaker layout + stats only when diarization completes.
 - [Phase 18]: Injected speaker roster context before language instructions so attributed output persists in standard and chunked summaries. — Ensures TMPL-07 behavior is consistent across single-pass and map-reduce generation.
 - [Phase 18]: Timeline UI is hidden for single-speaker and zero-duration sessions. — Avoids low-value controls and keeps transcript view clean when there is no meaningful speaker distribution.
+- [Phase 18]: Timeline click navigation resolves to the nearest transcript elapsed timestamp instead of index-based matching. — Decouples timeline turns from transcript segmentation granularity while keeping jumps accurate.
+- [Phase 18]: `scroll-mt-20` offsets are required on speaker transcript rows when the sticky timeline is visible. — Prevents jump targets from being obscured by the pinned timeline bar.
 
 ### Pending Todos
 
@@ -81,5 +83,5 @@ Recent decisions affecting current work:
 ## Session Continuity
 
 Last session: 2026-03-04
-Stopped at: Completed 18-01-PLAN.md
+Stopped at: Completed 18-02-PLAN.md
 Resume file: None

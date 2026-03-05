@@ -24,7 +24,7 @@ Requirements for v1.2 Speaker Intelligence & Templates. Each maps to roadmap pha
 - [x] **DIAR-05**: User can rename speaker labels to real names within a session (click-to-edit)
 - [x] **DIAR-06**: Renamed speaker labels propagate to all segments with that speaker in the session
 - [x] **DIAR-07**: User can view an interactive speaker timeline showing who spoke when
-- [ ] **DIAR-08**: User can click a timeline segment to jump to that position in the transcript
+- [x] **DIAR-08**: User can click a timeline segment to jump to that position in the transcript
 - [x] **DIAR-09**: User can see per-speaker talk-time statistics (percentage of total)
 - [x] **DIAR-10**: Diarization runs on a dedicated thread without blocking Ollama or UI
 - [x] **DIAR-11**: Diarization works cross-platform (macOS, Windows, Linux)
@@ -116,7 +116,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | DIAR-10 | Phase 17 | Complete |
 | DIAR-11 | Phase 17 | Complete |
 | DIAR-07 | Phase 18 | Complete |
-| DIAR-08 | Phase 18 | Pending |
+| DIAR-08 | Phase 18 | Complete |
 | TMPL-07 | Phase 18 | Complete |
 
 **Coverage:**
@@ -126,4 +126,4 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 ---
 *Requirements defined: 2026-03-04*
-*Last updated: 2026-03-04 after Phase 18 Plan 01 completion*
+*Last updated: 2026-03-05 after Phase 18 Plan 02 completion*
