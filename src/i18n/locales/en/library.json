@@ -40,6 +40,10 @@
   "card_reTranscribe": "Re-transcribe",
   "card_re": "Re",
 
+  "section_today": "Today",
+  "section_yesterday": "Yesterday",
+  "section_thisWeek": "This Week",
+
   "bulk_selected": "{{count}} selected",
   "bulk_selectAll": "Select All",
   "bulk_deselect": "Deselect",

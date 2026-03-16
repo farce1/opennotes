@@ -40,6 +40,10 @@
   "card_reTranscribe": "Transkrybuj ponownie",
   "card_re": "Pon.",
 
+  "section_today": "Dzisiaj",
+  "section_yesterday": "Wczoraj",
+  "section_thisWeek": "Ten tydzie\u0144",
+
   "bulk_selected": "{{count}} zaznaczonych",
   "bulk_selectAll": "Zaznacz wszystkie",
   "bulk_deselect": "Odznacz",

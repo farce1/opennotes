@@ -1,7 +1,8 @@
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
-import { format, isToday, isYesterday, startOfWeek } from 'date-fns';
+import { isToday, isYesterday, startOfWeek } from 'date-fns';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import { getDb } from '../lib/db';
 import { buildMeetingFilterParams } from '../lib/libraryFilterParams';
@@ -47,20 +48,34 @@ function toSortClause(sortField: SortField, sortDirection: SortDirection): strin
   return `m.started_at ${direction}`;
 }
 
-export function groupByDateSection(meetings: MeetingWithPreview[]): DateSection[] {
+type DateSectionLabels = {
+  today: string;
+  yesterday: string;
+  thisWeek: string;
+};
+
+export function groupByDateSection(
+  meetings: MeetingWithPreview[],
+  locale: string,
+  labels: DateSectionLabels,
+): DateSection[] {
   const thisWeekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
   const sections = new Map<string, MeetingWithPreview[]>();
+  const monthYearFormatter = new Intl.DateTimeFormat(locale || 'en', {
+    month: 'long',
+    year: 'numeric',
+  });
 
   for (const meeting of meetings) {
     const startedAt = new Date(meeting.started_at);
-    let label = format(startedAt, 'MMMM yyyy');
+    let label = monthYearFormatter.format(startedAt);
 
     if (isToday(startedAt)) {
-      label = 'Today';
+      label = labels.today;
     } else if (isYesterday(startedAt)) {
-      label = 'Yesterday';
+      label = labels.yesterday;
     } else if (startedAt >= thisWeekStart) {
-      label = 'This Week';
+      label = labels.thisWeek;
     }
 
     const existing = sections.get(label) ?? [];
@@ -77,6 +92,7 @@ type UseLibraryOptions = {
 };
 
 export function useLibrary(options: UseLibraryOptions = {}) {
+  const { t, i18n } = useTranslation('library');
   const { initialShowTrash = false, lockScope = false } = options;
   const [meetings, setMeetings] = useState<MeetingWithPreview[]>([]);
   const [searchResults, setSearchResults] = useState<SearchResult[] | null>(null);
@@ -424,7 +440,16 @@ export function useLibrary(options: UseLibraryOptions = {}) {
     };
   }, [refresh]);
 
-  const sections = useMemo(() => groupByDateSection(meetings), [meetings]);
+  const locale = i18n.resolvedLanguage ?? i18n.language;
+  const sections = useMemo(
+    () =>
+      groupByDateSection(meetings, locale, {
+        today: t('section_today'),
+        yesterday: t('section_yesterday'),
+        thisWeek: t('section_thisWeek'),
+      }),
+    [locale, meetings, t],
+  );
   const isSelectionMode = selectedIds.size > 0;
 
   return {
