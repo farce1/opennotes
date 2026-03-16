@@ -9,7 +9,7 @@ import { DateSectionHeader } from '../components/library/DateSectionHeader';
 import { FilterBar } from '../components/library/FilterBar';
 import { MeetingCard } from '../components/library/MeetingCard';
 import { MeetingRow } from '../components/library/MeetingRow';
-import { formatDate, formatDuration, statusClasses } from '../components/library/meetingUtils';
+import { SearchResultRow } from '../components/library/SearchResultRow';
 import { useLibrary } from '../hooks/useLibrary';
 import { bulkExportZip, exportMeeting, type ExportFormat } from '../lib/export';
 import type { MeetingWithPreview, SortDirection, SortField, ViewMode } from '../types';
@@ -74,6 +74,7 @@ type LibraryViewProps = {
 
 export function LibraryView({ scope = 'library' }: LibraryViewProps) {
   const { t } = useTranslation('meeting');
+  const { t: tl } = useTranslation('library');
   const navigate = useNavigate();
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const isTrashScope = scope === 'trash';
@@ -109,7 +110,7 @@ export function LibraryView({ scope = 'library' }: LibraryViewProps) {
     refresh,
   } = useLibrary({ initialShowTrash: isTrashScope, lockScope: true });
 
-  const selectionEnabled = !showTrash && searchResults === null;
+  const selectionEnabled = !showTrash;
 
   const onOpenMeeting = (meetingId: number) => {
     navigate('/meeting-complete', {
@@ -266,6 +267,7 @@ export function LibraryView({ scope = 'library' }: LibraryViewProps) {
   const hasVisibleContent = searchResults !== null ? searchResults.length > 0 : meetings.length > 0;
   const showLoadingSkeleton = loading && !error && !hasVisibleContent && !hasLoadedOnce;
   const showRefreshingHint = loading && hasLoadedOnce && hasVisibleContent;
+  const showSimpleBulkActions = selectionEnabled && hasVisibleContent;
 
   return (
     <section className="relative h-full min-h-[calc(100vh-3rem)] overflow-hidden rounded-[1.75rem] border border-gray-200/70 bg-gradient-to-br from-white/80 via-white/60 to-gray-100/70 p-3 shadow-[0_28px_80px_-50px_rgba(15,23,42,0.45)] dark:border-gray-800/70 dark:from-gray-900/90 dark:via-gray-900/70 dark:to-gray-950/80">
@@ -350,35 +352,49 @@ export function LibraryView({ scope = 'library' }: LibraryViewProps) {
                     </p>
                   ) : null}
 
+                  {showSimpleBulkActions ? (
+                    <div className="mt-4 flex items-center gap-2 text-xs text-gray-400 dark:text-gray-500">
+                      <button
+                        type="button"
+                        onClick={selectAll}
+                        className="cursor-pointer font-medium text-gray-500 transition-colors duration-150 hover:text-accent dark:text-gray-400 dark:hover:text-accent-muted"
+                      >
+                        {tl('bulk_selectAll')}
+                      </button>
+                      <span>/</span>
+                      <button
+                        type="button"
+                        onClick={deselectAll}
+                        className="cursor-pointer font-medium text-gray-500 transition-colors duration-150 hover:text-accent dark:text-gray-400 dark:hover:text-accent-muted"
+                      >
+                        {tl('bulk_deselect')}
+                      </button>
+                      {isSelectionMode ? (
+                        <span className="ml-2 text-gray-500 dark:text-gray-400">
+                          {tl('bulk_selected', { count: selectedIds.size })}
+                        </span>
+                      ) : null}
+                    </div>
+                  ) : null}
+
                   {searchResults !== null ? (
-                    <div className="mt-6 space-y-1">
+                    <div className={`${showSimpleBulkActions ? 'mt-3' : 'mt-6'} space-y-1`}>
                       {searchResults.map((result) => (
-                        <button
+                        <SearchResultRow
                           key={result.id}
-                          type="button"
-                          onClick={() => onOpenMeeting(result.id)}
-                          className="w-full cursor-pointer rounded-xl p-4 text-left transition-all duration-150 hover:bg-white/60 dark:hover:bg-gray-800/40"
-                        >
-                          <div className="flex flex-wrap items-center gap-2">
-                            <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-100">{result.title}</h2>
-                            <span className={`rounded-lg px-2 py-0.5 text-[10px] font-medium ${statusClasses(result.status)}`}>
-                              {result.status}
-                            </span>
-                          </div>
-                          <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
-                            {formatDate(result.started_at)} &middot; {formatDuration(result.duration_seconds)}
-                          </p>
-                          <p
-                            className="mt-2 text-sm leading-relaxed text-gray-600 [&_mark]:rounded-md [&_mark]:bg-accent/10 [&_mark]:px-0.5 [&_mark]:text-accent dark:text-gray-300 dark:[&_mark]:bg-accent/20 dark:[&_mark]:text-accent-muted"
-                            dangerouslySetInnerHTML={renderSearchSnippet(result.snippet)}
-                          />
-                        </button>
+                          result={result}
+                          selected={selectionEnabled ? selectedIds.has(result.id) : false}
+                          selectionMode={selectionEnabled ? isSelectionMode : false}
+                          onOpen={onOpenMeeting}
+                          onSelect={selectionEnabled ? toggleSelect : () => undefined}
+                          renderSnippet={renderSearchSnippet}
+                        />
                       ))}
                     </div>
                   ) : null}
 
                   {searchResults === null && !showTrash ? (
-                    <div className="mt-6 space-y-4">
+                    <div className={`${showSimpleBulkActions ? 'mt-3' : 'mt-6'} space-y-4`}>
                       {sections.map((section) => (
                         <section key={section.label}>
                           <DateSectionHeader label={section.label} count={section.items.length} />

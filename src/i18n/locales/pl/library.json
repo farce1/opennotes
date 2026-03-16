@@ -47,6 +47,7 @@
   "bulk_selected": "{{count}} zaznaczonych",
   "bulk_selectAll": "Zaznacz wszystkie",
   "bulk_deselect": "Odznacz",
+  "bulk_toggleSelection": "Przełącz zaznaczenie",
 
   "filter_trash": "Kosz"
 }

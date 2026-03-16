@@ -47,6 +47,7 @@
   "bulk_selected": "{{count}} selected",
   "bulk_selectAll": "Select All",
   "bulk_deselect": "Deselect",
+  "bulk_toggleSelection": "Toggle selection",
 
   "filter_trash": "Trash"
 }

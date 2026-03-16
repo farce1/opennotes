@@ -25,6 +25,21 @@ const DEFAULT_FILTERS: LibraryFilters = {
   dateTo: '',
 };
 
+export function getVisibleLibraryIds(meetings: MeetingWithPreview[], searchResults: SearchResult[] | null): number[] {
+  return (searchResults ?? meetings).map((item) => item.id);
+}
+
+export function pruneSelectedIds(selectedIds: Set<number>, visibleIds: number[]): Set<number> {
+  const visibleIdSet = new Set(visibleIds);
+  const next = new Set(Array.from(selectedIds).filter((id) => visibleIdSet.has(id)));
+
+  if (next.size === selectedIds.size) {
+    return selectedIds;
+  }
+
+  return next;
+}
+
 export function sanitizeFtsQuery(raw: string): string {
   return raw
     .trim()
@@ -333,8 +348,7 @@ export function useLibrary(options: UseLibraryOptions = {}) {
   }, []);
 
   const selectAll = useCallback(() => {
-    const ids = (searchResults ?? meetings).map((item) => item.id);
-    setSelectedIds(new Set(ids));
+    setSelectedIds(new Set(getVisibleLibraryIds(meetings, searchResults)));
   }, [meetings, searchResults]);
 
   const startRename = useCallback((meetingId: number, currentTitle: string) => {
@@ -439,6 +453,12 @@ export function useLibrary(options: UseLibraryOptions = {}) {
       unlisteners.forEach((cleanup) => cleanup());
     };
   }, [refresh]);
+
+  useEffect(() => {
+    const visibleIds = getVisibleLibraryIds(meetings, searchResults);
+
+    setSelectedIds((previous) => pruneSelectedIds(previous, visibleIds));
+  }, [meetings, searchResults]);
 
   const locale = i18n.resolvedLanguage ?? i18n.language;
   const sections = useMemo(
