@@ -17,9 +17,11 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router';
 
 import { useModelSetup } from '../hooks/useModelSetup';
+import { useOllamaSetup } from '../hooks/useOllamaSetup';
 import { useRecording } from '../hooks/useRecording';
 import { useSession } from '../hooks/useSession';
 import { useTranscript } from '../hooks/useTranscript';
+import { getRecordStartState } from '../lib/recordStartState';
 import { isMacOS } from '../lib/platform';
 import { getSetting } from '../lib/settings';
 import type { OllamaStatus, TranscriptRow } from '../types';
@@ -78,6 +80,7 @@ export function RecordView() {
   } = useRecording();
 
   const { modelStatus, checkModelReady } = useModelSetup();
+  const { setupPhase } = useOllamaSetup();
   const { segments, isTranscribing, addEvent, addSegment, resetTranscript } = useTranscript();
   const {
     phase,
@@ -126,10 +129,40 @@ export function RecordView() {
   const modelBlocked = modelStatus === 'not_ready' || modelStatus === 'error';
   const isModelChecking = modelStatus === 'checking' || modelStatus === 'unknown';
   const modelSettingUp = modelStatus === 'downloading' || modelStatus === 'extracting';
+  const ollamaReady = setupPhase === 'ready';
+  const ollamaBlocked =
+    setupPhase === 'not_installed' ||
+    setupPhase === 'not_running' ||
+    setupPhase === 'model_not_pulled' ||
+    setupPhase === 'error';
+  const isOllamaChecking = setupPhase === 'checking';
+  const ollamaSettingUp =
+    setupPhase === 'downloading_ollama' ||
+    setupPhase === 'extracting_ollama' ||
+    setupPhase === 'installing_ollama' ||
+    setupPhase === 'starting_ollama' ||
+    setupPhase === 'pulling';
   const remainingAutoStopMs = Math.max(0, FOUR_HOURS_MS - elapsedMs);
   const canChangeSessionState = phase !== 'processing' && !isSaving;
   const hasOperationalAlert =
-    transcriptionDegraded || Boolean(permissionHint) || Boolean(recordingError) || modelBlocked || isModelChecking;
+    transcriptionDegraded ||
+    Boolean(permissionHint) ||
+    Boolean(recordingError) ||
+    modelBlocked ||
+    isModelChecking ||
+    ollamaBlocked ||
+    isOllamaChecking;
+  const ollamaAlertKey = setupPhase === 'error' ? 'startHint_aiError' : 'startHint_aiMissing';
+  const startState = useMemo(
+    () =>
+      getRecordStartState({
+        startingSession,
+        permissionLoading,
+        modelStatus,
+        ollamaSetupPhase: setupPhase,
+      }),
+    [modelStatus, permissionLoading, setupPhase, startingSession],
+  );
 
   useEffect(() => {
     const container = transcriptContainerRef.current;
@@ -461,11 +494,12 @@ export function RecordView() {
                     <button
                       type="button"
                       onClick={() => void handleStartRecording()}
-                      disabled={permissionLoading || startingSession || !modelReady}
+                      disabled={startState.disabled}
+                      aria-describedby={startState.helpBodyKey ? 'record-start-help' : undefined}
                       className="inline-flex items-center gap-2 rounded-xl bg-accent px-5 py-2.5 text-sm font-semibold text-white shadow-[0_14px_30px_-18px_rgba(37,99,235,0.75)] transition hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-60"
                     >
-                      {startingSession ? <Loader2 size={16} className="animate-spin" /> : <Mic size={16} />}
-                      {startingSession ? t('btn_starting') : permissionLoading ? t('btn_checkingPermissions') : t('btn_startRecording')}
+                      {startState.busy ? <Loader2 size={16} className="animate-spin" /> : <Mic size={16} />}
+                      {t(startState.buttonLabelKey)}
                     </button>
                   ) : (
                     <>
@@ -489,6 +523,60 @@ export function RecordView() {
                     </>
                   )}
                 </div>
+
+                {!sessionActive && startState.helpBodyKey ? (
+                  <div
+                    id="record-start-help"
+                    className={`mt-3 rounded-2xl border px-3.5 py-3 ${
+                      startState.tone === 'warning'
+                        ? 'border-amber-200 bg-amber-50/85 dark:border-amber-500/35 dark:bg-amber-500/10'
+                        : 'border-gray-200 bg-white/80 dark:border-gray-700 dark:bg-gray-850/75'
+                    }`}
+                  >
+                    <div className="flex items-start gap-3">
+                      <span
+                        className={`mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl ${
+                          startState.tone === 'warning'
+                            ? 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-200'
+                            : 'bg-accent/10 text-accent dark:bg-accent/20 dark:text-accent-muted'
+                        }`}
+                      >
+                        {startState.tone === 'warning' ? <AlertTriangle size={15} /> : <Loader2 size={15} className="animate-spin" />}
+                      </span>
+                      <div className="min-w-0">
+                        {startState.helpTitleKey ? (
+                          <p
+                            className={`text-sm font-semibold ${
+                              startState.tone === 'warning'
+                                ? 'text-amber-900 dark:text-amber-100'
+                                : 'text-gray-900 dark:text-gray-100'
+                            }`}
+                          >
+                            {t(startState.helpTitleKey)}
+                          </p>
+                        ) : null}
+                        <p
+                          className={`mt-1 text-sm ${
+                            startState.tone === 'warning'
+                              ? 'text-amber-800 dark:text-amber-200'
+                              : 'text-gray-600 dark:text-gray-300'
+                          }`}
+                        >
+                          {t(startState.helpBodyKey)}
+                        </p>
+                        {startState.action === 'openModels' ? (
+                          <button
+                            type="button"
+                            onClick={handleGoToModels}
+                            className="mt-3 rounded-lg border border-accent/45 px-3 py-1.5 text-xs font-semibold text-accent transition hover:bg-accent/10 dark:text-accent-muted"
+                          >
+                            {t('preflight_goToModels')}
+                          </button>
+                        ) : null}
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
 
                 {phase === 'processing' && autoStopReason ? (
                   <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50/80 px-3 py-2 text-sm text-amber-700 dark:border-amber-500/35 dark:bg-amber-500/10 dark:text-amber-200">
@@ -658,6 +746,39 @@ export function RecordView() {
                     </button>
                   ) : null}
                 </div>
+
+                <div className="rounded-2xl border border-gray-200/80 bg-gray-50/90 p-3.5 dark:border-gray-700 dark:bg-gray-850/70">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-center gap-2 text-sm font-semibold text-gray-800 dark:text-gray-100">
+                      <Bot size={15} />
+                      {t('preflight_aiNotesModel')}
+                    </div>
+                    {ollamaReady ? (
+                      <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-600 dark:text-emerald-300">
+                        <CheckCircle2 size={14} />
+                        {t('preflight_ready')}
+                      </span>
+                    ) : ollamaSettingUp || isOllamaChecking ? (
+                      <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
+                        {ollamaSettingUp ? t('preflight_configuring') : t('preflight_checking')}
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 text-xs font-medium text-amber-600 dark:text-amber-300">
+                        <AlertTriangle size={14} />
+                        {t('preflight_setupNeeded')}
+                      </span>
+                    )}
+                  </div>
+                  {!ollamaReady && !ollamaSettingUp && !isOllamaChecking ? (
+                    <button
+                      type="button"
+                      onClick={handleGoToModels}
+                      className="mt-3 rounded-lg border border-accent/50 px-3 py-1.5 text-xs font-semibold text-accent transition hover:bg-accent/10 dark:text-accent-muted"
+                    >
+                      {t('preflight_goToModels')}
+                    </button>
+                  ) : null}
+                </div>
               </div>
             </section>
 
@@ -734,6 +855,25 @@ export function RecordView() {
                   {isModelChecking ? (
                     <p className="rounded-xl border border-gray-200 bg-white/80 px-3 py-2 text-xs text-gray-600 dark:border-gray-700 dark:bg-gray-850/75 dark:text-gray-300">
                       {t('alert_modelChecking')}
+                    </p>
+                  ) : null}
+
+                  {ollamaBlocked ? (
+                    <div className="rounded-xl border border-accent/25 bg-accent-subtle/60 px-3 py-2.5 dark:border-accent/35 dark:bg-accent/10">
+                      <p className="text-xs text-gray-700 dark:text-gray-100">{t(ollamaAlertKey)}</p>
+                      <button
+                        type="button"
+                        onClick={handleGoToModels}
+                        className="mt-2 rounded-lg border border-accent/45 px-2.5 py-1 text-xs font-semibold text-accent transition hover:bg-accent/10 dark:text-accent-muted"
+                      >
+                        {t('alert_openModels')}
+                      </button>
+                    </div>
+                  ) : null}
+
+                  {isOllamaChecking ? (
+                    <p className="rounded-xl border border-gray-200 bg-white/80 px-3 py-2 text-xs text-gray-600 dark:border-gray-700 dark:bg-gray-850/75 dark:text-gray-300">
+                      {t('startHint_aiChecking')}
                     </p>
                   ) : null}
                 </div>
