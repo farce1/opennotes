@@ -136,14 +136,14 @@ fn open_path_with_file_manager(path: &Path) -> Result<(), String> {
     {
         let mut command = std::process::Command::new("/usr/bin/open");
         command.arg(path);
-        return run_file_manager_command(&mut command, "/usr/bin/open");
+        run_file_manager_command(&mut command, "/usr/bin/open")
     }
 
     #[cfg(target_os = "windows")]
     {
         let mut command = std::process::Command::new("explorer");
         command.arg(path);
-        return run_file_manager_command(&mut command, "explorer");
+        run_file_manager_command(&mut command, "explorer")
     }
 
     #[cfg(target_os = "linux")]

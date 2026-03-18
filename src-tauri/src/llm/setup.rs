@@ -1,5 +1,8 @@
+#[cfg(target_os = "macos")]
 use std::fs::File;
+#[cfg(target_os = "macos")]
 use std::io::Write;
+#[cfg(target_os = "macos")]
 use std::path::Path;
 use std::time::Duration;
 
@@ -14,6 +17,7 @@ use super::detect;
 
 #[cfg(target_os = "macos")]
 const OLLAMA_ZIP_URL: &str = "https://ollama.com/download/Ollama-darwin.zip";
+#[cfg(target_os = "macos")]
 const PROGRESS_EMIT_STEP_BYTES: u64 = 512 * 1024;
 const OLLAMA_START_TIMEOUT_SECS: u64 = 30;
 
@@ -23,6 +27,7 @@ pub enum OllamaSetupEvent {
     Stage {
         name: String,
     },
+    #[cfg(target_os = "macos")]
     DownloadProgress {
         downloaded_bytes: u64,
         total_bytes: u64,
@@ -52,12 +57,14 @@ fn send_error(on_event: &Channel<OllamaSetupEvent>, stage: &str, message: &str) 
     });
 }
 
+#[cfg(target_os = "macos")]
 fn cleanup_tmp(path: &Path) {
     if path.exists() {
         let _ = std::fs::remove_file(path);
     }
 }
 
+#[cfg(target_os = "macos")]
 fn cleanup_dir(path: &Path) {
     if path.exists() {
         let _ = std::fs::remove_dir_all(path);
@@ -69,6 +76,7 @@ fn ollama_app_exists() -> bool {
     Path::new("/Applications/Ollama.app").exists()
 }
 
+#[cfg(target_os = "macos")]
 async fn content_length(client: &Client, url: &str) -> u64 {
     match client.head(url).send().await {
         Ok(response) => response.content_length().unwrap_or(0),

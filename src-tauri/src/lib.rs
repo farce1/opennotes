@@ -54,6 +54,7 @@ fn register_shortcut_event(
         .map_err(|err| format!("failed to register shortcut `{shortcut}`: {err}"))
 }
 
+#[cfg(target_os = "macos")]
 fn copy_dir_recursive(source: &Path, destination: &Path) -> std::io::Result<()> {
     std::fs::create_dir_all(destination)?;
     for entry in std::fs::read_dir(source)? {
