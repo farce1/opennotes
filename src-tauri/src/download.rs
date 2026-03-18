@@ -24,7 +24,12 @@ const DIARIZATION_EMBEDDING_TMP_NAME: &str = "nemo_en_titanet_small.onnx.tmp";
 const PROGRESS_EMIT_STEP_BYTES: u64 = 512 * 1024;
 
 #[derive(Clone, Serialize)]
-#[serde(rename_all = "camelCase", rename_all_fields = "camelCase", tag = "event", content = "data")]
+#[serde(
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase",
+    tag = "event",
+    content = "data"
+)]
 pub enum DownloadEvent {
     Progress {
         downloaded_bytes: u64,
@@ -38,7 +43,11 @@ pub enum DownloadEvent {
     },
 }
 
-pub(crate) fn send_progress(on_event: &Channel<DownloadEvent>, downloaded_bytes: u64, total_bytes: u64) {
+pub(crate) fn send_progress(
+    on_event: &Channel<DownloadEvent>,
+    downloaded_bytes: u64,
+    total_bytes: u64,
+) {
     let _ = on_event.send(DownloadEvent::Progress {
         downloaded_bytes,
         total_bytes,
@@ -64,16 +73,30 @@ pub(crate) async fn content_length(client: &Client, url: &str) -> u64 {
     }
 }
 
+pub(crate) struct DownloadRequest<'a> {
+    pub url: &'a str,
+    pub destination_tmp: &'a Path,
+    pub total_bytes: u64,
+    pub base_downloaded: u64,
+    pub on_event: &'a Channel<DownloadEvent>,
+    pub cancel_flag: &'a DownloadCancelFlag,
+    pub resumable: bool,
+}
+
 pub(crate) async fn download_to_file(
     client: &Client,
-    url: &str,
-    destination_tmp: &Path,
-    total_bytes: u64,
-    base_downloaded: u64,
-    on_event: &Channel<DownloadEvent>,
-    cancel_flag: &DownloadCancelFlag,
-    resumable: bool,
+    request: DownloadRequest<'_>,
 ) -> Result<u64, String> {
+    let DownloadRequest {
+        url,
+        destination_tmp,
+        total_bytes,
+        base_downloaded,
+        on_event,
+        cancel_flag,
+        resumable,
+    } = request;
+
     let mut existing_bytes = 0u64;
     if resumable {
         if let Ok(metadata) = std::fs::metadata(destination_tmp) {
@@ -178,8 +201,12 @@ pub async fn download_model(
     cancel_flag: DownloadCancelFlag,
 ) -> Result<(), String> {
     cancel_flag.store(false, Ordering::SeqCst);
-    std::fs::create_dir_all(&models_dir)
-        .map_err(|_| format!("Failed to create models directory: {}", models_dir.display()))?;
+    std::fs::create_dir_all(&models_dir).map_err(|_| {
+        format!(
+            "Failed to create models directory: {}",
+            models_dir.display()
+        )
+    })?;
 
     let data_dir = models_dir
         .parent()
@@ -214,13 +241,15 @@ pub async fn download_model(
 
         let vad_downloaded = match download_to_file(
             &client,
-            VAD_URL,
-            &vad_tmp,
-            total_bytes,
-            0,
-            &on_event,
-            &cancel_flag,
-            false,
+            DownloadRequest {
+                url: VAD_URL,
+                destination_tmp: &vad_tmp,
+                total_bytes,
+                base_downloaded: 0,
+                on_event: &on_event,
+                cancel_flag: &cancel_flag,
+                resumable: false,
+            },
         )
         .await
         {
@@ -254,13 +283,15 @@ pub async fn download_model(
 
         let download_attempt = download_to_file(
             &client,
-            WHISPER_TURBO_URL,
-            &model_archive_tmp,
-            total_bytes,
-            downloaded_so_far,
-            &on_event,
-            &cancel_flag,
-            true,
+            DownloadRequest {
+                url: WHISPER_TURBO_URL,
+                destination_tmp: &model_archive_tmp,
+                total_bytes,
+                base_downloaded: downloaded_so_far,
+                on_event: &on_event,
+                cancel_flag: &cancel_flag,
+                resumable: true,
+            },
         )
         .await;
 
@@ -270,13 +301,15 @@ pub async fn download_model(
                 cleanup_tmp(&model_archive_tmp);
                 match download_to_file(
                     &client,
-                    WHISPER_TURBO_URL,
-                    &model_archive_tmp,
-                    total_bytes,
-                    downloaded_so_far,
-                    &on_event,
-                    &cancel_flag,
-                    false,
+                    DownloadRequest {
+                        url: WHISPER_TURBO_URL,
+                        destination_tmp: &model_archive_tmp,
+                        total_bytes,
+                        base_downloaded: downloaded_so_far,
+                        on_event: &on_event,
+                        cancel_flag: &cancel_flag,
+                        resumable: false,
+                    },
                 )
                 .await
                 {
@@ -364,8 +397,12 @@ pub async fn download_diarization_model(
     cancel_flag.store(false, Ordering::SeqCst);
 
     let diarization_dir = diarization_model::diarization_models_dir(data_dir.as_path());
-    std::fs::create_dir_all(&diarization_dir)
-        .map_err(|_| format!("Failed to create diarization models directory: {}", diarization_dir.display()))?;
+    std::fs::create_dir_all(&diarization_dir).map_err(|_| {
+        format!(
+            "Failed to create diarization models directory: {}",
+            diarization_dir.display()
+        )
+    })?;
 
     if diarization_model::check_diarization_model_ready(data_dir.as_path()) {
         let _ = on_event.send(DownloadEvent::Complete);
@@ -373,7 +410,8 @@ pub async fn download_diarization_model(
     }
 
     let client = Client::new();
-    let needs_segmentation = !diarization_model::segmentation_model_path(data_dir.as_path()).exists();
+    let needs_segmentation =
+        !diarization_model::segmentation_model_path(data_dir.as_path()).exists();
     let needs_embedding = !diarization_model::embedding_model_path(data_dir.as_path()).exists();
 
     let segmentation_total = if needs_segmentation {
@@ -394,13 +432,15 @@ pub async fn download_diarization_model(
 
         let segmentation_downloaded = match download_to_file(
             &client,
-            diarization_model::SEGMENTATION_ARCHIVE_URL,
-            &archive_tmp,
-            total_bytes,
-            downloaded_so_far,
-            &on_event,
-            &cancel_flag,
-            true,
+            DownloadRequest {
+                url: diarization_model::SEGMENTATION_ARCHIVE_URL,
+                destination_tmp: &archive_tmp,
+                total_bytes,
+                base_downloaded: downloaded_so_far,
+                on_event: &on_event,
+                cancel_flag: &cancel_flag,
+                resumable: true,
+            },
         )
         .await
         {
@@ -409,13 +449,15 @@ pub async fn download_diarization_model(
                 cleanup_tmp(&archive_tmp);
                 match download_to_file(
                     &client,
-                    diarization_model::SEGMENTATION_ARCHIVE_URL,
-                    &archive_tmp,
-                    total_bytes,
-                    downloaded_so_far,
-                    &on_event,
-                    &cancel_flag,
-                    false,
+                    DownloadRequest {
+                        url: diarization_model::SEGMENTATION_ARCHIVE_URL,
+                        destination_tmp: &archive_tmp,
+                        total_bytes,
+                        base_downloaded: downloaded_so_far,
+                        on_event: &on_event,
+                        cancel_flag: &cancel_flag,
+                        resumable: false,
+                    },
                 )
                 .await
                 {
@@ -490,13 +532,15 @@ pub async fn download_diarization_model(
 
         let _embedding_downloaded = match download_to_file(
             &client,
-            diarization_model::EMBEDDING_MODEL_URL,
-            &embedding_tmp,
-            total_bytes,
-            downloaded_so_far,
-            &on_event,
-            &cancel_flag,
-            true,
+            DownloadRequest {
+                url: diarization_model::EMBEDDING_MODEL_URL,
+                destination_tmp: &embedding_tmp,
+                total_bytes,
+                base_downloaded: downloaded_so_far,
+                on_event: &on_event,
+                cancel_flag: &cancel_flag,
+                resumable: true,
+            },
         )
         .await
         {
@@ -505,13 +549,15 @@ pub async fn download_diarization_model(
                 cleanup_tmp(&embedding_tmp);
                 match download_to_file(
                     &client,
-                    diarization_model::EMBEDDING_MODEL_URL,
-                    &embedding_tmp,
-                    total_bytes,
-                    downloaded_so_far,
-                    &on_event,
-                    &cancel_flag,
-                    false,
+                    DownloadRequest {
+                        url: diarization_model::EMBEDDING_MODEL_URL,
+                        destination_tmp: &embedding_tmp,
+                        total_bytes,
+                        base_downloaded: downloaded_so_far,
+                        on_event: &on_event,
+                        cancel_flag: &cancel_flag,
+                        resumable: false,
+                    },
                 )
                 .await
                 {

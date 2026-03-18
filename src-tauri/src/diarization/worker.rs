@@ -180,7 +180,6 @@ pub fn run_worker(
             min_duration_off: Some(0.5),
             provider: Some("cpu".to_string()),
             debug: false,
-            ..Default::default()
         };
 
         let mut diarizer = Diarize::new(
@@ -226,14 +225,19 @@ pub fn run_worker(
             .bind(meeting_id)
             .fetch_all(&pool)
             .await
-            .map_err(|err| format!("failed to load transcript rows for diarization alignment: {err}"))
+            .map_err(|err| {
+                format!("failed to load transcript rows for diarization alignment: {err}")
+            })
         })?;
 
         let assignments = assign_speakers_to_transcript(&transcript_rows, &turns);
         let unique_speakers: BTreeSet<i64> = turns.iter().map(|turn| turn.speaker_index).collect();
 
         runtime.block_on(async {
-            let mut tx = pool.begin().await.map_err(|err| format!("failed to begin diarization transaction: {err}"))?;
+            let mut tx = pool
+                .begin()
+                .await
+                .map_err(|err| format!("failed to begin diarization transaction: {err}"))?;
 
             sqlx::query("DELETE FROM speaker_turns WHERE meeting_id = ?")
                 .bind(meeting_id)
@@ -245,7 +249,9 @@ pub fn run_worker(
                 .bind(meeting_id)
                 .execute(&mut *tx)
                 .await
-                .map_err(|err| format!("failed to clear existing transcript speaker links: {err}"))?;
+                .map_err(|err| {
+                    format!("failed to clear existing transcript speaker links: {err}")
+                })?;
 
             sqlx::query("DELETE FROM speakers WHERE meeting_id = ?")
                 .bind(meeting_id)
