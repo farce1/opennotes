@@ -281,6 +281,7 @@ pub fn run() {
             commands::purge_old_trash,
             commands::backup_library,
             commands::restore_library,
+            commands::open_path_in_file_manager,
             commands::check_audio_permissions,
             commands::update_tray_recording_state,
         ]);

@@ -2,8 +2,8 @@
   "status_processing": "Kończenie\u2026",
   "status_autoStopped": "Automatycznie zatrzymano (limit 4h) \u2014 Kończenie\u2026",
   "status_transcribing": "Transkrypcja",
-  "status_transcriptionIssue": "Problem z transkrypcj\u0105",
+  "status_transcriptionIssue": "Problem z transkrypcją",
   "aria_pauseRecording": "Wstrzymaj nagrywanie",
-  "aria_resumeRecording": "Wzn\u00f3w nagrywanie",
+  "aria_resumeRecording": "Wznów nagrywanie",
   "aria_stopRecording": "Zatrzymaj nagrywanie"
 }

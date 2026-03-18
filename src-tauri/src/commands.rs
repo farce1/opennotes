@@ -119,6 +119,57 @@ fn format_size_bytes(bytes: u64) -> String {
     format!("{mb:.1}MB")
 }
 
+fn run_file_manager_command(command: &mut std::process::Command, program: &str) -> Result<(), String> {
+    let status = command
+        .status()
+        .map_err(|err| format!("failed to launch {program}: {err}"))?;
+
+    if status.success() {
+        Ok(())
+    } else {
+        Err(format!("{program} exited with status {status}"))
+    }
+}
+
+fn open_path_with_file_manager(path: &Path) -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    {
+        let mut command = std::process::Command::new("open");
+        command.arg(path);
+        return run_file_manager_command(&mut command, "open");
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        let mut command = std::process::Command::new("explorer");
+        command.arg(path);
+        return run_file_manager_command(&mut command, "explorer");
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        let mut xdg_open = std::process::Command::new("xdg-open");
+        xdg_open.arg(path);
+
+        match run_file_manager_command(&mut xdg_open, "xdg-open") {
+            Ok(()) => Ok(()),
+            Err(xdg_err) => {
+                let mut gio = std::process::Command::new("gio");
+                gio.arg("open").arg(path);
+
+                run_file_manager_command(&mut gio, "gio")
+                    .map_err(|gio_err| format!("{xdg_err}; fallback gio open failed: {gio_err}"))
+            }
+        }
+    }
+
+    #[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
+    {
+        let _ = path;
+        Err("opening folders is not supported on this platform".to_string())
+    }
+}
+
 async fn fts_row_exists(pool: &SqlitePool, meeting_id: i64) -> Result<bool, String> {
     let exists = sqlx::query_scalar::<_, i64>(
         "SELECT EXISTS(
@@ -1199,6 +1250,21 @@ pub async fn restore_library(
     }
 
     Ok(())
+}
+
+#[tauri::command]
+pub fn open_path_in_file_manager(path: String) -> Result<(), String> {
+    let directory = PathBuf::from(path);
+
+    if !directory.exists() {
+        return Err(format!("path does not exist: {}", directory.display()));
+    }
+
+    if !directory.is_dir() {
+        return Err(format!("path is not a directory: {}", directory.display()));
+    }
+
+    open_path_with_file_manager(directory.as_path())
 }
 
 #[tauri::command]

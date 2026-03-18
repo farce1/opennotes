@@ -109,6 +109,11 @@
 
   "storagePath_title": "Storage Path",
   "storagePath_description": "All recordings, transcripts, and summaries are stored locally here.",
+  "storagePath_btnOpenFinder": "Open in Finder",
+  "storagePath_btnOpenExplorer": "Open in File Explorer",
+  "storagePath_btnOpenLinux": "Open in File Manager",
+  "storagePath_btnOpening": "Opening...",
+  "storagePath_openFailed": "Unable to open the storage folder.",
   "storagePath_resolving": "Resolving storage path\u2026",
 
   "dataManagement_title": "Data Management",
