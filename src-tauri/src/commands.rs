@@ -134,9 +134,9 @@ fn run_file_manager_command(command: &mut std::process::Command, program: &str) 
 fn open_path_with_file_manager(path: &Path) -> Result<(), String> {
     #[cfg(target_os = "macos")]
     {
-        let mut command = std::process::Command::new("open");
+        let mut command = std::process::Command::new("/usr/bin/open");
         command.arg(path);
-        return run_file_manager_command(&mut command, "open");
+        return run_file_manager_command(&mut command, "/usr/bin/open");
     }
 
     #[cfg(target_os = "windows")]
