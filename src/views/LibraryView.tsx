@@ -14,8 +14,21 @@ import { useLibrary } from '../hooks/useLibrary';
 import { bulkExportZip, exportMeeting, type ExportFormat } from '../lib/export';
 import type { MeetingWithPreview, SortDirection, SortField, ViewMode } from '../types';
 
+function sanitizeSearchSnippetHtml(html: string): string {
+  const escaped = html
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+
+  return escaped
+    .replace(/&lt;mark&gt;/g, '<mark>')
+    .replace(/&lt;\/mark&gt;/g, '</mark>');
+}
+
 function renderSearchSnippet(html: string): { __html: string } {
-  return { __html: html };
+  return { __html: sanitizeSearchSnippetHtml(html) };
 }
 
 function SkeletonLine({ className }: { className: string }) {
