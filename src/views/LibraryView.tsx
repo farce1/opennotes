@@ -14,10 +14,6 @@ import { useLibrary } from '../hooks/useLibrary';
 import { bulkExportZip, exportMeeting, type ExportFormat } from '../lib/export';
 import type { MeetingWithPreview, SortDirection, SortField, ViewMode } from '../types';
 
-function renderSearchSnippet(html: string): { __html: string } {
-  return { __html: html };
-}
-
 function SkeletonLine({ className }: { className: string }) {
   return <div className={`animate-pulse rounded-md bg-gray-200/70 dark:bg-gray-700/60 ${className}`} />;
 }
@@ -387,7 +383,6 @@ export function LibraryView({ scope = 'library' }: LibraryViewProps) {
                           selectionMode={selectionEnabled ? isSelectionMode : false}
                           onOpen={onOpenMeeting}
                           onSelect={selectionEnabled ? toggleSelect : () => undefined}
-                          renderSnippet={renderSearchSnippet}
                         />
                       ))}
                     </div>
