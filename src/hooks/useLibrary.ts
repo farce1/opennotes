@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next';
 
 import { getDb } from '../lib/db';
 import { buildMeetingFilterParams } from '../lib/libraryFilterParams';
+import { SEARCH_SNIPPET_HIGHLIGHT_END, SEARCH_SNIPPET_HIGHLIGHT_START } from '../lib/searchSnippet';
 import type {
   DateSection,
   LibraryFilters,
@@ -247,14 +248,14 @@ export function useLibrary(options: UseLibraryOptions = {}) {
            m.status,
            m.duration_seconds,
            m.audio_sources,
-           snippet(meetings_fts, 1, '<mark>', '</mark>', '...', 32) AS snippet
+           snippet(meetings_fts, 1, $2, $3, '...', 32) AS snippet
          FROM meetings_fts
          JOIN meetings m ON m.id = meetings_fts.rowid
          WHERE meetings_fts MATCH $1
            AND m.deleted_at IS NULL
          ORDER BY bm25(meetings_fts)
          LIMIT 50`,
-        [sanitizeFtsQuery(cleaned)],
+        [sanitizeFtsQuery(cleaned), SEARCH_SNIPPET_HIGHLIGHT_START, SEARCH_SNIPPET_HIGHLIGHT_END],
       );
 
       setSearchResults(rows);

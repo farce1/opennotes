@@ -1,6 +1,8 @@
 import { AudioLines, Mic, Monitor } from 'lucide-react';
+import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { SEARCH_SNIPPET_HIGHLIGHT_END, SEARCH_SNIPPET_HIGHLIGHT_START } from '../../lib/searchSnippet';
 import type { SearchResult } from '../../types';
 import { formatDate, formatDuration, normalizeAudioSource, statusClasses } from './meetingUtils';
 
@@ -10,7 +12,6 @@ type SearchResultRowProps = {
   selectionMode: boolean;
   onOpen: (id: number) => void;
   onSelect: (id: number) => void;
-  renderSnippet: (html: string) => { __html: string };
 };
 
 function sourceIcon(audioSource: string | null) {
@@ -22,13 +23,50 @@ function sourceIcon(audioSource: string | null) {
   return null;
 }
 
+
+function renderSnippet(snippet: string): ReactNode[] {
+  const nodes: ReactNode[] = [];
+  let remaining = snippet;
+  let keyIndex = 0;
+
+  while (remaining.length > 0) {
+    const start = remaining.indexOf(SEARCH_SNIPPET_HIGHLIGHT_START);
+
+    if (start === -1) {
+      nodes.push(remaining);
+      break;
+    }
+
+    if (start > 0) {
+      nodes.push(remaining.slice(0, start));
+    }
+
+    remaining = remaining.slice(start + SEARCH_SNIPPET_HIGHLIGHT_START.length);
+    const end = remaining.indexOf(SEARCH_SNIPPET_HIGHLIGHT_END);
+
+    if (end === -1) {
+      nodes.push(remaining);
+      break;
+    }
+
+    nodes.push(
+      <mark key={`snippet-mark-${keyIndex++}`}>
+        {remaining.slice(0, end)}
+      </mark>,
+    );
+
+    remaining = remaining.slice(end + SEARCH_SNIPPET_HIGHLIGHT_END.length);
+  }
+
+  return nodes;
+}
+
 export function SearchResultRow({
   result,
   selected,
   selectionMode,
   onOpen,
   onSelect,
-  renderSnippet,
 }: SearchResultRowProps) {
   const { t } = useTranslation('library');
 
@@ -70,10 +108,9 @@ export function SearchResultRow({
           <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
             {formatDate(result.started_at)} &middot; {formatDuration(result.duration_seconds)}
           </p>
-          <p
-            className="mt-2 text-sm leading-relaxed text-gray-600 [&_mark]:rounded-md [&_mark]:bg-accent/10 [&_mark]:px-0.5 [&_mark]:text-accent dark:text-gray-300 dark:[&_mark]:bg-accent/20 dark:[&_mark]:text-accent-muted"
-            dangerouslySetInnerHTML={renderSnippet(result.snippet)}
-          />
+          <p className="mt-2 text-sm leading-relaxed text-gray-600 [&_mark]:rounded-md [&_mark]:bg-accent/10 [&_mark]:px-0.5 [&_mark]:text-accent dark:text-gray-300 dark:[&_mark]:bg-accent/20 dark:[&_mark]:text-accent-muted">
+            {renderSnippet(result.snippet)}
+          </p>
         </button>
       </div>
     </article>
