@@ -3,6 +3,7 @@ mod commands;
 mod db;
 mod download;
 mod diarization;
+pub mod extract;
 mod llm;
 mod ollama_catalog;
 mod session;
