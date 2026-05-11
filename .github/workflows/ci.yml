@@ -70,6 +70,36 @@ jobs:
       - name: Cargo clippy
         run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets --all-features -- -D warnings
 
+  release-config-check:
+    name: Release Config Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check for REPLACE_WITH_ placeholders in release-critical config
+        run: |
+          set -e
+          FILES=(src-tauri/tauri.conf.json src-tauri/Cargo.toml package.json src-tauri/src/download.rs)
+          FOUND=0
+          for f in "${FILES[@]}"; do
+            if [ ! -f "$f" ]; then
+              continue
+            fi
+            if grep -nH 'REPLACE_WITH_' "$f" >/dev/null 2>&1; then
+              while IFS= read -r line; do
+                file=$(echo "$line" | cut -d: -f1)
+                lineno=$(echo "$line" | cut -d: -f2)
+                echo "::error file=${file},line=${lineno}::REPLACE_WITH_ placeholder must be replaced before merge"
+              done < <(grep -nH 'REPLACE_WITH_' "$f")
+              FOUND=1
+            fi
+          done
+          if [ $FOUND -eq 1 ]; then
+            exit 1
+          fi
+          echo "No REPLACE_WITH_ placeholders found in release-critical config."
+
   dependency-review:
     name: Dependency Review
     if: github.event_name == 'pull_request'
