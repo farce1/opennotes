@@ -1,7 +1,7 @@
 //! Pure-Rust archive extraction with SHA256 verification, disk pre-check,
 //! and a typed error enum that the frontend can map to i18n keys.
 //!
-//! Phase 19 — EXTRACT-01..04. Replaces `Command::new("tar")` shell-outs in
+//! Phase 19 — EXTRACT-01..04. Replaces system tar shell-outs in
 //! `download.rs` per CONTEXT.md D-15..D-20.
 
 use std::fmt;
@@ -169,7 +169,7 @@ mod tests {
     #[test]
     fn kind_strings_are_stable() {
         // Frontend i18n keys depend on these exact strings — do not rename.
-        let io_err = || std::io::Error::new(std::io::ErrorKind::Other, "x");
+        let io_err = || std::io::Error::other("x");
         assert_eq!(ExtractError::CorruptArchive(io_err()).kind(), "corrupt_archive");
         assert_eq!(ExtractError::DiskFull { needed: 0, available: 0 }.kind(), "disk_full");
         assert_eq!(ExtractError::PermissionDenied(PathBuf::from("/x")).kind(), "permission_denied");
