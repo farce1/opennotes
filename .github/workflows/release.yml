@@ -61,6 +61,65 @@ jobs:
           cargo test --manifest-path src-tauri/Cargo.toml --all-targets --quiet
           cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets --all-features -- -D warnings
 
+      - name: Assert version files match release tag
+        run: |
+          set -e
+          INPUT_TAG="${{ github.event.inputs.tag_name }}"
+          VERSION="${INPUT_TAG#v}"
+          VERSION="${VERSION%-rc.*}"
+          if [ -z "$VERSION" ]; then
+            echo "::error::tag_name input is empty after stripping 'v' / '-rc.N'"
+            exit 1
+          fi
+          PKG_VER=$(node -p "require('./package.json').version")
+          # Extract first version line within [package] section, then strip to value via sed (awk gsub backrefs are non-portable).
+          CARGO_VER=$(awk '/^\[package\]/{p=1;next}/^\[/{p=0}p && /^version[[:space:]]*=/{print;exit}' src-tauri/Cargo.toml | sed -E 's/.*"([^"]+)".*/\1/')
+          TAURI_VER=$(node -p "require('./src-tauri/tauri.conf.json').version")
+          STRIPPED_PKG="${PKG_VER%-rc.*}"
+          STRIPPED_CARGO="${CARGO_VER%-rc.*}"
+          STRIPPED_TAURI="${TAURI_VER%-rc.*}"
+          # Compare against the FULL tag-version (including any -rc.N) so rc tags must match rc versions exactly
+          FULL_VERSION="${INPUT_TAG#v}"
+          FAIL=0
+          if [ "$PKG_VER" != "$FULL_VERSION" ]; then
+            echo "::error file=package.json::Version mismatch: tag=$FULL_VERSION, package.json=$PKG_VER"
+            FAIL=1
+          fi
+          if [ "$CARGO_VER" != "$FULL_VERSION" ]; then
+            echo "::error file=src-tauri/Cargo.toml::Version mismatch: tag=$FULL_VERSION, Cargo.toml=$CARGO_VER"
+            FAIL=1
+          fi
+          if [ "$TAURI_VER" != "$FULL_VERSION" ]; then
+            echo "::error file=src-tauri/tauri.conf.json::Version mismatch: tag=$FULL_VERSION, tauri.conf.json=$TAURI_VER"
+            FAIL=1
+          fi
+          if [ $FAIL -eq 1 ]; then
+            echo "Run 'bun run release:bump $FULL_VERSION' locally and commit before re-triggering the release."
+            exit 1
+          fi
+          echo "All version files match tag $FULL_VERSION."
+
+      - name: Check for REPLACE_WITH_ placeholders in release-critical config
+        run: |
+          set -e
+          FILES=(src-tauri/tauri.conf.json src-tauri/Cargo.toml package.json src-tauri/src/download.rs)
+          FOUND=0
+          for f in "${FILES[@]}"; do
+            if [ ! -f "$f" ]; then
+              continue
+            fi
+            if grep -nH 'REPLACE_WITH_' "$f" >/dev/null 2>&1; then
+              while IFS= read -r line; do
+                file=$(echo "$line" | cut -d: -f1)
+                lineno=$(echo "$line" | cut -d: -f2)
+                echo "::error file=${file},line=${lineno}::REPLACE_WITH_ placeholder remains — fix before releasing"
+              done < <(grep -nH 'REPLACE_WITH_' "$f")
+              FOUND=1
+            fi
+          done
+          [ $FOUND -eq 0 ] || exit 1
+          echo "No REPLACE_WITH_ placeholders found."
+
   release:
     needs: preflight
     permissions:
@@ -164,7 +223,7 @@ jobs:
           NODE
 
       - name: Build and release
-        uses: tauri-apps/tauri-action@v0
+        uses: tauri-apps/tauri-action@v0.6.2  # pinned 2026-03-14; per CONFIG-05; update only after testing
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
