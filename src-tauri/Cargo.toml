@@ -43,6 +43,14 @@ tokio = { version = "1", features = ["time"] }
 sqlx = { version = "0.8", features = ["runtime-tokio", "sqlite"] }
 chrono = { version = "0.4", features = ["serde"] }
 zip = { version = "2", features = ["deflate"] }
+# Pinned: pure-Rust archive extraction + integrity check; see .planning/phases/19-release-critical-config-packaging-blockers/
+tar = "=0.4.45"
+bzip2-rs = "=0.1.2"
+sha2 = "=0.10.9"
+fs2 = "=0.4.3"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 tauri-plugin-macos-permissions = "2"
+
+[dev-dependencies]
+tempfile = "3"
