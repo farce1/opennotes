@@ -1,0 +1,2 @@
+# Binary assets vendored for offline-reproducible builds
+src-tauri/vendor/*.exe binary
