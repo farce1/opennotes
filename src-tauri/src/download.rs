@@ -389,6 +389,55 @@ pub async fn download_model(
     Ok(())
 }
 
+#[cfg(test)]
+mod model_archive_consts_tests {
+    use super::{DIARIZATION_SEGMENTATION_ARCHIVE, WHISPER_TURBO_ARCHIVE};
+
+    #[test]
+    fn whisper_archive_sha256_is_filled_in() {
+        assert!(
+            !WHISPER_TURBO_ARCHIVE.sha256.contains("REPLACE_WITH_"),
+            "WHISPER_TURBO_ARCHIVE.sha256 still contains REPLACE_WITH_ — maintainer must replace with the real lowercase-hex SHA256 of the downloaded archive (see CONTEXT.md D-17 and Plan 03 Task 0)"
+        );
+        assert_eq!(
+            WHISPER_TURBO_ARCHIVE.sha256.len(),
+            64,
+            "SHA256 hex must be 64 chars"
+        );
+        assert!(
+            WHISPER_TURBO_ARCHIVE
+                .sha256
+                .chars()
+                .all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase()),
+            "SHA256 must be lowercase hex per CONTEXT.md D-17"
+        );
+        assert!(
+            WHISPER_TURBO_ARCHIVE.compressed_size > 0
+                && WHISPER_TURBO_ARCHIVE.uncompressed_size > 0,
+            "compressed_size and uncompressed_size must be non-zero (maintainer fill-in)"
+        );
+    }
+
+    #[test]
+    fn diarization_archive_sha256_is_filled_in() {
+        assert!(
+            !DIARIZATION_SEGMENTATION_ARCHIVE
+                .sha256
+                .contains("REPLACE_WITH_"),
+            "DIARIZATION_SEGMENTATION_ARCHIVE.sha256 still contains REPLACE_WITH_ — see Plan 03 Task 0"
+        );
+        assert_eq!(DIARIZATION_SEGMENTATION_ARCHIVE.sha256.len(), 64);
+        assert!(DIARIZATION_SEGMENTATION_ARCHIVE
+            .sha256
+            .chars()
+            .all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase()));
+        assert!(
+            DIARIZATION_SEGMENTATION_ARCHIVE.compressed_size > 0
+                && DIARIZATION_SEGMENTATION_ARCHIVE.uncompressed_size > 0,
+        );
+    }
+}
+
 pub async fn download_diarization_model(
     on_event: Channel<DownloadEvent>,
     data_dir: PathBuf,
