@@ -270,6 +270,7 @@ pub fn run() {
             commands::update_recording_shortcut,
             commands::update_pause_shortcut,
             commands::auto_setup_ollama,
+            commands::get_ollama_download_metadata,
             commands::check_ollama_status,
             commands::pull_ollama_model,
             commands::generate_summary,
