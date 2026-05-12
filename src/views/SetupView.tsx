@@ -15,6 +15,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router';
 
+import { OllamaConsentModal } from '../components/OllamaConsentModal';
 import { useModelSetup } from '../hooks/useModelSetup';
 import { useOllamaSetup } from '../hooks/useOllamaSetup';
 
@@ -87,6 +88,9 @@ export function SetupView() {
     ollamaDownloadProgress,
     errorMessage: ollamaErrorMessage,
     autoSetup,
+    consentModalOpen,
+    consentModalData,
+    resolveConsent,
   } = useOllamaSetup();
   const [downloadStartedAt, setDownloadStartedAt] = useState<number | null>(null);
   const [ollamaDownloadStartedAt, setOllamaDownloadStartedAt] = useState<number | null>(null);
@@ -510,6 +514,17 @@ export function SetupView() {
           </div>
         </footer>
       </div>
+
+      {consentModalData && (
+        <OllamaConsentModal
+          open={consentModalOpen}
+          sourceDomain={consentModalData.sourceDomain}
+          downloadUrl={consentModalData.downloadUrl}
+          sizeBytes={consentModalData.sizeBytes}
+          onConfirm={() => resolveConsent(true)}
+          onDecline={() => resolveConsent(false)}
+        />
+      )}
     </section>
   );
 }
