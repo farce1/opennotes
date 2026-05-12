@@ -10,6 +10,7 @@ use serde::Serialize;
 use tauri::ipc::Channel;
 
 use crate::diarization::model as diarization_model;
+use crate::extract::{check_disk_space, extract_tar_bz2, verify_sha256, ExtractError, ModelArchive};
 use crate::transcription::model;
 
 pub type DownloadCancelFlag = Arc<AtomicBool>;
@@ -22,6 +23,33 @@ const WHISPER_TURBO_TMP_NAME: &str = "whisper-turbo-model.tar.bz2.tmp";
 const DIARIZATION_SEGMENTATION_TMP_NAME: &str = "diarization-segmentation-model.tar.bz2.tmp";
 const DIARIZATION_EMBEDDING_TMP_NAME: &str = "nemo_en_titanet_small.onnx.tmp";
 const PROGRESS_EMIT_STEP_BYTES: u64 = 512 * 1024;
+
+// ----- Model archives (URL + SHA256 + size — part of the trust chain, per CONTEXT.md D-17) -----
+//
+// To regenerate (maintainer-only):
+//   curl -L -o /tmp/whisper.tar.bz2 "$WHISPER_TURBO_URL"
+//   sha256sum /tmp/whisper.tar.bz2          # paste hex into WHISPER_TURBO_ARCHIVE.sha256
+//   stat -f%z /tmp/whisper.tar.bz2          # macOS — paste into compressed_size
+//   stat -c%s /tmp/whisper.tar.bz2          # linux  — paste into compressed_size
+//   tar -xjf /tmp/whisper.tar.bz2 -C /tmp/whisper_extract && du -sb /tmp/whisper_extract  # uncompressed_size
+//
+// Until the maintainer fills these in (see Plan 03 Task 0 + the model_archive_consts_tests
+// gate at the bottom of this file), the unit tests fail loudly and the Plan 02 CONFIG-04
+// CI grep catches the REPLACE_WITH_ literals at PR time.
+
+pub(crate) const WHISPER_TURBO_ARCHIVE: ModelArchive = ModelArchive {
+    url: WHISPER_TURBO_URL,
+    sha256: "REPLACE_WITH_SHA256_WHISPER_TURBO",
+    compressed_size: 0,
+    uncompressed_size: 0,
+};
+
+pub(crate) const DIARIZATION_SEGMENTATION_ARCHIVE: ModelArchive = ModelArchive {
+    url: diarization_model::SEGMENTATION_ARCHIVE_URL,
+    sha256: "REPLACE_WITH_SHA256_DIARIZATION_SEGMENTATION",
+    compressed_size: 0,
+    uncompressed_size: 0,
+};
 
 #[derive(Clone, Serialize)]
 #[serde(
@@ -40,6 +68,8 @@ pub enum DownloadEvent {
     Cancelled,
     Error {
         message: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        kind: Option<String>,
     },
 }
 
@@ -57,6 +87,14 @@ pub(crate) fn send_progress(
 pub(crate) fn send_error(on_event: &Channel<DownloadEvent>, message: &str) {
     let _ = on_event.send(DownloadEvent::Error {
         message: message.to_string(),
+        kind: None,
+    });
+}
+
+pub(crate) fn send_extract_error(on_event: &Channel<DownloadEvent>, err: &ExtractError) {
+    let _ = on_event.send(DownloadEvent::Error {
+        message: err.message(),
+        kind: Some(err.kind().to_string()),
     });
 }
 
@@ -221,6 +259,18 @@ pub async fn download_model(
     let needs_vad = !model::vad_model_path(data_dir).exists();
     let needs_transcription_assets = !model::check_transcription_assets_ready(data_dir);
 
+    // --- Disk pre-check (D-19): MUST run before any HTTP download begins so the user is
+    //     not asked to wait for a large download that cannot be extracted. This pre-check
+    //     gates the `download_to_file` invocations below.
+    if needs_transcription_assets {
+        if let Err(err) = check_disk_space(data_dir, WHISPER_TURBO_ARCHIVE.required_free_space())
+        {
+            let msg = err.message();
+            send_extract_error(&on_event, &err);
+            return Err(msg);
+        }
+    }
+
     let vad_total = if needs_vad {
         content_length(&client, VAD_URL).await
     } else {
@@ -346,24 +396,40 @@ pub async fn download_model(
 
         let _ = on_event.send(DownloadEvent::Extracting);
 
-        let tar_status = std::process::Command::new("tar")
-            .arg("-xjf")
-            .arg(&model_archive_tmp)
-            .arg("-C")
-            .arg(&models_dir)
-            .status()
-            .map_err(|err| format!("failed to run tar extraction: {err}"))?;
-
-        if !tar_status.success() {
+        // --- SHA256 verification (D-18): on the .tmp file, BEFORE extraction.
+        if let Err(err) = verify_sha256(&model_archive_tmp, WHISPER_TURBO_ARCHIVE.sha256) {
             cleanup_tmp(&model_archive_tmp);
-            send_error(
-                &on_event,
-                "Failed to extract transcription model archive. Please retry.",
-            );
-            return Err("tar extraction failed for transcription model archive".to_string());
+            let msg = err.message();
+            send_extract_error(&on_event, &err);
+            return Err(msg);
         }
 
-        cleanup_tmp(&model_archive_tmp);
+        // --- Pure-Rust streaming extraction wrapped in spawn_blocking (D-16 + Pitfall 6).
+        let archive_path = model_archive_tmp.clone();
+        let dst_path = models_dir.clone();
+        let extract_result =
+            tokio::task::spawn_blocking(move || extract_tar_bz2(&archive_path, &dst_path)).await;
+
+        match extract_result {
+            Ok(Ok(())) => {
+                cleanup_tmp(&model_archive_tmp);
+            }
+            Ok(Err(err)) => {
+                cleanup_tmp(&model_archive_tmp);
+                let msg = err.message();
+                send_extract_error(&on_event, &err);
+                return Err(msg);
+            }
+            Err(join_err) => {
+                cleanup_tmp(&model_archive_tmp);
+                let err = ExtractError::Unknown(std::io::Error::other(format!(
+                    "extraction task panicked: {join_err}"
+                )));
+                let msg = err.message();
+                send_extract_error(&on_event, &err);
+                return Err(msg);
+            }
+        }
 
         if !model::whisper_turbo_model_dir(data_dir).exists() {
             send_error(
@@ -387,55 +453,6 @@ pub async fn download_model(
 
     let _ = on_event.send(DownloadEvent::Complete);
     Ok(())
-}
-
-#[cfg(test)]
-mod model_archive_consts_tests {
-    use super::{DIARIZATION_SEGMENTATION_ARCHIVE, WHISPER_TURBO_ARCHIVE};
-
-    #[test]
-    fn whisper_archive_sha256_is_filled_in() {
-        assert!(
-            !WHISPER_TURBO_ARCHIVE.sha256.contains("REPLACE_WITH_"),
-            "WHISPER_TURBO_ARCHIVE.sha256 still contains REPLACE_WITH_ — maintainer must replace with the real lowercase-hex SHA256 of the downloaded archive (see CONTEXT.md D-17 and Plan 03 Task 0)"
-        );
-        assert_eq!(
-            WHISPER_TURBO_ARCHIVE.sha256.len(),
-            64,
-            "SHA256 hex must be 64 chars"
-        );
-        assert!(
-            WHISPER_TURBO_ARCHIVE
-                .sha256
-                .chars()
-                .all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase()),
-            "SHA256 must be lowercase hex per CONTEXT.md D-17"
-        );
-        assert!(
-            WHISPER_TURBO_ARCHIVE.compressed_size > 0
-                && WHISPER_TURBO_ARCHIVE.uncompressed_size > 0,
-            "compressed_size and uncompressed_size must be non-zero (maintainer fill-in)"
-        );
-    }
-
-    #[test]
-    fn diarization_archive_sha256_is_filled_in() {
-        assert!(
-            !DIARIZATION_SEGMENTATION_ARCHIVE
-                .sha256
-                .contains("REPLACE_WITH_"),
-            "DIARIZATION_SEGMENTATION_ARCHIVE.sha256 still contains REPLACE_WITH_ — see Plan 03 Task 0"
-        );
-        assert_eq!(DIARIZATION_SEGMENTATION_ARCHIVE.sha256.len(), 64);
-        assert!(DIARIZATION_SEGMENTATION_ARCHIVE
-            .sha256
-            .chars()
-            .all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase()));
-        assert!(
-            DIARIZATION_SEGMENTATION_ARCHIVE.compressed_size > 0
-                && DIARIZATION_SEGMENTATION_ARCHIVE.uncompressed_size > 0,
-        );
-    }
 }
 
 pub async fn download_diarization_model(
@@ -462,6 +479,20 @@ pub async fn download_diarization_model(
     let needs_segmentation =
         !diarization_model::segmentation_model_path(data_dir.as_path()).exists();
     let needs_embedding = !diarization_model::embedding_model_path(data_dir.as_path()).exists();
+
+    // --- Disk pre-check (D-19): MUST run before any HTTP download begins so the user is
+    //     not asked to wait for a download that cannot be extracted. This pre-check
+    //     gates the `download_to_file` invocations below.
+    if needs_segmentation {
+        if let Err(err) = check_disk_space(
+            data_dir.as_path(),
+            DIARIZATION_SEGMENTATION_ARCHIVE.required_free_space(),
+        ) {
+            let msg = err.message();
+            send_extract_error(&on_event, &err);
+            return Err(msg);
+        }
+    }
 
     let segmentation_total = if needs_segmentation {
         content_length(&client, diarization_model::SEGMENTATION_ARCHIVE_URL).await
@@ -544,22 +575,39 @@ pub async fn download_diarization_model(
         downloaded_so_far = downloaded_so_far.saturating_add(segmentation_downloaded);
         let _ = on_event.send(DownloadEvent::Extracting);
 
-        let tar_status = std::process::Command::new("tar")
-            .arg("-xjf")
-            .arg(&archive_tmp)
-            .arg("-C")
-            .arg(&diarization_dir)
-            .status()
-            .map_err(|err| format!("failed to run diarization tar extraction: {err}"))?;
+        // --- SHA256 verification (D-18): on the .tmp file, BEFORE extraction.
+        if let Err(err) = verify_sha256(&archive_tmp, DIARIZATION_SEGMENTATION_ARCHIVE.sha256) {
+            cleanup_tmp(&archive_tmp);
+            let msg = err.message();
+            send_extract_error(&on_event, &err);
+            return Err(msg);
+        }
 
-        cleanup_tmp(&archive_tmp);
+        // --- Pure-Rust streaming extraction wrapped in spawn_blocking (D-16 + Pitfall 6).
+        let archive_path = archive_tmp.clone();
+        let dst_path = diarization_dir.clone();
+        let extract_result =
+            tokio::task::spawn_blocking(move || extract_tar_bz2(&archive_path, &dst_path)).await;
 
-        if !tar_status.success() {
-            send_error(
-                &on_event,
-                "Failed to extract speaker segmentation model archive. Please retry.",
-            );
-            return Err("tar extraction failed for diarization segmentation archive".to_string());
+        match extract_result {
+            Ok(Ok(())) => {
+                cleanup_tmp(&archive_tmp);
+            }
+            Ok(Err(err)) => {
+                cleanup_tmp(&archive_tmp);
+                let msg = err.message();
+                send_extract_error(&on_event, &err);
+                return Err(msg);
+            }
+            Err(join_err) => {
+                cleanup_tmp(&archive_tmp);
+                let err = ExtractError::Unknown(std::io::Error::other(format!(
+                    "diarization extraction task panicked: {join_err}"
+                )));
+                let msg = err.message();
+                send_extract_error(&on_event, &err);
+                return Err(msg);
+            }
         }
 
         if !diarization_model::segmentation_model_path(data_dir.as_path()).exists() {
@@ -662,4 +710,57 @@ pub async fn download_diarization_model(
 
     let _ = on_event.send(DownloadEvent::Complete);
     Ok(())
+}
+
+#[cfg(test)]
+// These tests intentionally compare const placeholder fields against `0` and use string
+// literals that are constant-foldable. They are a fail-loud maintainer gate per Plan 03
+// Task 0 + CONTEXT.md D-17 — the asserts MUST run at test time, not be elided by clippy.
+#[allow(clippy::absurd_extreme_comparisons, clippy::assertions_on_constants)]
+mod model_archive_consts_tests {
+    use super::{DIARIZATION_SEGMENTATION_ARCHIVE, WHISPER_TURBO_ARCHIVE};
+
+    #[test]
+    fn whisper_archive_sha256_is_filled_in() {
+        assert!(
+            !WHISPER_TURBO_ARCHIVE.sha256.contains("REPLACE_WITH_"),
+            "WHISPER_TURBO_ARCHIVE.sha256 still contains REPLACE_WITH_ — maintainer must replace with the real lowercase-hex SHA256 of the downloaded archive (see CONTEXT.md D-17 and Plan 03 Task 0)"
+        );
+        assert_eq!(
+            WHISPER_TURBO_ARCHIVE.sha256.len(),
+            64,
+            "SHA256 hex must be 64 chars"
+        );
+        assert!(
+            WHISPER_TURBO_ARCHIVE
+                .sha256
+                .chars()
+                .all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase()),
+            "SHA256 must be lowercase hex per CONTEXT.md D-17"
+        );
+        assert!(
+            WHISPER_TURBO_ARCHIVE.compressed_size > 0
+                && WHISPER_TURBO_ARCHIVE.uncompressed_size > 0,
+            "compressed_size and uncompressed_size must be non-zero (maintainer fill-in)"
+        );
+    }
+
+    #[test]
+    fn diarization_archive_sha256_is_filled_in() {
+        assert!(
+            !DIARIZATION_SEGMENTATION_ARCHIVE
+                .sha256
+                .contains("REPLACE_WITH_"),
+            "DIARIZATION_SEGMENTATION_ARCHIVE.sha256 still contains REPLACE_WITH_ — see Plan 03 Task 0"
+        );
+        assert_eq!(DIARIZATION_SEGMENTATION_ARCHIVE.sha256.len(), 64);
+        assert!(DIARIZATION_SEGMENTATION_ARCHIVE
+            .sha256
+            .chars()
+            .all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase()));
+        assert!(
+            DIARIZATION_SEGMENTATION_ARCHIVE.compressed_size > 0
+                && DIARIZATION_SEGMENTATION_ARCHIVE.uncompressed_size > 0,
+        );
+    }
 }
