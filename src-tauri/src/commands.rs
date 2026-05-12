@@ -825,10 +825,23 @@ pub async fn auto_setup_ollama(
     server_url: Option<String>,
     model: Option<String>,
     on_event: Channel<llm::setup::OllamaSetupEvent>,
+    user_consented: Option<bool>,
 ) -> Result<(), String> {
     let url = server_url.unwrap_or_else(|| llm::DEFAULT_OLLAMA_URL.to_string());
     let selected_model = model.unwrap_or_else(|| llm::DEFAULT_MODEL.to_string());
-    llm::setup::auto_setup_ollama(&url, &selected_model, &on_event).await
+    // Fail closed: missing/None user_consented is treated as false.
+    // The frontend always sets userConsented: true after the consent modal;
+    // the Option<bool> wrapper exists only so that a buggy frontend that omits
+    // the field gets the structured "consent_required" error instead of a
+    // 'missing argument' Tauri parse error.
+    let consented = user_consented.unwrap_or(false);
+    llm::setup::auto_setup_ollama(&url, &selected_model, &on_event, consented).await
+}
+
+#[tauri::command]
+pub async fn get_ollama_download_metadata() -> Result<llm::setup::OllamaDownloadMetadata, String> {
+    // Per CONTEXT.md D-22: never block on HEAD failure — always returns Ok.
+    Ok(llm::setup::resolve_download_metadata().await)
 }
 
 #[tauri::command]

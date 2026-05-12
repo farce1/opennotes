@@ -3,6 +3,7 @@ import { open } from '@tauri-apps/plugin-shell';
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { isMacOS } from '../lib/platform';
 import { getSetting } from '../lib/settings';
 import type { OllamaPullEvent, OllamaSetupEvent, OllamaSetupPhase, OllamaStatus } from '../types';
 
@@ -35,12 +36,21 @@ function mapStatusToPhase(status: OllamaStatus): OllamaSetupPhase {
   return 'not_installed';
 }
 
+type ConsentModalData = {
+  sourceDomain: string;
+  downloadUrl: string;
+  sizeBytes: number | null;
+};
+
 interface OllamaSetupContextValue {
   setupPhase: OllamaSetupPhase;
   pullProgress: PullProgress | null;
   ollamaDownloadProgress: OllamaDownloadProgress | null;
   errorMessage: string | null;
   waitingForOllama: boolean;
+  consentModalOpen: boolean;
+  consentModalData: ConsentModalData | null;
+  resolveConsent: (consented: boolean) => void;
   checkStatus: (silent?: boolean) => Promise<OllamaStatus | null>;
   openOllamaDownload: () => Promise<void>;
   startOllama: () => Promise<void>;
@@ -54,6 +64,9 @@ const OllamaSetupContext = createContext<OllamaSetupContextValue>({
   ollamaDownloadProgress: null,
   errorMessage: null,
   waitingForOllama: false,
+  consentModalOpen: false,
+  consentModalData: null,
+  resolveConsent: () => {},
   checkStatus: async () => null,
   openOllamaDownload: async () => {},
   startOllama: async () => {},
@@ -72,6 +85,13 @@ export function OllamaSetupProvider({ children }: { children: ReactNode }) {
   const [ollamaDownloadProgress, setOllamaDownloadProgress] = useState<OllamaDownloadProgress | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [waitingForOllama, setWaitingForOllama] = useState(false);
+
+  const [consentModalOpen, setConsentModalOpen] = useState(false);
+  const [consentModalData, setConsentModalData] = useState<ConsentModalData | null>(null);
+
+  // Capture the pending consent resolver so the modal's onConfirm/onDecline
+  // can resume the suspended autoSetup() invocation.
+  const consentResolverRef = useRef<((consented: boolean) => void) | null>(null);
 
   const pollTimerRef = useRef<number | null>(null);
   const pullChannelRef = useRef<Channel<OllamaPullEvent> | null>(null);
@@ -191,6 +211,47 @@ export function OllamaSetupProvider({ children }: { children: ReactNode }) {
     setOllamaDownloadProgress(null);
     setPullProgress(null);
 
+    // --- ONBOARD-04 consent gate (D-21, D-25): macOS-only.
+    // Non-macOS platforms have no auto-install path in the backend, so the
+    // existing fall-through behavior remains unchanged.
+    if (isMacOS()) {
+      // Fetch download metadata (size, URL) for the modal.
+      // Per D-22 / Pitfall 7: never block on HEAD failure — the command
+      // always returns OK with size_bytes: null on failure.
+      let metadata: ConsentModalData;
+      try {
+        metadata = await invoke<ConsentModalData>('get_ollama_download_metadata');
+      } catch {
+        // Fail gracefully — fall back to a metadata-less consent modal so the
+        // user can still consent (or decline).
+        metadata = {
+          sourceDomain: 'ollama.com',
+          downloadUrl: 'https://ollama.com/download/Ollama-darwin.zip',
+          sizeBytes: null,
+        };
+      }
+
+      setConsentModalData(metadata);
+      setConsentModalOpen(true);
+
+      // Suspend autoSetup until the user clicks a modal button.
+      const consented = await new Promise<boolean>((resolve) => {
+        consentResolverRef.current = resolve;
+      });
+
+      // Modal closes itself via the resolver path below.
+      setConsentModalOpen(false);
+      setConsentModalData(null);
+
+      if (!consented) {
+        // User declined — open manual install page, exit autoSetup.
+        await open('https://ollama.com/download');
+        setSetupPhase('not_installed');
+        return;
+      }
+    }
+
+    // --- Original flow resumes here.
     let errorHandled = false;
 
     const channel = new Channel<OllamaSetupEvent>();
@@ -224,6 +285,16 @@ export function OllamaSetupProvider({ children }: { children: ReactNode }) {
           setErrorMessage(null);
           break;
         case 'error':
+          // Defense-in-depth: map the backend consent_required stage to a
+          // user-friendly message if the modal was somehow bypassed.
+          if (event.data.stage === 'consent_required') {
+            errorHandled = true;
+            setSetupPhase('not_installed');
+            setErrorMessage(t('context_ollama_consentRequired', {
+              defaultValue: 'Consent is required to auto-install Ollama. Click "Set up AI" again to re-trigger the consent dialog.',
+            }));
+            return;
+          }
           errorHandled = true;
           setSetupPhase('error');
           setErrorMessage(event.data.message);
@@ -233,14 +304,18 @@ export function OllamaSetupProvider({ children }: { children: ReactNode }) {
 
     try {
       const currentModel = await getSetting('ollamaModel');
-      await invoke('auto_setup_ollama', { model: currentModel || 'phi4-mini', onEvent: channel });
+      await invoke('auto_setup_ollama', {
+        model: currentModel || 'phi4-mini',
+        onEvent: channel,
+        userConsented: true, // serializes to user_consented in Rust
+      });
     } catch {
       if (!errorHandled) {
         setSetupPhase('error');
         setErrorMessage(t('context_ollama_autoSetupFailed'));
       }
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     void checkStatus();
@@ -254,6 +329,12 @@ export function OllamaSetupProvider({ children }: { children: ReactNode }) {
     [stopPolling],
   );
 
+  const resolveConsent = useCallback((consented: boolean) => {
+    const resolver = consentResolverRef.current;
+    consentResolverRef.current = null;
+    if (resolver) resolver(consented);
+  }, []);
+
   return (
     <OllamaSetupContext.Provider
       value={{
@@ -262,6 +343,9 @@ export function OllamaSetupProvider({ children }: { children: ReactNode }) {
         ollamaDownloadProgress,
         errorMessage,
         waitingForOllama,
+        consentModalOpen,
+        consentModalData,
+        resolveConsent,
         checkStatus,
         openOllamaDownload,
         startOllama,

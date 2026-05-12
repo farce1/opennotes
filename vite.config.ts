@@ -40,4 +40,22 @@ export default defineConfig({
       },
     },
   },
+  test: {
+    projects: [
+      {
+        // .tsx tests need a DOM environment for React Testing Library
+        test: {
+          include: ['src/**/*.test.tsx'],
+          environment: 'jsdom',
+        },
+      },
+      {
+        // .ts tests and scripts run in node environment
+        test: {
+          include: ['src/**/*.test.ts', 'scripts/**/*.test.mjs'],
+          environment: 'node',
+        },
+      },
+    ],
+  },
 });

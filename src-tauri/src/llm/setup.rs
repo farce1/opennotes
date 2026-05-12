@@ -84,6 +84,77 @@ async fn content_length(client: &Client, url: &str) -> u64 {
     }
 }
 
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OllamaDownloadMetadata {
+    pub source_domain: String,
+    pub download_url: String,
+    pub size_bytes: Option<u64>,
+}
+
+/// Pure consent guard — returns Err with the canonical `consent_required` event
+/// payload when the user has not consented. This is split out from
+/// `auto_setup_ollama` so it can be unit-tested without constructing a real
+/// `tauri::ipc::Channel` (which requires a running App context).
+///
+/// The Err variant carries an `OllamaSetupEvent::Error { stage, message }` so
+/// the caller can `send_error(on_event, ...)` and then `Err(...)` with no
+/// duplicated string literals.
+///
+/// `stage: "consent_required"` is part of the i18n contract — the frontend
+/// `OllamaSetupContext.tsx` error handler matches on this exact string to
+/// surface the "Click Set up AI again" copy. Do not rename without updating
+/// the frontend handler.
+pub(crate) fn check_consent(user_consented: bool) -> Result<(), OllamaSetupEvent> {
+    if !user_consented {
+        return Err(OllamaSetupEvent::Error {
+            message: "User consent required before downloading Ollama installer".to_string(),
+            stage: "consent_required".to_string(),
+        });
+    }
+    Ok(())
+}
+
+/// Resolve the download metadata used in the ONBOARD-04 consent modal.
+///
+/// - On macOS: returns the full Ollama-darwin.zip URL and a HEAD-resolved size.
+/// - On non-macOS: returns empty `download_url` and `size_bytes: None` (no auto-install path).
+///
+/// HEAD requests use a 5s timeout. A timeout / network failure resolves to
+/// `size_bytes: None` — NEVER returns Err. Per CONTEXT.md D-22 / RESEARCH.md Pitfall 7:
+/// "do NOT block on HEAD failure."
+pub async fn resolve_download_metadata() -> OllamaDownloadMetadata {
+    let source_domain = "ollama.com".to_string();
+
+    #[cfg(target_os = "macos")]
+    {
+        let download_url = OLLAMA_ZIP_URL.to_string();
+        let size_bytes = head_size_with_timeout(&download_url, std::time::Duration::from_secs(5)).await;
+        OllamaDownloadMetadata { source_domain, download_url, size_bytes }
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    {
+        OllamaDownloadMetadata {
+            source_domain,
+            download_url: String::new(),
+            size_bytes: None,
+        }
+    }
+}
+
+#[cfg(target_os = "macos")]
+async fn head_size_with_timeout(url: &str, timeout: std::time::Duration) -> Option<u64> {
+    let client = match reqwest::Client::builder().timeout(timeout).build() {
+        Ok(c) => c,
+        Err(_) => return None,
+    };
+    match client.head(url).send().await {
+        Ok(resp) => resp.content_length(),
+        Err(_) => None,
+    }
+}
+
 #[cfg(target_os = "macos")]
 async fn download_ollama_zip(
     client: &Client,
@@ -339,7 +410,15 @@ pub async fn auto_setup_ollama(
     server_url: &str,
     model: &str,
     on_event: &Channel<OllamaSetupEvent>,
+    user_consented: bool,
 ) -> Result<(), String> {
+    // Defense-in-depth consent gate (D-25). The frontend modal is the primary
+    // gate; this helper rejects any future regression that skips the modal.
+    if let Err(evt) = check_consent(user_consented) {
+        let _ = on_event.send(evt);
+        return Err("consent_required".to_string());
+    }
+
     let status = detect::full_status(server_url, model).await;
 
     // Step 1: Install if needed (macOS only)
@@ -407,4 +486,42 @@ pub async fn auto_setup_ollama(
 
     let _ = on_event.send(OllamaSetupEvent::Complete);
     Ok(())
+}
+
+#[cfg(test)]
+mod consent_guard_tests {
+    use super::{check_consent, OllamaSetupEvent};
+
+    // user_consented=false must return Err with stage="consent_required".
+    // This is the defense-in-depth gate the frontend depends on for the
+    // "Click Set up AI again" error copy.
+    #[test]
+    fn check_consent_false_returns_err_with_stage_consent_required() {
+        let result = check_consent(false);
+        assert!(result.is_err(), "check_consent(false) must return Err");
+        match result {
+            Err(OllamaSetupEvent::Error { ref stage, .. }) => {
+                assert_eq!(stage, "consent_required",
+                    "stage discriminator must be 'consent_required' — frontend i18n contract");
+            }
+            Err(_other) => panic!("expected OllamaSetupEvent::Error variant"),
+            Ok(()) => unreachable!(),
+        }
+    }
+
+    // user_consented=true must return Ok(()) — the function MUST NOT block
+    // legitimate consent flows.
+    #[test]
+    fn check_consent_true_returns_ok() {
+        let result = check_consent(true);
+        assert!(result.is_ok(), "check_consent(true) must return Ok");
+    }
+
+    // Combined assertion form per B5 acceptance criterion — both calls in one test
+    // body so a single grep can confirm both behaviors are exercised.
+    #[test]
+    fn check_consent_combined_behavior() {
+        assert!(check_consent(false).is_err());
+        assert!(check_consent(true).is_ok());
+    }
 }
