@@ -240,6 +240,252 @@ function pathSafeModelName(name) {
   return name.replace(/:/g, '-');
 }
 
+// === Block A: Ollama HTTP API timing capture ===
+// Mirrors RESEARCH Pattern 4. Timing fields are nanoseconds per Ollama docs.
+
+async function generateAndTime(model, prompt, opts) {
+  const wallStart = process.hrtime.bigint();
+  const res = await fetch(`${OLLAMA_BASE}/api/generate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model,
+      prompt,
+      stream: false,
+      keep_alive: opts.keep_alive ?? '5m',
+      options: {
+        num_predict: opts.num_predict,
+        temperature: METHODOLOGY.temperature,
+        seed: METHODOLOGY.seed,
+        num_ctx: opts.num_ctx ?? 4096,
+      },
+    }),
+  });
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`Ollama /api/generate failed for ${model}: ${res.status} ${body.slice(0, 200)}`);
+  }
+  const json = await res.json();
+  const wall_ns = Number(process.hrtime.bigint() - wallStart);
+  return {
+    response: json.response ?? '',
+    eval_count: json.eval_count ?? 0,
+    eval_duration_ns: json.eval_duration ?? 0,
+    prompt_eval_duration_ns: json.prompt_eval_duration ?? 0,
+    total_duration_ns: json.total_duration ?? 0,
+    load_duration_ns: json.load_duration ?? 0,
+    wall_clock_ns: wall_ns,
+  };
+}
+
+// === Block B: Chunked summarization mirroring llm/mod.rs ===
+// MUST byte-match src-tauri/src/llm/mod.rs:14-18 — already declared above.
+// MUST byte-match src-tauri/src/llm/mod.rs:455 — keep in sync.
+// On drift, the byte-diff acceptance check (Step 4) fails loudly.
+
+// Mirrors src-tauri/src/llm/mod.rs:455 — DEFAULT_STANDARD_PROMPT.
+const DEFAULT_STANDARD_PROMPT = "You are a meeting notes assistant. Summarize ONLY what is explicitly said in the transcript below. Do NOT invent, assume, or hallucinate any information that is not directly present in the transcript. If the transcript is short or lacks substance, reflect that honestly — write a brief summary and use \"None identified.\" for empty sections.\n\nProduce structured meeting notes in Markdown with exactly these four sections:\n\n## Overview\n[Summarize only what was actually discussed. For very short or minimal transcripts, write 1-2 sentences. For longer meetings, write up to 8-12 sentences. Only mention participants if they are named in the transcript.]\n\n## Key Points\n[Bullet list of the most important facts, insights, or information shared. Only include points explicitly stated in the transcript. If nothing substantive was discussed, write \"None identified.\"]\n\n## Decisions Made\n[Bullet list of decisions that were made during the meeting. Only include decisions explicitly stated. If none, write \"None identified.\"]\n\n## Action Items\n[List ALL action items as: - @[person]: [task] by [deadline]. Only include action items explicitly assigned in the transcript. If no action items were mentioned, write \"None identified.\"]\n\nCRITICAL: Every claim in your summary must be directly traceable to the transcript. If the transcript contains only greetings or filler words, say so. Do NOT fabricate meeting content.\n\nAlso generate a concise meeting title (max 10 words) on the very first line as: TITLE: [title]";
+
+// Mirrors src-tauri/src/llm/mod.rs:448-453 — keep in sync.
+// Benchmarks run English-only (per CONTEXT.md scope), but mirror the helper for fidelity.
+function buildLanguageInstruction(language) {
+  if (language === "pl") {
+    return "\nWrite the entire summary in Polish (język polski). Use Polish for all section headings: use \"## Przegląd\" instead of \"## Overview\", \"## Kluczowe punkty\" instead of \"## Key Points\", \"## Podjęte decyzje\" instead of \"## Decisions Made\", \"## Zadania do wykonania\" instead of \"## Action Items\". Write \"Brak.\" instead of \"None identified.\" The TITLE: line should also be in Polish.\n\n";
+  }
+  return "";
+}
+
+// Mirrors src-tauri/src/llm/mod.rs:457-469 — keep in sync.
+// Harness uses templatePrompt=null and speakerRoster=null (benchmarks run defaults only).
+function buildPromptFromTemplate(transcript, language = "en", templatePrompt = null, speakerRoster = null) {
+  const base = templatePrompt ?? DEFAULT_STANDARD_PROMPT;
+  const rosterBlock = speakerRoster ?? "";
+  const langInstruction = buildLanguageInstruction(language);
+  return `${base}\n\n${rosterBlock}${langInstruction}Transcript:\n${transcript}`;
+}
+
+// Mirrors src-tauri/src/llm/mod.rs:471-488 — keep in sync.
+function buildSynthesisPrompt(stitched, language = "en", templatePrompt = null, speakerRoster = null) {
+  const rosterBlock = speakerRoster ?? "";
+  const langInstruction = buildLanguageInstruction(language);
+  if (templatePrompt != null) {
+    return `Synthesize these partial summaries into a single coherent summary. Follow the structure and tone of this template:\n\n${templatePrompt}\n\n${rosterBlock}${langInstruction}Partial summaries:\n\n${stitched}`;
+  }
+  // Default path — mirror the Rust default verbatim (with language + roster injection).
+  return `You are given partial meeting summaries from consecutive sections. Synthesize them into a single coherent summary with the same four-section structure.\n\nYou MUST include every action item from every section below. Do not merge, summarize, or drop any @person assignments. Each action item from each section must appear in the final Action Items list.\n\nThe Overview should be 8-12 sentences since this is a long meeting.\n\nReturn the result in Markdown with:\n- First line as TITLE: [concise title]\n- ## Overview\n- ## Key Points\n- ## Decisions Made\n- ## Action Items\n\n${rosterBlock}${langInstruction}Partial summaries:\n\n${stitched}`;
+}
+
+function chunkTranscript(text) {
+  if (text.length <= MAP_CHUNK_CHARS) return [text];
+  const chunks = [];
+  let start = 0;
+  while (start < text.length) {
+    const end = Math.min(start + MAP_CHUNK_CHARS, text.length);
+    chunks.push(text.slice(start, end));
+    if (end >= text.length) break;
+    start = Math.max(end - MAP_CHUNK_OVERLAP_CHARS, start + 1);
+  }
+  return chunks;
+}
+
+async function runSummary(transcript, model) {
+  if (transcript.length <= MAX_SINGLE_PASS_CHARS) {
+    return await generateAndTime(model, buildPromptFromTemplate(transcript), { num_predict: METHODOLOGY.quality_num_predict });
+  }
+  // Chunked path — mirrors generate_summary_chunked in llm/mod.rs:539
+  const chunks = chunkTranscript(transcript);
+  const partials = [];
+  const wallStart = process.hrtime.bigint();
+  for (const chunk of chunks) {
+    const p = await generateAndTime(model, buildPromptFromTemplate(chunk), { num_predict: METHODOLOGY.quality_num_predict });
+    partials.push(p.response);
+  }
+  const stitched = partials.map((p, i) => `Section ${i + 1}:\n${p}`).join("\n\n");
+  const synth = await generateAndTime(model, buildSynthesisPrompt(stitched), { num_predict: METHODOLOGY.quality_num_predict });
+  const wall_ns = Number(process.hrtime.bigint() - wallStart);
+  return { ...synth, total_duration_ns: wall_ns, wall_clock_ns: wall_ns };
+}
+
+// === Block C: Evaluator subprocess (Pitfall 10 — exit 0 and exit 1 are BOTH normal) ===
+
+function runEvaluator(pythonCmd, summaryPath, groundTruthPath) {
+  const result = spawnSync(pythonCmd, [EVALUATE_PY, summaryPath, groundTruthPath], {
+    encoding: 'utf8',
+    cwd: REPO_ROOT,
+    timeout: 60_000,
+  });
+  if (result.status === null || result.error) {
+    throw new Error(`evaluator failed to run: ${result.error?.message ?? 'spawnSync returned null status'}\nstderr:\n${result.stderr ?? ''}`);
+  }
+  // Pitfall 10: exit 0 (all-perfect) and exit 1 (some metric < 100%) are BOTH normal.
+  // Parse stdout regardless. Only unparseable stdout is a real failure.
+  const stdout = result.stdout ?? '';
+  const action = parseFloat(stdout.match(/Action items completeness:\s*([\d.]+)%/)?.[1] ?? 'NaN');
+  const decision = parseFloat(stdout.match(/Decisions completeness:\s*([\d.]+)%/)?.[1] ?? 'NaN');
+  const keypoints = parseFloat(stdout.match(/Key points completeness:\s*([\d.]+)%/)?.[1] ?? 'NaN');
+  const sections = /All required sections present:\s*True/i.test(stdout);
+  if ([action, decision, keypoints].some((v) => Number.isNaN(v))) {
+    throw new Error(`evaluator stdout did not contain expected fields:\nstdout:\n${stdout}\nstderr:\n${result.stderr}`);
+  }
+  return { action_items_pct: action, decisions_pct: decision, key_points_pct: keypoints, sections_present: sections };
+}
+
+function computeQualityScore(q) {
+  return 0.4 * q.action_items_pct + 0.3 * q.decisions_pct + 0.2 * q.key_points_pct + 0.1 * (q.sections_present ? 100 : 0);
+}
+
+function median(arr) {
+  const s = [...arr].sort((a, b) => a - b);
+  const n = s.length;
+  if (n === 0) return 0;
+  return n % 2 ? s[(n - 1) / 2] : (s[n / 2 - 1] + s[n / 2]) / 2;
+}
+
+// === Block D: Per-model orchestration ===
+
+function ollamaPull(model) {
+  console.log(`[pull] ollama pull ${model}`);
+  try {
+    execFileSync('ollama', ['pull', model], { stdio: 'inherit', cwd: REPO_ROOT });
+  } catch (e) {
+    console.error(`error: 'ollama pull ${model}' failed. Check the model name and your network. Exit: ${e.status}`);
+    process.exit(1);
+  }
+}
+
+function ollamaStop(model) {
+  try {
+    execFileSync('ollama', ['stop', model], { stdio: 'pipe', cwd: REPO_ROOT });
+  } catch {
+    // 'ollama stop' for an unloaded model is non-zero on some versions; tolerate.
+  }
+}
+
+async function benchModel(model, pythonCmd) {
+  console.log(`\n=== Benchmarking ${model.name} (verdict: ${model.verdict}) ===`);
+  const modelDir = resolve(RUNS_DIR, pathSafeModelName(model.name));
+  const qualityDir = resolve(modelDir, 'quality');
+  const speedDir = resolve(modelDir, 'speed');
+  mkdirSync(qualityDir, { recursive: true });
+  mkdirSync(speedDir, { recursive: true });
+
+  ollamaPull(model.name);
+  ollamaStop(model.name);
+
+  // Warmup — discarded (Pitfall 7 root cause #1)
+  console.log(`[warmup] ${model.name}`);
+  const warmup15 = readFileSync(TRANSCRIPTS['15min'], 'utf8');
+  await generateAndTime(model.name, buildPromptFromTemplate(warmup15), { num_predict: METHODOLOGY.speed_num_predict });
+
+  // Quality pass — 1 run × 3 transcripts (D-10)
+  const perTranscript = {};
+  const sectionsPerTranscript = {};
+  for (const key of ['15min', '45min', '90min']) {
+    console.log(`[quality] ${model.name} / ${key}`);
+    const transcript = readFileSync(TRANSCRIPTS[key], 'utf8');
+    const summary = await runSummary(transcript, model.name);
+    const outPath = resolve(qualityDir, `${key}.md`);
+    writeFileSync(outPath, summary.response);
+    const scores = runEvaluator(pythonCmd, outPath, GROUND_TRUTH[key]);
+    const quality_score = computeQualityScore(scores);
+    perTranscript[key] = {
+      quality_score,
+      action_items_pct: scores.action_items_pct,
+      decisions_pct: scores.decisions_pct,
+      key_points_pct: scores.key_points_pct,
+    };
+    sectionsPerTranscript[key] = scores.sections_present;
+    console.log(`  → action=${scores.action_items_pct}% decisions=${scores.decisions_pct}% keypoints=${scores.key_points_pct}% sections=${scores.sections_present} score=${quality_score.toFixed(1)}`);
+  }
+
+  // Aggregate quality across the 3 transcripts (model-level rollup)
+  const avg = (k) => (perTranscript['15min'][k] + perTranscript['45min'][k] + perTranscript['90min'][k]) / 3;
+  const aggSectionsPresent = Object.values(sectionsPerTranscript).every(Boolean);
+  const aggQualityScore = (perTranscript['15min'].quality_score + perTranscript['45min'].quality_score + perTranscript['90min'].quality_score) / 3;
+
+  // Speed pass — N=5 measured runs on 45min only with bounded num_predict (D-09, D-10)
+  const speedTranscript = readFileSync(TRANSCRIPTS['45min'], 'utf8');
+  const tokPerSec = [];
+  const ttftMs = [];
+  for (let i = 1; i <= METHODOLOGY.measured_runs; i++) {
+    console.log(`[speed] ${model.name} run ${i}/${METHODOLOGY.measured_runs}`);
+    const r = await generateAndTime(model.name, buildPromptFromTemplate(speedTranscript), { num_predict: METHODOLOGY.speed_num_predict });
+    const tps = r.eval_count > 0 ? r.eval_count / (r.eval_duration_ns / 1e9) : 0;
+    const ttft = r.prompt_eval_duration_ns / 1e6;
+    tokPerSec.push(tps);
+    ttftMs.push(ttft);
+    writeFileSync(resolve(speedDir, `run-${i}.md`), r.response);  // gitignored per D-22a
+  }
+  const tokens_per_sec = median(tokPerSec);
+  const time_to_first_token_ms = median(ttftMs);
+
+  // E2E pass — single run at production num_predict on 45min (D-09)
+  console.log(`[e2e] ${model.name} (production num_predict: ${METHODOLOGY.quality_num_predict})`);
+  const e2eStart = process.hrtime.bigint();
+  await runSummary(speedTranscript, model.name);
+  const e2e_summary_seconds = Number(process.hrtime.bigint() - e2eStart) / 1e9;
+
+  ollamaStop(model.name);
+
+  return {
+    name: model.name,
+    verdict: model.verdict,
+    quality: {
+      quality_score: aggQualityScore,
+      action_items_pct: avg('action_items_pct'),
+      decisions_pct: avg('decisions_pct'),
+      key_points_pct: avg('key_points_pct'),
+      sections_present: aggSectionsPresent,
+      per_transcript: perTranscript,
+    },
+    speed: {
+      tokens_per_sec,
+      time_to_first_token_ms,
+      e2e_summary_seconds,
+    },
+  };
+}
+
 async function main() {
   const generator_git_sha = getGeneratorGitSha();
   const pythonCmd = resolvePython();
@@ -248,8 +494,17 @@ async function main() {
   checkFixtures();
   console.log(`[preflight] python=${pythonCmd} ollama=${ollamaVersion} git=${generator_git_sha} target_models=${TARGET_MODELS.map(m => m.name).join(',')}`);
   const hardware_tier = detectHardwareTier();
-  // Task 2 (per-model loop) and Task 3 (JSON write + BENCHMARK.md backfill) extend this.
-  console.log('[scaffold] per-model loop implemented in Tasks 2-3');
+
+  // Per-model loop (Task 2 — Task 3 of this plan writes the JSON + backfills BENCHMARK.md)
+  const newModelRows = [];
+  for (const m of TARGET_MODELS) {
+    newModelRows.push(await benchModel(m, pythonCmd));
+  }
+  // Task 3 of this plan writes the JSON + backfills BENCHMARK.md from newModelRows + hardware_tier.
+  console.log('[scaffold] writer implemented in Task 3');
+  globalThis.__BENCH_NEW_ROWS__ = newModelRows;  // bridge to Task 3 wiring
+  globalThis.__BENCH_HARDWARE__ = hardware_tier;
+  globalThis.__BENCH_GIT_SHA__ = generator_git_sha;
 }
 
 main().catch((e) => {
