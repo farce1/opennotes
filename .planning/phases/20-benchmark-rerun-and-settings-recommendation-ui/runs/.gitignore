@@ -1,0 +1,12 @@
+# Phase 20 benchmark harness — keep only the quality-pass canonical outputs.
+# Warmup discards and N=5 speed-pass per-run outputs are timing artifacts, not audit material.
+# See .planning/phases/20-benchmark-rerun-and-settings-recommendation-ui/20-CONTEXT.md §D-22a.
+
+# Exclude warmup outputs (per-model subdirs are created by the harness lazily)
+*/warmup/
+*/speed/
+
+# Re-include the quality outputs (and the .gitignore itself)
+!*/quality/
+!*/quality/**
+!.gitignore

@@ -486,8 +486,117 @@ async function benchModel(model, pythonCmd) {
   };
 }
 
+// === Block E: Atomic JSON writer + partial-rerun merger (Task 3 — D-22, A7) ===
+// Pattern source: scripts/release-bump.mjs:86-95 — write to .bench.tmp then renameSync.
+
+function writeJsonAtomic(targetPath, data) {
+  const text = JSON.stringify(data, null, 2) + '\n';
+  const tmp = targetPath + '.bench.tmp';
+  writeFileSync(tmp, text);
+  renameSync(tmp, targetPath);
+}
+
+function writeTextAtomic(targetPath, text) {
+  const tmp = targetPath + '.bench.tmp';
+  writeFileSync(tmp, text);
+  renameSync(tmp, targetPath);
+}
+
+function mergeModelRows(existingModels, newRows) {
+  // Partial-rerun semantics (D-22, Assumption A7):
+  // - Each new row replaces the existing row with the same `name`.
+  // - Existing rows for models NOT in newRows are preserved verbatim.
+  // - Rows in newRows whose name is NOT in existing get appended.
+  const byName = new Map(existingModels.map((m) => [m.name, m]));
+  for (const row of newRows) {
+    byName.set(row.name, row);
+  }
+  // Preserve the MODELS lineup order: rows whose name is in MODELS come first, in MODELS order.
+  // Then any extras (models present in JSON but not in MODELS — e.g., a deferred model added in v1.4).
+  const ordered = [];
+  for (const m of MODELS) {
+    if (byName.has(m.name)) ordered.push(byName.get(m.name));
+  }
+  for (const [name, row] of byName.entries()) {
+    if (!MODELS.some((m) => m.name === name)) ordered.push(row);
+  }
+  return ordered;
+}
+
+function loadExistingBenchmarkData() {
+  if (!existsSync(JSON_TARGET)) return { schema_version: 1, models: [] };
+  try {
+    return JSON.parse(readFileSync(JSON_TARGET, 'utf8'));
+  } catch (e) {
+    console.warn(`[warn] existing ${JSON_TARGET} did not parse cleanly (${e.message}); treating as empty and overwriting.`);
+    return { schema_version: 1, models: [] };
+  }
+}
+
+// === Block F: v1.1 BENCHMARK.md iteration-2 backfill (D-34, D-35, D-36) ===
+
+function getGeneratorGitShaShortFromGlobal() {
+  // Helper: read from the bridge variable set in main() so the footnote can include the SHA.
+  // (Avoids passing the SHA through every backfill function signature.)
+  const sha = globalThis.__BENCH_GIT_SHA__ ?? 'unknown';
+  return sha.slice(0, 12);
+}
+
+function backfillV11BenchmarkMd(phi4MiniRow) {
+  if (!phi4MiniRow) {
+    console.log('[backfill] phi4-mini not in this run; skipping BENCHMARK.md backfill (D-35).');
+    return;
+  }
+  if (!existsSync(V11_BENCHMARK_MD)) {
+    console.warn(`[warn] ${V11_BENCHMARK_MD} not found; skipping backfill.`);
+    return;
+  }
+  let text = readFileSync(V11_BENCHMARK_MD, 'utf8');
+
+  // Per-transcript scores from the new phi4-mini row
+  const scoresByTranscript = phi4MiniRow.quality.per_transcript;
+
+  // Regex: match each row whose Iteration column starts with "2 (tuned prompt)" and the 5 trailing PENDINGs.
+  // Preserve everything except the 5 PENDING cells (D-36 — only iteration 2 gets backfilled).
+  const ITERATION_2_ROW_RE = /^(\| (15min|45min|90min) \| 2 \(tuned prompt\) \|[^|]+) \| PENDING \| PENDING \| PENDING \| PENDING \| PENDING \|$/gm;
+  let replaceCount = 0;
+  text = text.replace(ITERATION_2_ROW_RE, (_match, prefix, transcript) => {
+    const s = scoresByTranscript[transcript];
+    if (!s) return _match;
+    const passLikely = s.action_items_pct === 100 && s.decisions_pct === 100;
+    const sectionsCell = phi4MiniRow.quality.sections_present ? '✓' : '✗';
+    replaceCount += 1;
+    return `${prefix} | ${s.action_items_pct.toFixed(1)}% | ${s.decisions_pct.toFixed(1)}% | ${s.key_points_pct.toFixed(1)}% | ${sectionsCell} | ${passLikely ? 'PASS' : 'FAIL'} |`;
+  });
+
+  if (replaceCount !== 3) {
+    console.error(`[error] BENCHMARK.md backfill expected exactly 3 iteration-2 row replacements, got ${replaceCount}. The regex may be out of sync with the file structure. Inspect: .planning/milestones/v1.1-phases/13-llm-quality-tuning/BENCHMARK.md`);
+    process.exit(1);
+  }
+
+  // Append the iteration-0/1 unrecoverable footnote AFTER the iteration table.
+  // Anchor on the existing "## Prompt Comparison" heading; insert footnote just before it.
+  // If the footnote already exists (idempotent re-run), skip.
+  const FOOTNOTE_MARKER = '<!-- v1.3 BACKFILL FOOTNOTE -->';
+  if (!text.includes(FOOTNOTE_MARKER)) {
+    const footnote = `\n${FOOTNOTE_MARKER}\n> **Note (v1.3 backfill):** Iterations 0 (baseline) and 1 (\`num_predict\`) cannot be retroactively\n> measured because the source code in \`src-tauri/src/llm/mod.rs\` has moved past those prompt\n> versions. Only iteration 2 (current tuned prompt) was rerun for v1.3 (commit \`${getGeneratorGitShaShortFromGlobal()}\`). See\n> \`src/data/model-benchmarks.json\` for the live phi4-mini scores tied to that commit. Rows\n> labeled PENDING for iterations 0 and 1 are intentionally unrecoverable.\n\n`;
+    const anchorIdx = text.indexOf('## Prompt Comparison');
+    if (anchorIdx >= 0) {
+      text = text.slice(0, anchorIdx) + footnote + text.slice(anchorIdx);
+    } else {
+      // Fallback: append at the end of the file
+      text = text.trimEnd() + '\n\n' + footnote;
+    }
+  }
+
+  writeTextAtomic(V11_BENCHMARK_MD, text);
+  console.log(`[backfill] BENCHMARK.md iteration-2 rows replaced (${replaceCount}/3) and footnote ensured.`);
+}
+
 async function main() {
   const generator_git_sha = getGeneratorGitSha();
+  globalThis.__BENCH_GIT_SHA__ = generator_git_sha;  // for the footnote helper
+
   const pythonCmd = resolvePython();
   const ollamaVersion = checkOllamaVersion();
   await checkOllamaDaemon();
@@ -495,16 +604,36 @@ async function main() {
   console.log(`[preflight] python=${pythonCmd} ollama=${ollamaVersion} git=${generator_git_sha} target_models=${TARGET_MODELS.map(m => m.name).join(',')}`);
   const hardware_tier = detectHardwareTier();
 
-  // Per-model loop (Task 2 — Task 3 of this plan writes the JSON + backfills BENCHMARK.md)
-  const newModelRows = [];
+  // Per-model loop (Task 2)
+  const newRows = [];
   for (const m of TARGET_MODELS) {
-    newModelRows.push(await benchModel(m, pythonCmd));
+    newRows.push(await benchModel(m, pythonCmd));
   }
-  // Task 3 of this plan writes the JSON + backfills BENCHMARK.md from newModelRows + hardware_tier.
-  console.log('[scaffold] writer implemented in Task 3');
-  globalThis.__BENCH_NEW_ROWS__ = newModelRows;  // bridge to Task 3 wiring
-  globalThis.__BENCH_HARDWARE__ = hardware_tier;
-  globalThis.__BENCH_GIT_SHA__ = generator_git_sha;
+
+  // Partial-rerun merge (D-22, A7) — preserve untouched rows when --model is used
+  const existing = loadExistingBenchmarkData();
+  const mergedModels = mergeModelRows(Array.isArray(existing.models) ? existing.models : [], newRows);
+
+  const out = {
+    schema_version: 1,
+    generated: new Date().toISOString(),
+    generator: 'scripts/benchmark-models.mjs',
+    generator_git_sha,
+    hardware_tier,
+    methodology: { ...METHODOLOGY },
+    models: mergedModels,
+  };
+
+  writeJsonAtomic(JSON_TARGET, out);
+  console.log(`[write] ${JSON_TARGET} (${mergedModels.length} model rows)`);
+
+  // BENCHMARK.md backfill — only if phi4-mini was in this run (D-35)
+  const phi4 = newRows.find((r) => r.name === 'phi4-mini');
+  backfillV11BenchmarkMd(phi4);
+
+  console.log('\n[done] benchmark run complete.');
+  console.log(`  Next: review the diff for src/data/model-benchmarks.json and BENCHMARK.md,`);
+  console.log(`        confirm hardware_tier values reflect this machine, then commit.`);
 }
 
 main().catch((e) => {
