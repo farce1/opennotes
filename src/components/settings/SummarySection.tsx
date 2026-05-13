@@ -5,9 +5,13 @@ import { useTranslation } from 'react-i18next';
 
 import { useSummaryGeneration } from '../../contexts/SummaryGenerationContext';
 import { useSetting } from '../../hooks/useSettings';
+import benchmarksRaw from '../../data/model-benchmarks.json';
+import { matchesBenchmarkModel, validateBenchmarks } from '../../lib/benchmarks';
 import { DEFAULT_SETTINGS } from '../../lib/constants';
 import type { OllamaModelInfo, OllamaPullEvent, OllamaStatus } from '../../types';
 import { Dropdown } from '../ui/Dropdown';
+
+const BENCHMARKS = validateBenchmarks(benchmarksRaw);
 
 type PullProgress = {
   status: string;
@@ -27,12 +31,15 @@ function optionButtonClasses(selected: boolean): string {
   ].join(' ');
 }
 
-function formatModelLabel(model: OllamaModelInfo): string {
+function formatModelLabel(model: OllamaModelInfo, recommendedLabel: string): string {
   const download = model.downloadSize ? ` · ${model.downloadSize}` : '';
   const normalizedSize = model.parameterSize?.toLowerCase();
   const sizeIncludedInName = normalizedSize ? model.name.toLowerCase().endsWith(`:${normalizedSize}`) : false;
   const size = model.parameterSize && !sizeIncludedInName ? ` · ${model.parameterSize}` : '';
-  const rec = model.name === 'phi4-mini' || model.name === 'phi4-mini:latest' ? ' · Recommended' : '';
+  const recommended = BENCHMARKS.models.some(
+    (b) => b.verdict === 'recommended' && matchesBenchmarkModel(model.name, b.name),
+  );
+  const rec = recommended ? ` · ${recommendedLabel}` : '';
   return `${model.name}${download}${size}${rec}`;
 }
 
@@ -230,18 +237,18 @@ export function SummarySection() {
     () =>
       modelOptions.map((model) => ({
         value: model.name,
-        label: formatModelLabel(model),
+        label: formatModelLabel(model, t('model_recommended')),
       })),
-    [modelOptions],
+    [modelOptions, t],
   );
 
   const pullModelDropdownOptions = useMemo(
     () =>
       availablePullModels.map((model) => ({
         value: model.name,
-        label: formatModelLabel(model),
+        label: formatModelLabel(model, t('model_recommended')),
       })),
-    [availablePullModels],
+    [availablePullModels, t],
   );
 
   const connectionOnline = status?.running ?? false;
