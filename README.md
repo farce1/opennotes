@@ -148,6 +148,11 @@ Have an idea? [Open an issue](https://github.com/farce1/opennotes/issues) — we
 
 <!-- BEGIN:BENCHMARK_TABLE -->
 
+| Model | Parameters | Download | Quality Score | Tokens/sec | Time-to-first-token | Recommended |
+|-------|------------|----------|---------------|-----------|-----------------------|-------------|
+
+*Measured on: skeleton — overwritten by harness run / 0 GB / no discrete GPU · Methodology: warmup + N=5 + median · Generated: 1970-01-01T00:00:00.000Z*
+
 <!-- END:BENCHMARK_TABLE -->
 
 ## License
