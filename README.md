@@ -146,6 +146,10 @@ Please open an issue first for larger changes so we can discuss the approach.
 
 Have an idea? [Open an issue](https://github.com/farce1/opennotes/issues) — we'd love to hear it.
 
+<!-- BEGIN:BENCHMARK_TABLE -->
+
+<!-- END:BENCHMARK_TABLE -->
+
 ## License
 
 [MIT](LICENSE) — use it however you like.
