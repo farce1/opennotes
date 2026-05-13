@@ -39,6 +39,7 @@ One-click meeting recording that produces structured, actionable meeting notes �
 
 <!-- v1.3 Release & Distribution — refined into REQ-IDs in REQUIREMENTS.md -->
 
+- Phase 19 (Release-Critical Config & Packaging Blockers) — partial: 9/14 closed (CONFIG-01/03/04/05/06, EXTRACT-01/04, PKG-02, ONBOARD-04). 5 maintainer-fill deferrals tracked: CONFIG-02 (pubkey), PKG-01 (vc_redist binary), PKG-03 (NSIS hardening — partial), EXTRACT-02/03 (model SHA256 + sizes). All guarded by CI grep + failing unit tests.
 - [ ] Cross-platform install validation on clean VMs (Windows / macOS / Linux)
 - [ ] BENCHMARK rerun with live Ollama → in-app model recommendations
 - [ ] Onboarding polish (existing wizard + Ollama setup flow)
@@ -125,4 +126,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-05-11 after starting v1.3 Release & Distribution milestone*
+*Last updated: 2026-05-13 after Phase 19 (Release-Critical Config & Packaging Blockers) closed 9/14 must-haves*
