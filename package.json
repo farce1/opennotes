@@ -10,7 +10,8 @@
     "test": "vitest run",
     "tauri": "tauri",
     "release:bump": "node scripts/release-bump.mjs",
-    "benchmark": "node scripts/benchmark-models.mjs"
+    "benchmark": "node scripts/benchmark-models.mjs",
+    "benchmark:render-readme": "node scripts/render-benchmark-readme.mjs"
   },
   "dependencies": {
     "@react-pdf/renderer": "^4.3.2",
