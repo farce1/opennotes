@@ -72,6 +72,7 @@ User directive: *"i trust your recommendation, that you will bring best practice
   - `total_ram_gb` ← `Math.round(os.totalmem() / (1024 ** 3))`
   - `os` ← `os.platform()` (`darwin` | `win32` | `linux`)
   - `gpu_model` ← best-effort: `system_profiler SPDisplaysDataType` on macOS (parse first `Chipset Model:`), `wmic path win32_VideoController get name /value` on Windows, `lspci | grep -i 'vga\\|3d'` on Linux. Wrap in try/catch — failure sets `gpu_model: null`. `gpu_present` is derived: `gpu_model != null`.
+- **D-13a:** **Apple Silicon special-casing.** On macOS Apple Silicon, the SoC has an integrated GPU that genuinely drives Ollama's Metal acceleration. `system_profiler` returns `Chipset Model: Apple M3 Pro` (or similar SoC name). The harness treats this as `gpu_present: true` with `gpu_model: "Apple M-series (integrated, Metal)"` (or whichever SoC name was parsed, suffixed with `(integrated, Metal)`). The README footnote (D-27) then reads naturally: *"Measured on: Apple M3 Pro / 36 GB / Apple M-series (integrated, Metal)"*. Calling Apple Silicon `gpu_present: false` would mislead users into thinking the numbers were CPU-only — they are not. The boolean keeps ROADMAP's "GPU presence" wording while the string carries the nuance.
 - **D-14:** **Single-machine measurement is acknowledged.** v1.3 ships ONE hardware tier per row — whatever machine the maintainer runs the harness on. The README copy (P23) frames the table as *"Measured on: [maintainer's CPU model] / [RAM] GB / [GPU]"*, not as *"Recommended for your hardware"*. Future milestones can append additional `hardware_tiers[]` entries collected from contributors.
 - **D-15:** JSON schema supports multi-tier extension forward (the `hardware_tier` field becomes the FIRST entry in a `hardware_tiers[]` array post-v1.3) but v1.3 ships flat single-tier to keep schema simple. **For v1.3, each model gets one row, one hardware_tier.**
 
@@ -83,11 +84,12 @@ User directive: *"i trust your recommendation, that you will bring best practice
     "schema_version": 1,
     "generated": "2026-05-13T14:32:11.000Z",
     "generator": "scripts/benchmark-models.mjs",
+    "generator_git_sha": "7b377e0c8d2f1a4b9e3c5d6f8a1b2c3d4e5f6a7b",
     "hardware_tier": {
       "cpu_model": "Apple M3 Pro",
       "total_ram_gb": 36,
       "gpu_present": true,
-      "gpu_model": "Apple M3 Pro GPU (integrated)",
+      "gpu_model": "Apple M3 Pro (integrated, Metal)",
       "os": "darwin"
     },
     "methodology": {
@@ -131,13 +133,19 @@ User directive: *"i trust your recommendation, that you will bring best practice
     ]
   }
   ```
+- **D-17a:** `generator_git_sha` is captured at harness invocation time via `git rev-parse HEAD` (full 40-char SHA). Lets a future maintainer correlate a JSON to the exact code state that produced it (prompts, chunking thresholds, num_ctx logic all live in `src-tauri/src/llm/mod.rs` and evolve between releases). If the working tree is dirty at harness invocation, append `-dirty` to the SHA and emit a warning — measurements taken on uncommitted code are still valid but should be re-run against a clean commit before tagging a release.
 - **D-18:** A TypeScript companion type — `src/types/model-benchmarks.ts` — mirrors the schema and is the import target for the Settings UI (not the raw JSON shape). The JSON imports as `unknown`, gets parsed through a `validateBenchmarks(raw): BenchmarkData` helper that throws on shape mismatch. This isolates downstream UI from schema drift.
 - **D-19:** **No JSON Schema (`.json` Schema spec) file shipped.** v1.3 enforces shape via the TS type + the validator. Schema-Schema files are over-engineering for a single producer (maintainer-side harness) and a single consumer (Settings UI + README generator). If a second producer ever appears, write the JSON Schema then.
 
 ### Harness orchestrator (BENCH-01, BENCH-02)
 - **D-20:** **Single Node ESM script** at `scripts/benchmark-models.mjs`, invoked as `bun run benchmark` (also wires `package.json` `"scripts": { "benchmark": "node scripts/benchmark-models.mjs" }`). Reuses the existing `scripts/release-bump.mjs` pattern (Node ESM, no shebang, no `bun` runtime APIs — pure Node so it works whether the maintainer invokes via `bun run` or `node`).
 - **D-21:** **Reuse v1.1 Python evaluator** (`.planning/milestones/v1.1-phases/13-llm-quality-tuning/eval/evaluate.py`) and v1.1 ground-truth fixtures (`ground-truth/*.json`, `transcripts/*.txt`) as-is. The Node orchestrator:
-  1. Pre-flight: `curl http://localhost:11434/api/tags` to confirm Ollama is running; abort with actionable error if not.
+  1. **Pre-flight, in order, each with a single actionable error message and exit-1 on failure:**
+     - `git rev-parse HEAD` to capture `generator_git_sha` (D-17a); abort if not in a git repo.
+     - `python3 --version` confirms Python ≥ 3.10 is on PATH (v1.1 evaluator uses `from __future__ import annotations` + walrus-friendly syntax).
+     - `ollama --version` confirms the CLI is on PATH **and is version ≥ 0.5.0** — `ollama stop <model>` (D-21 step 2 below) requires 0.5.0+. Error message names the required version explicitly.
+     - `curl -fsS http://localhost:11434/api/tags` confirms Ollama daemon is running; error message includes `"run 'ollama serve' first"`.
+     - File-existence check for `.planning/milestones/v1.1-phases/13-llm-quality-tuning/eval/evaluate.py` and all 3 transcript/ground-truth pairs.
   2. For each model in the lineup:
      - `ollama pull <model>` (idempotent — fast if already present)
      - `ollama stop <model>` to force a clean unload (PITFALLS §Pitfall 7)
@@ -148,7 +156,11 @@ User directive: *"i trust your recommendation, that you will bring best practice
   3. Write both outputs:
      - `src/data/model-benchmarks.json` (single source of truth)
      - Backfill the PENDING rows in `.planning/milestones/v1.1-phases/13-llm-quality-tuning/BENCHMARK.md` from the same run (closes BENCH-01 explicitly — the v1.1 report no longer contains PENDING rows; ROADMAP P20 success criterion 1).
-- **D-22:** **The harness is idempotent and resumable.** Re-running it overwrites both outputs. Per-model intermediate run outputs (`.planning/phases/20-.../runs/`) are committed for audit and reproducibility — they're cheap (~50 KB per model per transcript). A `--model <name>` flag bench-only one model so partial reruns are cheap.
+- **D-22:** **The harness is idempotent and resumable.** Re-running it overwrites both outputs. A `--model <name>` flag bench-only one model so partial reruns are cheap.
+- **D-22a:** **Run-output commit policy** — keep the audit set small:
+  - **Committed:** quality-pass canonical outputs only — `.planning/phases/20-.../runs/<model>/quality/<transcript>.md` (2 models × 3 transcripts = 6 files, ~300 KB total). These let a future maintainer re-run `evaluate.py` to verify the published scores.
+  - **Gitignored:** warmup outputs and speed-pass per-run outputs (`runs/<model>/warmup/`, `runs/<model>/speed/`). These are timing artifacts, not audit material — committing 10+ near-duplicate summaries adds noise without enabling verification. The harness writes them to disk so the maintainer can inspect during a run, then a `.gitignore` rule under the `runs/` directory excludes them.
+  - If the JSON-recorded scores ever look wrong, the maintainer re-runs the harness; the median absorbs single-run noise and the committed quality outputs are the audit anchor.
 - **D-23:** **Determinism caveat** (per PITFALLS): even with `temperature: 0` and `seed: 42`, Ollama is documented to drift 1-3% across runs. The N=5 median absorbs this. Test fingerprint stability: re-running the harness on the same maintainer machine within an hour should produce `quality_score` values within ±2.0 of each other. If drift exceeds that, investigate (likely v1.2 prompt-template drift — PITFALLS pitfall 7 root cause 6).
 - **D-24:** **Failure modes are explicit.** If Ollama is unreachable: exit 1 with `"Ollama not running at http://localhost:11434 — run 'ollama serve' first"`. If a model fails to pull: exit 1 naming the model. If `evaluate.py` is missing: exit 1 with the path. Never produce a partial JSON file — write atomically via temp-file + rename (same pattern as `scripts/release-bump.mjs`).
 
@@ -176,9 +188,13 @@ User directive: *"i trust your recommendation, that you will bring best practice
   const recommended = BENCHMARKS.models.some(
     (b) => b.verdict === 'recommended' && matchesBenchmarkModel(model.name, b.name),
   );
-  const rec = recommended ? ` · ${t('model_recommended')}` : '';
+  const rec = recommended ? ` · ${recommendedLabel}` : '';
   ```
   Uses the existing `model_recommended` i18n key (`src/i18n/locales/en/settings.json:147` = "Recommended", `pl/settings.json:147` = "Zalecany"). **No hard-coded English literal**, fixing a latent i18n bug in the current code as well.
+- **D-30a:** `formatModelLabel` is a **plain function** (not a React hook), so it cannot call `useTranslation` directly. Two equivalent fixes — planner picks:
+  - **(a) Pass `recommendedLabel` (the resolved string) as a parameter:** `formatModelLabel(model: OllamaModelInfo, recommendedLabel: string): string`. Call sites already have `t` in scope from `useTranslation('settings')` and pass `t('model_recommended')`. Cleanest.
+  - **(b) Move the `recommended` + label resolution inline** into the `modelDropdownOptions` / `pullModelDropdownOptions` `.map()` callbacks, leaving `formatModelLabel` to only handle the size/download bits. Slightly more diff but avoids changing the formatter's signature.
+  Either route satisfies BENCH-05; do not introduce a `useTranslation` call inside `formatModelLabel` itself (would break the rules-of-hooks).
 - **D-31:** `matchesBenchmarkModel` lives in `src/lib/benchmarks.ts` alongside `validateBenchmarks`. Both are unit-tested via Vitest (existing repo test infrastructure). Tests cover: `:latest` suffix tolerance, case sensitivity (case-sensitive — Ollama model names are), empty-JSON-row tolerance, missing-verdict tolerance.
 - **D-32:** **No new UI components.** The badge stays as an inline `· Recommended` suffix in the dropdown label — same visual presentation as today. ROADMAP P20 explicitly says "no UI redesign". A separate visual chip/icon is deferred to v1.4 if user feedback asks for it.
 - **D-33:** **Removed-row tolerance.** If `src/data/model-benchmarks.json` has no model with `verdict: "recommended"`, no badge renders anywhere. If the recommended model isn't in the user's local Ollama install, no badge renders for any of their models. Both are correct degraded behaviors — never crash, never throw.
