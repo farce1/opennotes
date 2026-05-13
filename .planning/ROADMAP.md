@@ -65,9 +65,9 @@ v1.3 takes a feature-complete Tauri 2 + React local-AI meeting recorder from "wo
   5. The benchmark JSON is dependency-free (no Python evaluator, no fixtures, no Ollama runtime requirement at user-install time); benchmarks are produced once on the maintainer's machine and shipped as static data.
 **Plans** (5 plans across 3 waves):
 - [x] 20-01-PLAN.md — Schema types + validator + Vitest tests + JSON skeleton (BENCH-04/05 foundation; Wave 1)
-- [ ] 20-02-PLAN.md — SummarySection.tsx predicate rewire to JSON-driven badge with i18n (BENCH-05; Wave 2)
-- [ ] 20-03-PLAN.md — scripts/benchmark-models.mjs harness orchestrator + package.json benchmark script + runs/.gitignore (BENCH-01/02/03 mechanism; Wave 2)
-- [ ] 20-04-PLAN.md — scripts/render-benchmark-readme.mjs generator + README marker block + package.json render entry (BENCH-04 forward dep; Wave 2)
+- [x] 20-02-PLAN.md — SummarySection.tsx predicate rewire to JSON-driven badge with i18n (BENCH-05; Wave 2)
+- [x] 20-03-PLAN.md — scripts/benchmark-models.mjs harness orchestrator + package.json benchmark script + runs/.gitignore (BENCH-01/02/03 mechanism; Wave 2)
+- [x] 20-04-PLAN.md — scripts/render-benchmark-readme.mjs generator + README marker block + package.json render entry (BENCH-04 forward dep; Wave 2)
 - [ ] 20-05-PLAN.md — Maintainer-machine harness execution + live JSON + BENCHMARK.md backfill + audit-set commit (BENCH-01/02/03/04 data; Wave 3, autonomous: false)
 **UI hint**: yes
 
@@ -156,7 +156,7 @@ Phases execute in numeric order: 19 → 20 → 21 → 22 → 23.
 | 17. Diarization Core | v1.2 | 2/2 | Complete | 2026-03-04 |
 | 18. Speaker Timeline & Attributed Summaries | v1.2 | 2/2 | Complete | 2026-03-05 |
 | 19. Release-Critical Config & Packaging Blockers | v1.3 | 6/6 | Complete    | 2026-05-13 |
-| 20. Benchmark Rerun & Settings Recommendation UI | v1.3 | 1/5 | In Progress|  |
+| 20. Benchmark Rerun & Settings Recommendation UI | v1.3 | 4/5 | In Progress|  |
 | 21. Onboarding Polish | v1.3 | 0/TBD | Not started | - |
 | 22. Clean-VM Install Validation (Gating) | v1.3 | 0/TBD | Not started | - |
 | 23. Public v1.3.0 Release & End-User Documentation | v1.3 | 0/TBD | Not started | - |
