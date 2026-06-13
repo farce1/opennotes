@@ -13,6 +13,34 @@ const ASR_SAMPLE_RATE: u32 = 16_000;
 const WHISPER_MAX_DECODE_SECONDS: usize = 25;
 const WHISPER_MAX_DECODE_SAMPLES: usize = (ASR_SAMPLE_RATE as usize) * WHISPER_MAX_DECODE_SECONDS;
 
+fn samples_to_ms(num_samples: u64, sample_rate: u32) -> u64 {
+    if sample_rate == 0 {
+        return 0;
+    }
+    num_samples.saturating_mul(1000) / u64::from(sample_rate)
+}
+
+fn build_segment_result(
+    text: String,
+    detected_language: Option<String>,
+    recording_start_ms: u64,
+    segment_start_samples: u64,
+    chunk_offset_samples: u64,
+    chunk_len_samples: usize,
+    sample_rate: u32,
+) -> SegmentResult {
+    let start_samples = segment_start_samples.saturating_add(chunk_offset_samples);
+    let elapsed_ms = recording_start_ms.saturating_add(samples_to_ms(start_samples, sample_rate));
+    let duration_ms = samples_to_ms(chunk_len_samples as u64, sample_rate);
+
+    SegmentResult {
+        text,
+        elapsed_ms,
+        duration_ms,
+        detected_language,
+    }
+}
+
 pub struct WorkerConfig {
     pub model_dir: PathBuf,
     pub vad_model: String,
@@ -50,15 +78,17 @@ fn process_completed_segments(
             };
 
             let chunk_offset_samples = (chunk_index as u64) * (max_decode_samples as u64);
-            let elapsed_ms = recording_start_ms.saturating_add(
-                ((segment_start_samples + chunk_offset_samples) * 1000) / (ASR_SAMPLE_RATE as u64),
+            let segment_result = build_segment_result(
+                text,
+                detected_language,
+                recording_start_ms,
+                segment_start_samples,
+                chunk_offset_samples,
+                samples.len(),
+                ASR_SAMPLE_RATE,
             );
 
-            let _ = result_tx.send(SegmentResult {
-                text,
-                elapsed_ms,
-                detected_language,
-            });
+            let _ = result_tx.send(segment_result);
         }
 
         vad.pop();
@@ -193,4 +223,58 @@ pub fn run_worker(
         &config.result_tx,
         config.recording_start_ms,
     );
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn samples_to_ms_converts_at_16khz() {
+        assert_eq!(samples_to_ms(16_000, 16_000), 1_000);
+        assert_eq!(samples_to_ms(8_000, 16_000), 500);
+        assert_eq!(samples_to_ms(0, 16_000), 0);
+    }
+
+    #[test]
+    fn samples_to_ms_guards_zero_sample_rate() {
+        assert_eq!(samples_to_ms(16_000, 0), 0);
+    }
+
+    #[test]
+    fn build_segment_result_uses_real_duration_not_fixed_span() {
+        // 2-second chunk (32000 samples @ 16kHz) starting 1s into the recording.
+        let result = build_segment_result(
+            "hello".to_string(),
+            Some("en".to_string()),
+            0,
+            16_000,
+            0,
+            32_000,
+            16_000,
+        );
+
+        assert_eq!(result.elapsed_ms, 1_000);
+        // Regression guard: real duration, not the old hardcoded 1000ms span.
+        assert_eq!(result.duration_ms, 2_000);
+        assert_eq!(result.text, "hello");
+        assert_eq!(result.detected_language.as_deref(), Some("en"));
+    }
+
+    #[test]
+    fn build_segment_result_applies_chunk_offset_and_recording_start() {
+        // Second 25s chunk (offset 400000 samples), recording started at 5000ms.
+        let result = build_segment_result(
+            "world".to_string(),
+            None,
+            5_000,
+            0,
+            400_000,
+            16_000,
+            16_000,
+        );
+
+        assert_eq!(result.elapsed_ms, 5_000 + 25_000);
+        assert_eq!(result.duration_ms, 1_000);
+    }
 }
