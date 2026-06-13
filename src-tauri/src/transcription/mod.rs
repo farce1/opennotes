@@ -40,6 +40,7 @@ pub enum WorkerCommand {
 pub struct SegmentResult {
     pub text: String,
     pub elapsed_ms: u64,
+    pub duration_ms: u64,
     pub detected_language: Option<String>,
 }
 
@@ -165,6 +166,7 @@ pub fn start_transcription_worker(
                     let text_clone = text.clone();
                     let index = i64::from(segment_index);
                     let elapsed_ms = segment.elapsed_ms as i64;
+                    let end_time_ms = segment.elapsed_ms.saturating_add(segment.duration_ms) as i64;
                     tauri::async_runtime::spawn(async move {
                         if let Err(err) = sqlx::query(
                             "INSERT INTO transcripts (meeting_id, segment_index, text, start_time_ms, end_time_ms, is_final)
@@ -174,7 +176,7 @@ pub fn start_transcription_worker(
                         .bind(index)
                         .bind(text_clone)
                         .bind(elapsed_ms)
-                        .bind(elapsed_ms + 1000)
+                        .bind(end_time_ms)
                         .execute(&pool_clone)
                         .await
                         {

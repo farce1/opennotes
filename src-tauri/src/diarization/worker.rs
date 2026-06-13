@@ -217,7 +217,7 @@ pub fn run_worker(
 
         let transcript_rows = runtime.block_on(async {
             sqlx::query_as::<_, TranscriptAlignRow>(
-                "SELECT id, start_time_ms, (start_time_ms + 1000) AS end_time_ms
+                "SELECT id, start_time_ms, end_time_ms
                  FROM transcripts
                  WHERE meeting_id = ?
                  ORDER BY segment_index",
