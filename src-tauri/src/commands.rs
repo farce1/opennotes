@@ -491,7 +491,7 @@ pub async fn start_transcription(
         }
     }
 
-    let (audio_tx, audio_rx) = {
+    let (audio_tx, audio_rx, transcription_sample_rate) = {
         let mut state = recording_state
             .lock()
             .map_err(|_| "recording state lock poisoned".to_string())?;
@@ -509,7 +509,7 @@ pub async fn start_transcription(
             .take()
             .ok_or_else(|| "transcription receiver unavailable; restart recording".to_string())?;
 
-        (audio_tx, audio_rx)
+        (audio_tx, audio_rx, state.transcription_sample_rate)
     };
 
     let mut state = transcription_state
@@ -518,6 +518,7 @@ pub async fn start_transcription(
     transcription::start_transcription_worker(&mut state, transcription::StartWorkerArgs {
         audio_tx,
         audio_rx,
+        sample_rate: transcription_sample_rate,
         on_segment,
         data_dir: data_dir.inner().0.clone(),
         db_pool: None,

@@ -17,6 +17,7 @@ pub struct WorkerConfig {
     pub model_dir: PathBuf,
     pub vad_model: String,
     pub recording_start_ms: u64,
+    pub sample_rate: u32,
     pub result_tx: mpsc::Sender<SegmentResult>,
 }
 
@@ -77,7 +78,12 @@ pub fn run_worker(
     );
 
     eprintln!("[transcription] creating audio resampler...");
-    let mut resampler = match AudioResampler::new(48_000, 16_000, 1_536) {
+    let input_rate = if config.sample_rate == 0 {
+        48_000
+    } else {
+        config.sample_rate as usize
+    };
+    let mut resampler = match AudioResampler::new(input_rate, ASR_SAMPLE_RATE as usize, 1_536) {
         Ok(resampler) => resampler,
         Err(err) => {
             eprintln!("failed to create audio resampler: {err}");
@@ -162,8 +168,8 @@ pub fn run_worker(
         match audio_rx.recv_timeout(Duration::from_millis(100)) {
             Ok(chunk) => {
                 ring.push(&chunk);
-                for chunk_48k in ring.drain_chunks() {
-                    let chunk_16k = match resampler.process(&chunk_48k) {
+                for input_chunk in ring.drain_chunks() {
+                    let chunk_16k = match resampler.process(&input_chunk) {
                         Ok(chunk_16k) => chunk_16k,
                         Err(err) => {
                             eprintln!("resampling failed: {err}");

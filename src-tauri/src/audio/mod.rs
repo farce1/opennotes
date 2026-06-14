@@ -20,6 +20,7 @@ pub struct RecordingState {
     pub system_sample_tx: Option<mpsc::SyncSender<Vec<f32>>>,
     pub transcription_tx: Option<mpsc::SyncSender<Vec<f32>>>,
     pub transcription_rx: Option<mpsc::Receiver<Vec<f32>>>,
+    pub transcription_sample_rate: u32,
     pub encoder_tx: Option<mpsc::SyncSender<Vec<i16>>>,
     pub mixer_handle: Option<JoinHandle<()>>,
     pub encoder_handle: Option<JoinHandle<()>>,
@@ -37,6 +38,7 @@ impl Default for RecordingState {
             system_sample_tx: None,
             transcription_tx: None,
             transcription_rx: None,
+            transcription_sample_rate: 48_000,
             encoder_tx: None,
             mixer_handle: None,
             encoder_handle: None,
@@ -51,6 +53,15 @@ fn state_handle_from_app(app: &AppHandle) -> Result<RecordingStateHandle, String
     app.try_state::<RecordingStateHandle>()
         .map(|state| state.inner().clone())
         .ok_or_else(|| "recording state is not registered".to_string())
+}
+
+// Mic feeds transcription in Mic/Both modes; System mode feeds loopback.
+fn transcription_source_rate(mic_rate: u32, loopback_rate: Option<u32>, capture_mic: bool) -> u32 {
+    if capture_mic {
+        mic_rate
+    } else {
+        loopback_rate.unwrap_or(mic_rate)
+    }
 }
 
 pub fn start_recording(
@@ -111,6 +122,8 @@ pub fn start_recording(
     }
 
     let encoder_sample_rate = loopback_sample_rate.unwrap_or(mic_sample_rate);
+    let transcription_sample_rate =
+        transcription_source_rate(mic_sample_rate, loopback_sample_rate, capture_mic);
     let output_path_for_encoder = output_path.clone();
     let encoder_handle = thread::spawn(move || {
         encoder::run_encoder(
@@ -196,6 +209,7 @@ pub fn start_recording(
         state.system_sample_tx = if capture_system { Some(system_tx) } else { None };
         state.transcription_tx = Some(transcription_tx);
         state.transcription_rx = Some(transcription_rx);
+        state.transcription_sample_rate = transcription_sample_rate;
         state.encoder_tx = Some(encoder_tx);
         state.mixer_handle = Some(mixer_handle);
         state.encoder_handle = Some(encoder_handle);
@@ -302,4 +316,26 @@ pub fn resume_recording(app: &AppHandle) -> Result<(), String> {
 
     let _ = app.emit("recording-resumed", ());
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn transcription_source_rate_uses_mic_when_capturing_mic() {
+        // Mic/Both modes: transcription follows the mic rate (e.g. 16k Bluetooth HFP).
+        assert_eq!(transcription_source_rate(16_000, Some(48_000), true), 16_000);
+    }
+
+    #[test]
+    fn transcription_source_rate_uses_loopback_when_mic_not_captured() {
+        // System mode: transcription follows the loopback rate.
+        assert_eq!(transcription_source_rate(48_000, Some(44_100), false), 44_100);
+    }
+
+    #[test]
+    fn transcription_source_rate_falls_back_to_mic_when_no_loopback() {
+        assert_eq!(transcription_source_rate(48_000, None, false), 48_000);
+    }
 }

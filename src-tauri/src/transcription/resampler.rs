@@ -75,3 +75,23 @@ impl RingAccumulator {
         chunks.into_iter()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn resampler_handles_16k_input_rate() {
+        // Bluetooth HFP mics deliver 16 kHz; resampling must work from the real rate.
+        let mut resampler = AudioResampler::new(16_000, 16_000, 1_536).expect("builds");
+        let out = resampler.process(&vec![0.0f32; 1_536]).expect("processes");
+        assert!(!out.is_empty());
+    }
+
+    #[test]
+    fn resampler_downsamples_44100_input_rate() {
+        let mut resampler = AudioResampler::new(44_100, 16_000, 1_536).expect("builds");
+        let out = resampler.process(&vec![0.0f32; 1_536]).expect("processes");
+        assert!(!out.is_empty() && out.len() < 1_536);
+    }
+}
