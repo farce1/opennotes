@@ -18,6 +18,30 @@ pub trait AsrEngine {
     fn transcribe(&mut self, sample_rate: u32, samples: &[f32]) -> AsrOutput;
 }
 
+/// ONNX Runtime execution provider to request for the given OS. macOS prebuilt
+/// sherpa-onnx binaries bundle CoreML; other platforms fall back to CPU.
+fn select_provider(os: &str) -> &'static str {
+    match os {
+        "macos" => "coreml",
+        _ => "cpu",
+    }
+}
+
+fn current_provider() -> &'static str {
+    select_provider(std::env::consts::OS)
+}
+
+/// Build with `provider`, retrying once on CPU if a non-CPU provider fails to load.
+fn with_cpu_fallback<T>(
+    provider: &str,
+    mut build: impl FnMut(&str) -> Result<T, String>,
+) -> Result<T, String> {
+    match build(provider) {
+        Err(_) if provider != "cpu" => build("cpu"),
+        other => other,
+    }
+}
+
 /// Whisper large-v3-turbo (int8) via sherpa-onnx.
 pub struct WhisperEngine {
     recognizer: WhisperRecognizer,
@@ -25,6 +49,12 @@ pub struct WhisperEngine {
 
 impl WhisperEngine {
     pub fn load(model_dir: &Path) -> Result<Self, String> {
+        with_cpu_fallback(current_provider(), |provider| {
+            Self::load_with_provider(model_dir, provider)
+        })
+    }
+
+    fn load_with_provider(model_dir: &Path, provider: &str) -> Result<Self, String> {
         let recognizer = WhisperRecognizer::new(WhisperConfig {
             encoder: model_dir
                 .join("turbo-encoder.int8.onnx")
@@ -40,7 +70,7 @@ impl WhisperEngine {
                 .to_string(),
             language: "".to_string(),
             num_threads: Some(2),
-            provider: Some("cpu".to_string()),
+            provider: Some(provider.to_string()),
             debug: false,
             ..Default::default()
         })
@@ -67,6 +97,12 @@ pub struct ParakeetEngine {
 
 impl ParakeetEngine {
     pub fn load(model_dir: &Path) -> Result<Self, String> {
+        with_cpu_fallback(current_provider(), |provider| {
+            Self::load_with_provider(model_dir, provider)
+        })
+    }
+
+    fn load_with_provider(model_dir: &Path, provider: &str) -> Result<Self, String> {
         let recognizer = TransducerRecognizer::new(TransducerConfig {
             encoder: model_dir
                 .join("encoder.int8.onnx")
@@ -89,7 +125,7 @@ impl ParakeetEngine {
             sample_rate: 16_000,
             feature_dim: 80,
             decoding_method: "greedy_search".to_string(),
-            provider: Some("cpu".to_string()),
+            provider: Some(provider.to_string()),
             ..Default::default()
         })
         .map_err(|err| format!("failed to initialize parakeet recognizer: {err}"))?;
@@ -146,5 +182,40 @@ mod tests {
 
         assert_eq!(out.text, "hello world");
         assert_eq!(out.language, "en");
+    }
+
+    #[test]
+    fn select_provider_uses_coreml_on_macos_else_cpu() {
+        assert_eq!(select_provider("macos"), "coreml");
+        assert_eq!(select_provider("linux"), "cpu");
+        assert_eq!(select_provider("windows"), "cpu");
+    }
+
+    #[test]
+    fn with_cpu_fallback_retries_cpu_when_preferred_provider_fails() {
+        let attempts = std::cell::RefCell::new(Vec::new());
+        let result = with_cpu_fallback("coreml", |provider| {
+            attempts.borrow_mut().push(provider.to_string());
+            if provider == "cpu" {
+                Ok(42)
+            } else {
+                Err("no gpu".to_string())
+            }
+        });
+
+        assert_eq!(result, Ok(42));
+        assert_eq!(*attempts.borrow(), vec!["coreml", "cpu"]);
+    }
+
+    #[test]
+    fn with_cpu_fallback_does_not_retry_when_already_cpu() {
+        let attempts = std::cell::RefCell::new(0);
+        let result: Result<i32, String> = with_cpu_fallback("cpu", |_| {
+            *attempts.borrow_mut() += 1;
+            Err("boom".to_string())
+        });
+
+        assert!(result.is_err());
+        assert_eq!(*attempts.borrow(), 1);
     }
 }
