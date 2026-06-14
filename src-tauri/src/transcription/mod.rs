@@ -3,7 +3,7 @@ pub mod model;
 pub mod resampler;
 pub mod worker;
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{mpsc, Arc};
 use std::thread::{self, JoinHandle};
@@ -80,6 +80,15 @@ fn join_with_timeout(handle: JoinHandle<()>, timeout: Duration) -> bool {
     joined_rx.recv_timeout(timeout).is_ok()
 }
 
+fn resolve_asr_engine(data_dir: &Path) -> (String, PathBuf) {
+    // Prefer Parakeet when its model is present; otherwise fall back to Whisper.
+    if model::check_parakeet_assets_ready(data_dir) {
+        ("parakeet".to_string(), model::parakeet_model_dir(data_dir))
+    } else {
+        ("whisper".to_string(), model::whisper_turbo_model_dir(data_dir))
+    }
+}
+
 pub fn start_transcription_worker(
     state: &mut TranscriptionState,
     args: StartWorkerArgs,
@@ -94,7 +103,13 @@ pub fn start_transcription_worker(
         on_worker_disconnected,
     } = args;
 
-    if !model::check_model_ready(data_dir.as_path()) {
+    let (asr_engine, model_dir) = resolve_asr_engine(data_dir.as_path());
+
+    let assets_ready = match asr_engine.as_str() {
+        "parakeet" => model::check_parakeet_assets_ready(data_dir.as_path()),
+        _ => model::check_transcription_assets_ready(data_dir.as_path()),
+    };
+    if !assets_ready || !model::vad_model_path(data_dir.as_path()).exists() {
         return Err("transcription model is not ready; download required model files first".to_string());
     }
 
@@ -107,8 +122,8 @@ pub fn start_transcription_worker(
     let vad_model = model::vad_model_path(data_dir.as_path());
 
     let config = worker::WorkerConfig {
-        model_dir: model::whisper_turbo_model_dir(data_dir.as_path()),
-        asr_engine: "whisper".to_string(),
+        model_dir,
+        asr_engine,
         vad_model: vad_model.to_string_lossy().to_string(),
         recording_start_ms: 0,
         result_tx,
@@ -295,5 +310,37 @@ pub fn stop_transcription_worker(state: &mut TranscriptionState) {
 pub fn flush_transcription(state: &TranscriptionState) {
     if let Some(command_tx) = &state.command_tx {
         let _ = command_tx.send(WorkerCommand::Flush);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn resolve_prefers_parakeet_when_present_else_whisper() {
+        let tmp = std::env::temp_dir().join(format!("on-engine-sel-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&tmp);
+
+        let (engine, dir) = resolve_asr_engine(&tmp);
+        assert_eq!(engine, "whisper");
+        assert_eq!(dir, model::whisper_turbo_model_dir(&tmp));
+
+        let pdir = model::parakeet_model_dir(&tmp);
+        std::fs::create_dir_all(&pdir).unwrap();
+        for f in [
+            "encoder.int8.onnx",
+            "decoder.int8.onnx",
+            "joiner.int8.onnx",
+            "tokens.txt",
+        ] {
+            std::fs::write(pdir.join(f), b"x").unwrap();
+        }
+
+        let (engine, dir) = resolve_asr_engine(&tmp);
+        assert_eq!(engine, "parakeet");
+        assert_eq!(dir, model::parakeet_model_dir(&tmp));
+
+        std::fs::remove_dir_all(&tmp).ok();
     }
 }
