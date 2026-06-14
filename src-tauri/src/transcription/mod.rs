@@ -108,6 +108,7 @@ pub fn start_transcription_worker(
 
     let config = worker::WorkerConfig {
         model_dir: model::whisper_turbo_model_dir(data_dir.as_path()),
+        asr_engine: "whisper".to_string(),
         vad_model: vad_model.to_string_lossy().to_string(),
         recording_start_ms: 0,
         result_tx,
