@@ -17,6 +17,20 @@ pub fn mix_to_stereo(mic: &[f32], system: &[f32], output: &mut Vec<f32>) {
     }
 }
 
+pub fn mix_to_mono(mic: &[f32], system: &[f32]) -> Vec<f32> {
+    if system.is_empty() {
+        return mic.to_vec();
+    }
+
+    mic.iter()
+        .enumerate()
+        .map(|(idx, &mic_sample)| {
+            let system_sample = system.get(idx).copied().unwrap_or(0.0);
+            (mic_sample + system_sample) * 0.5
+        })
+        .collect()
+}
+
 pub fn rms_level(samples: &[f32]) -> f32 {
     if samples.is_empty() {
         return 0.0;
@@ -84,4 +98,35 @@ pub fn f32_to_i16(samples: &[f32]) -> Vec<i16> {
         .iter()
         .map(|sample| (sample.clamp(-1.0, 1.0) * i16::MAX as f32) as i16)
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn mix_to_mono_passes_mic_through_when_no_system() {
+        assert_eq!(mix_to_mono(&[0.25, -0.5], &[]), vec![0.25, -0.5]);
+    }
+
+    #[test]
+    fn mix_to_mono_averages_to_stay_in_range() {
+        // Summing would clip to 2.0; averaging keeps it at 1.0.
+        assert_eq!(mix_to_mono(&[1.0], &[1.0]), vec![1.0]);
+    }
+
+    #[test]
+    fn mix_to_mono_cancels_opposite_phase() {
+        assert_eq!(mix_to_mono(&[0.5], &[-0.5]), vec![0.0]);
+    }
+
+    #[test]
+    fn mix_to_mono_pads_shorter_system_with_silence() {
+        assert_eq!(mix_to_mono(&[1.0, 1.0], &[1.0]), vec![1.0, 0.5]);
+    }
+
+    #[test]
+    fn mix_to_mono_empty_mic_yields_empty() {
+        assert_eq!(mix_to_mono(&[], &[1.0]), Vec::<f32>::new());
+    }
 }
