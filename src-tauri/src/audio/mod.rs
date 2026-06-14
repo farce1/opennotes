@@ -145,7 +145,8 @@ pub fn start_recording(
                         continue;
                     }
 
-                    let _ = transcription_tx_for_mixer.try_send(mic_chunk.clone());
+                    let _ =
+                        transcription_tx_for_mixer.try_send(mixer::mix_to_mono(&mic_chunk, &latest_system));
                     if matches!(source_mode, SourceMode::Both) {
                         mixer::mix_to_stereo(&mic_chunk, &latest_system, &mut stereo_mix);
                     } else {
