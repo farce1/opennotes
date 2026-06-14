@@ -19,6 +19,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   ollamaServerUrl: 'http://localhost:11434',
   autoSummary: true,
   autoDiarize: false,
+  asrEngine: 'whisper',
 };
 
 let cachedDataDir: string | null = null;
