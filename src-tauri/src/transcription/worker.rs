@@ -13,6 +13,12 @@ const ASR_SAMPLE_RATE: u32 = 16_000;
 const WHISPER_MAX_DECODE_SECONDS: usize = 25;
 const WHISPER_MAX_DECODE_SAMPLES: usize = (ASR_SAMPLE_RATE as usize) * WHISPER_MAX_DECODE_SECONDS;
 
+// Run the ASR call under catch_unwind so one panicking chunk skips instead of
+// killing the worker thread (and with it transcription for the rest of the meeting).
+fn catch_panic<T>(operation: impl FnOnce() -> T) -> Option<T> {
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(operation)).ok()
+}
+
 pub struct WorkerConfig {
     pub model_dir: PathBuf,
     pub vad_model: String,
@@ -36,7 +42,13 @@ fn process_completed_segments(
                 continue;
             }
 
-            let result = recognizer.transcribe(ASR_SAMPLE_RATE, samples);
+            let result = match catch_panic(|| recognizer.transcribe(ASR_SAMPLE_RATE, samples)) {
+                Some(result) => result,
+                None => {
+                    eprintln!("[transcription] recognizer panicked on a chunk; skipping it");
+                    continue;
+                }
+            };
             let text = result.text.trim().to_string();
             if text.is_empty() {
                 continue;
@@ -193,4 +205,20 @@ pub fn run_worker(
         &config.result_tx,
         config.recording_start_ms,
     );
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn catch_panic_returns_value_on_success() {
+        assert_eq!(catch_panic(|| 42u32), Some(42));
+    }
+
+    #[test]
+    fn catch_panic_returns_none_when_closure_panics() {
+        let result: Option<u32> = catch_panic(|| panic!("simulated engine panic"));
+        assert_eq!(result, None);
+    }
 }
