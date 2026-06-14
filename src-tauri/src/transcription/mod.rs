@@ -29,6 +29,7 @@ pub struct StartWorkerArgs {
     pub db_pool: Option<SqlitePool>,
     pub meeting_id: Option<i64>,
     pub on_worker_disconnected: Option<Arc<dyn Fn() + Send + Sync>>,
+    pub asr_engine_preference: Option<String>,
 }
 
 #[derive(Debug)]
@@ -80,9 +81,11 @@ fn join_with_timeout(handle: JoinHandle<()>, timeout: Duration) -> bool {
     joined_rx.recv_timeout(timeout).is_ok()
 }
 
-fn resolve_asr_engine(data_dir: &Path) -> (String, PathBuf) {
-    // Prefer Parakeet when its model is present; otherwise fall back to Whisper.
-    if model::check_parakeet_assets_ready(data_dir) {
+fn resolve_asr_engine(preference: Option<&str>, data_dir: &Path) -> (String, PathBuf) {
+    // Explicit Whisper always wins; otherwise prefer Parakeet when its model is present.
+    let use_parakeet =
+        preference != Some("whisper") && model::check_parakeet_assets_ready(data_dir);
+    if use_parakeet {
         ("parakeet".to_string(), model::parakeet_model_dir(data_dir))
     } else {
         ("whisper".to_string(), model::whisper_turbo_model_dir(data_dir))
@@ -101,9 +104,11 @@ pub fn start_transcription_worker(
         db_pool,
         meeting_id,
         on_worker_disconnected,
+        asr_engine_preference,
     } = args;
 
-    let (asr_engine, model_dir) = resolve_asr_engine(data_dir.as_path());
+    let (asr_engine, model_dir) =
+        resolve_asr_engine(asr_engine_preference.as_deref(), data_dir.as_path());
 
     let assets_ready = match asr_engine.as_str() {
         "parakeet" => model::check_parakeet_assets_ready(data_dir.as_path()),
@@ -318,28 +323,41 @@ mod tests {
     use super::*;
 
     #[test]
-    fn resolve_prefers_parakeet_when_present_else_whisper() {
+    fn resolve_honors_explicit_preference_then_availability() {
         let tmp = std::env::temp_dir().join(format!("on-engine-sel-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&tmp);
 
-        let (engine, dir) = resolve_asr_engine(&tmp);
-        assert_eq!(engine, "whisper");
-        assert_eq!(dir, model::whisper_turbo_model_dir(&tmp));
+        let whisper_dir = model::whisper_turbo_model_dir(&tmp);
+        let parakeet_dir = model::parakeet_model_dir(&tmp);
 
-        let pdir = model::parakeet_model_dir(&tmp);
-        std::fs::create_dir_all(&pdir).unwrap();
+        // Nothing downloaded: availability and explicit whisper both pick whisper;
+        // explicit parakeet falls back to availability (whisper) since its model is absent.
+        assert_eq!(resolve_asr_engine(None, &tmp).0, "whisper");
+        assert_eq!(resolve_asr_engine(Some("whisper"), &tmp).0, "whisper");
+        assert_eq!(resolve_asr_engine(Some("parakeet"), &tmp).0, "whisper");
+
+        std::fs::create_dir_all(&parakeet_dir).unwrap();
         for f in [
             "encoder.int8.onnx",
             "decoder.int8.onnx",
             "joiner.int8.onnx",
             "tokens.txt",
         ] {
-            std::fs::write(pdir.join(f), b"x").unwrap();
+            std::fs::write(parakeet_dir.join(f), b"x").unwrap();
         }
 
-        let (engine, dir) = resolve_asr_engine(&tmp);
+        // No preference -> availability prefers parakeet when present.
+        let (engine, dir) = resolve_asr_engine(None, &tmp);
         assert_eq!(engine, "parakeet");
-        assert_eq!(dir, model::parakeet_model_dir(&tmp));
+        assert_eq!(dir, parakeet_dir);
+
+        // Explicit whisper wins even though parakeet is present.
+        let (engine, dir) = resolve_asr_engine(Some("whisper"), &tmp);
+        assert_eq!(engine, "whisper");
+        assert_eq!(dir, whisper_dir);
+
+        // Explicit parakeet with its model present.
+        assert_eq!(resolve_asr_engine(Some("parakeet"), &tmp).0, "parakeet");
 
         std::fs::remove_dir_all(&tmp).ok();
     }

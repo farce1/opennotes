@@ -266,6 +266,7 @@ pub async fn start_session(
     on_segment: Channel<transcription::TranscriptEvent>,
     audio_source: Option<String>,
     preferred_mic_device: Option<String>,
+    asr_engine: Option<String>,
 ) -> Result<i64, String> {
     let session_handle = app.state::<SessionHandle>().inner().clone();
     let session_handle_for_start = session_handle.clone();
@@ -286,6 +287,7 @@ pub async fn start_session(
             on_segment,
             audio_source,
             preferred_mic_device,
+            asr_engine,
         })
     })
     .await
@@ -523,6 +525,7 @@ pub async fn start_transcription(
         db_pool: None,
         meeting_id: None,
         on_worker_disconnected: None,
+        asr_engine_preference: None,
     })?;
 
     let _ = app.emit("transcribing-active", ());

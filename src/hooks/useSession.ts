@@ -40,11 +40,13 @@ export function useSession() {
     channelRef.current = channel;
     const audioSource = await getSetting('defaultAudioSource');
     const preferredMicDevice = await getSetting('preferredMicDevice');
+    const asrEngine = await getSetting('asrEngine');
 
     const nextMeetingId = await invoke<number>('start_session', {
       onSegment: channel,
       audioSource: audioSource || undefined,
       preferredMicDevice: preferredMicDevice || undefined,
+      asrEngine: asrEngine || undefined,
     });
 
     setMeetingId(nextMeetingId);

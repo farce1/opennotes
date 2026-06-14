@@ -55,6 +55,7 @@ pub struct SessionStartArgs {
     pub on_segment: Channel<TranscriptEvent>,
     pub audio_source: Option<String>,
     pub preferred_mic_device: Option<String>,
+    pub asr_engine: Option<String>,
 }
 
 impl SessionCoordinator {
@@ -95,6 +96,7 @@ impl SessionCoordinator {
             on_segment,
             audio_source,
             preferred_mic_device,
+            asr_engine,
         } = args;
 
         if !matches!(self.phase, SessionPhase::Idle | SessionPhase::Processing) {
@@ -174,6 +176,7 @@ impl SessionCoordinator {
                 db_pool: Some(pool.clone()),
                 meeting_id: Some(meeting_id),
                 on_worker_disconnected: Some(degraded_callback),
+                asr_engine_preference: asr_engine,
             })
         };
 
