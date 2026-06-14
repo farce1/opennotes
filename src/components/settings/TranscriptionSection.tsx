@@ -1,12 +1,15 @@
 import { Channel, invoke } from '@tauri-apps/api/core';
 import { join } from '@tauri-apps/api/path';
-import { readDir, remove } from '@tauri-apps/plugin-fs';
+import { remove } from '@tauri-apps/plugin-fs';
 import { FileText } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { getDataDirectory } from '../../lib/constants';
-import type { DownloadEvent } from '../../types';
+import { useSetting } from '../../hooks/useSettings';
+import { asrEngineInfo } from '../../lib/asr';
+import { DEFAULT_SETTINGS, getDataDirectory } from '../../lib/constants';
+import { Dropdown } from '../ui/Dropdown';
+import type { AsrEngine, DownloadEvent } from '../../types';
 
 type DownloadProgress = {
   downloadedBytes: number;
@@ -14,33 +17,48 @@ type DownloadProgress = {
   extracting: boolean;
 };
 
+const ENGINE_MODELS: Record<AsrEngine, { name: string; size: string }> = {
+  whisper: { name: 'Whisper Large V3 Turbo', size: '1.6 GB' },
+  parakeet: { name: 'Parakeet TDT 0.6B v3', size: '~0.6 GB' },
+};
+
 const panelClasses =
   'relative z-0 rounded-2xl border border-gray-200/80 bg-white/75 p-4 shadow-sm backdrop-blur-sm focus-within:z-20 dark:border-gray-700/80 dark:bg-gray-900/45';
 
 export function TranscriptionSection() {
   const { t } = useTranslation('settings');
+  const [asrEngine, updateAsrEngine] = useSetting('asrEngine');
   const [modelReady, setModelReady] = useState<boolean>(false);
   const [loadingModelState, setLoadingModelState] = useState(false);
   const [working, setWorking] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [downloadProgress, setDownloadProgress] = useState<DownloadProgress | null>(null);
 
-  const activeModel = 'Whisper Large V3 Turbo';
-  const activeModelSize = '1.6 GB';
+  const engine = asrEngine ?? DEFAULT_SETTINGS.asrEngine;
+  const activeModel = ENGINE_MODELS[engine].name;
+  const activeModelSize = ENGINE_MODELS[engine].size;
+
+  const engineOptions = useMemo(
+    () => [
+      { value: 'whisper' as const, label: 'Whisper' },
+      { value: 'parakeet' as const, label: 'Parakeet' },
+    ],
+    [],
+  );
 
   const refreshModelState = useCallback(async () => {
     setLoadingModelState(true);
     setErrorMessage(null);
 
     try {
-      const ready = await invoke<boolean>('check_model_ready');
+      const ready = await invoke<boolean>(asrEngineInfo(engine).readyCommand);
       setModelReady(ready);
     } catch {
       setErrorMessage(t('transModel_errorCheck'));
     } finally {
       setLoadingModelState(false);
     }
-  }, [t]);
+  }, [engine, t]);
 
   useEffect(() => {
     void refreshModelState();
@@ -57,13 +75,8 @@ export function TranscriptionSection() {
 
     try {
       const dataDir = await getDataDirectory();
-      const modelsPath = await join(dataDir, 'models');
-      const entries = await readDir(modelsPath);
-
-      for (const entry of entries) {
-        const targetPath = await join(modelsPath, entry.name);
-        await remove(targetPath, { recursive: true });
-      }
+      const modelPath = await join(dataDir, 'models', asrEngineInfo(engine).modelDirName);
+      await remove(modelPath, { recursive: true });
 
       setModelReady(false);
       await refreshModelState();
@@ -72,7 +85,7 @@ export function TranscriptionSection() {
     } finally {
       setWorking(false);
     }
-  }, [refreshModelState, t]);
+  }, [engine, refreshModelState, t]);
 
   const handleDownloadModel = useCallback(async () => {
     setWorking(true);
@@ -115,7 +128,7 @@ export function TranscriptionSection() {
     };
 
     try {
-      await invoke('download_model', {
+      await invoke(asrEngineInfo(engine).downloadCommand, {
         onEvent: channel,
       });
       await refreshModelState();
@@ -125,7 +138,7 @@ export function TranscriptionSection() {
       setWorking(false);
       setDownloadProgress(null);
     }
-  }, [refreshModelState, t]);
+  }, [engine, refreshModelState, t]);
 
   const progressPercent = useMemo(() => {
     if (!downloadProgress || !downloadProgress.totalBytes) {
@@ -147,6 +160,22 @@ export function TranscriptionSection() {
         <div>
           <h2 className="text-lg font-semibold tracking-tight text-gray-800 dark:text-gray-50">{t('transcription_title')}</h2>
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{t('transcription_description')}</p>
+        </div>
+      </div>
+
+      <div className={panelClasses}>
+        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-100">{t('asrEngine_title')}</h3>
+        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t('asrEngine_description')}</p>
+
+        <div className="mt-4">
+          <Dropdown
+            value={engine}
+            options={engineOptions}
+            onChange={(value) => void updateAsrEngine(value)}
+            size="regular"
+            fullWidth
+            className="w-full"
+          />
         </div>
       </div>
 

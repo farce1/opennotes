@@ -46,7 +46,10 @@
   "audioSource_hint": "Maximum recording duration remains capped at 4 hours.",
 
   "transcription_title": "Transcription",
-  "transcription_description": "Manage local Whisper model availability. Recording language is auto-detected.",
+  "transcription_description": "Manage local speech-to-text model availability. Recording language is auto-detected.",
+
+  "asrEngine_title": "Speech Recognition Engine",
+  "asrEngine_description": "Choose which local model transcribes your recordings.",
 
   "transModel_title": "Transcription Model",
   "transModel_description": "{{model}} runs fully local and powers transcript generation.",

@@ -25,6 +25,7 @@ export type SortField = 'date' | 'duration' | 'title';
 export type SortDirection = 'asc' | 'desc';
 export type ViewMode = 'card' | 'compact';
 export type SettingsTab = 'general' | 'recording' | 'transcription' | 'summary' | 'data' | 'about';
+export type AsrEngine = 'whisper' | 'parakeet';
 
 export interface LibraryFilters {
   search: string;
@@ -70,6 +71,7 @@ export interface AppSettings {
   ollamaServerUrl: string;
   autoSummary: boolean;
   autoDiarize: boolean;
+  asrEngine: AsrEngine;
 }
 
 export interface TranscriptSegment {

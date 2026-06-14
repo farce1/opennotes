@@ -46,7 +46,10 @@
   "audioSource_hint": "Maksymalny czas nagrywania jest ograniczony do 4 godzin.",
 
   "transcription_title": "Transkrypcja",
-  "transcription_description": "Zarządzaj dostępnością lokalnego modelu Whisper. Język nagrania jest wykrywany automatycznie.",
+  "transcription_description": "Zarządzaj dostępnością lokalnego modelu transkrypcji mowy. Język nagrania jest wykrywany automatycznie.",
+
+  "asrEngine_title": "Silnik rozpoznawania mowy",
+  "asrEngine_description": "Wybierz, który lokalny model transkrybuje Twoje nagrania.",
 
   "transModel_title": "Model transkrypcji",
   "transModel_description": "{{model}} działa w pełni lokalnie i generuje transkrypcje.",
