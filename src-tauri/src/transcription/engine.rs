@@ -1,5 +1,6 @@
 use std::path::Path;
 
+use sherpa_rs::transducer::{TransducerConfig, TransducerRecognizer};
 use sherpa_rs::whisper::{WhisperConfig, WhisperRecognizer};
 
 /// Result of one ASR call: recognized text plus the detected language
@@ -56,6 +57,63 @@ impl AsrEngine for WhisperEngine {
             text: result.text,
             language: result.lang,
         }
+    }
+}
+
+/// NVIDIA Parakeet-TDT-v3 (int8) via sherpa-onnx's offline transducer recognizer.
+pub struct ParakeetEngine {
+    recognizer: TransducerRecognizer,
+}
+
+impl ParakeetEngine {
+    pub fn load(model_dir: &Path) -> Result<Self, String> {
+        let recognizer = TransducerRecognizer::new(TransducerConfig {
+            encoder: model_dir
+                .join("encoder.int8.onnx")
+                .to_string_lossy()
+                .to_string(),
+            decoder: model_dir
+                .join("decoder.int8.onnx")
+                .to_string_lossy()
+                .to_string(),
+            joiner: model_dir
+                .join("joiner.int8.onnx")
+                .to_string_lossy()
+                .to_string(),
+            tokens: model_dir
+                .join("tokens.txt")
+                .to_string_lossy()
+                .to_string(),
+            model_type: "nemo_transducer".to_string(),
+            num_threads: 2,
+            sample_rate: 16_000,
+            feature_dim: 80,
+            decoding_method: "greedy_search".to_string(),
+            provider: Some("cpu".to_string()),
+            ..Default::default()
+        })
+        .map_err(|err| format!("failed to initialize parakeet recognizer: {err}"))?;
+
+        Ok(Self { recognizer })
+    }
+}
+
+impl AsrEngine for ParakeetEngine {
+    fn transcribe(&mut self, sample_rate: u32, samples: &[f32]) -> AsrOutput {
+        // The transducer recognizer returns text only; Parakeet reports no language.
+        AsrOutput {
+            text: self.recognizer.transcribe(sample_rate, samples),
+            language: String::new(),
+        }
+    }
+}
+
+/// Build the configured ASR engine. `engine` mirrors `meetings.asr_engine`
+/// ("whisper" | "parakeet"); `model_dir` must be that engine's model directory.
+pub fn load_engine(engine: &str, model_dir: &Path) -> Result<Box<dyn AsrEngine>, String> {
+    match engine {
+        "parakeet" => Ok(Box::new(ParakeetEngine::load(model_dir)?)),
+        _ => Ok(Box::new(WhisperEngine::load(model_dir)?)),
     }
 }
 

@@ -5,7 +5,7 @@ use std::time::Duration;
 
 use sherpa_rs::silero_vad::{SileroVad, SileroVadConfig};
 
-use super::engine::{AsrEngine, WhisperEngine};
+use super::engine::{self, AsrEngine};
 use super::resampler::{AudioResampler, RingAccumulator};
 use super::{SegmentResult, WorkerCommand};
 
@@ -15,6 +15,7 @@ const WHISPER_MAX_DECODE_SAMPLES: usize = (ASR_SAMPLE_RATE as usize) * WHISPER_M
 
 pub struct WorkerConfig {
     pub model_dir: PathBuf,
+    pub asr_engine: String,
     pub vad_model: String,
     pub recording_start_ms: u64,
     pub result_tx: mpsc::Sender<SegmentResult>,
@@ -117,10 +118,10 @@ pub fn run_worker(
         config.model_dir.display()
     );
 
-    let mut engine: Box<dyn AsrEngine> = match WhisperEngine::load(&config.model_dir) {
+    let mut engine = match engine::load_engine(&config.asr_engine, &config.model_dir) {
         Ok(engine) => {
-            eprintln!("[transcription] whisper turbo loaded OK");
-            Box::new(engine)
+            eprintln!("[transcription] ASR engine '{}' loaded OK", config.asr_engine);
+            engine
         }
         Err(err) => {
             eprintln!("{err}");
