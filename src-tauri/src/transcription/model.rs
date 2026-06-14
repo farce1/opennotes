@@ -48,6 +48,10 @@ pub fn check_model_ready(data_dir: &Path) -> bool {
     check_transcription_assets_ready(data_dir) && vad_model_path(data_dir).exists()
 }
 
+pub fn check_parakeet_model_ready(data_dir: &Path) -> bool {
+    check_parakeet_assets_ready(data_dir) && vad_model_path(data_dir).exists()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -70,6 +74,32 @@ mod tests {
             let all_present = idx == files.len() - 1;
             assert_eq!(check_parakeet_assets_ready(&tmp), all_present);
         }
+
+        std::fs::remove_dir_all(&tmp).ok();
+    }
+
+    #[test]
+    fn parakeet_model_ready_requires_assets_and_vad() {
+        let tmp =
+            std::env::temp_dir().join(format!("on-parakeet-model-ready-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&tmp);
+
+        let dir = parakeet_model_dir(&tmp);
+        std::fs::create_dir_all(&dir).unwrap();
+        for name in [
+            "encoder.int8.onnx",
+            "decoder.int8.onnx",
+            "joiner.int8.onnx",
+            "tokens.txt",
+        ] {
+            std::fs::write(dir.join(name), b"x").unwrap();
+        }
+
+        // Assets present but VAD missing -> not ready.
+        assert!(!check_parakeet_model_ready(&tmp));
+
+        std::fs::write(vad_model_path(&tmp), b"x").unwrap();
+        assert!(check_parakeet_model_ready(&tmp));
 
         std::fs::remove_dir_all(&tmp).ok();
     }

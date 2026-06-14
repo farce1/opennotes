@@ -256,6 +256,7 @@ pub fn run() {
             commands::start_transcription,
             commands::stop_transcription,
             commands::check_model_ready,
+            commands::check_parakeet_model_ready,
             commands::download_model,
             commands::start_diarization,
             commands::rename_speaker,

@@ -584,6 +584,15 @@ pub async fn check_model_ready(
 }
 
 #[tauri::command]
+pub async fn check_parakeet_model_ready(
+    data_dir: tauri::State<'_, DataDir>,
+) -> Result<bool, String> {
+    Ok(transcription::model::check_parakeet_model_ready(
+        data_dir.inner().0.as_path(),
+    ))
+}
+
+#[tauri::command]
 pub async fn check_diarization_model_ready(
     data_dir: tauri::State<'_, DataDir>,
 ) -> Result<bool, String> {
