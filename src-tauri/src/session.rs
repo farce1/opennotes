@@ -137,7 +137,7 @@ impl SessionCoordinator {
         }
         let _ = update_audio_sources(pool, meeting_id, &selected_audio_source);
 
-        let (audio_tx, audio_rx) = {
+        let (audio_tx, audio_rx, transcription_sample_rate) = {
             let mut recording_state = recording_state_handle
                 .lock()
                 .map_err(|_| "recording state lock poisoned".to_string())?;
@@ -150,7 +150,7 @@ impl SessionCoordinator {
                 .transcription_rx
                 .take()
                 .ok_or_else(|| "transcription receiver unavailable; restart recording".to_string())?;
-            (tx, rx)
+            (tx, rx, recording_state.transcription_sample_rate)
         };
 
         let app_for_degraded = app.clone();
@@ -169,6 +169,7 @@ impl SessionCoordinator {
             transcription::start_transcription_worker(&mut transcription_state, transcription::StartWorkerArgs {
                 audio_tx,
                 audio_rx,
+                sample_rate: transcription_sample_rate,
                 on_segment,
                 data_dir: data_dir.to_path_buf(),
                 db_pool: Some(pool.clone()),

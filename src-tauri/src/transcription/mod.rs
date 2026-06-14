@@ -23,6 +23,7 @@ pub struct TranscriptionState {
 pub struct StartWorkerArgs {
     pub audio_tx: mpsc::SyncSender<Vec<f32>>,
     pub audio_rx: mpsc::Receiver<Vec<f32>>,
+    pub sample_rate: u32,
     pub on_segment: Channel<TranscriptEvent>,
     pub data_dir: PathBuf,
     pub db_pool: Option<SqlitePool>,
@@ -86,6 +87,7 @@ pub fn start_transcription_worker(
     let StartWorkerArgs {
         audio_tx,
         audio_rx,
+        sample_rate,
         on_segment,
         data_dir,
         db_pool,
@@ -109,6 +111,7 @@ pub fn start_transcription_worker(
         model_dir: model::whisper_turbo_model_dir(data_dir.as_path()),
         vad_model: vad_model.to_string_lossy().to_string(),
         recording_start_ms: 0,
+        sample_rate,
         result_tx,
     };
 
