@@ -20,6 +20,9 @@ const VAD_URL: &str =
 const WHISPER_TURBO_URL: &str =
     "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-whisper-turbo.tar.bz2";
 const WHISPER_TURBO_TMP_NAME: &str = "whisper-turbo-model.tar.bz2.tmp";
+const PARAKEET_V3_URL: &str =
+    "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8.tar.bz2";
+const PARAKEET_V3_TMP_NAME: &str = "parakeet-v3-model.tar.bz2.tmp";
 const DIARIZATION_SEGMENTATION_TMP_NAME: &str = "diarization-segmentation-model.tar.bz2.tmp";
 const DIARIZATION_EMBEDDING_TMP_NAME: &str = "nemo_en_titanet_small.onnx.tmp";
 const PROGRESS_EMIT_STEP_BYTES: u64 = 512 * 1024;
@@ -40,6 +43,13 @@ const PROGRESS_EMIT_STEP_BYTES: u64 = 512 * 1024;
 pub(crate) const WHISPER_TURBO_ARCHIVE: ModelArchive = ModelArchive {
     url: WHISPER_TURBO_URL,
     sha256: "REPLACE_WITH_SHA256_WHISPER_TURBO",
+    compressed_size: 0,
+    uncompressed_size: 0,
+};
+
+pub(crate) const PARAKEET_V3_ARCHIVE: ModelArchive = ModelArchive {
+    url: PARAKEET_V3_URL,
+    sha256: "REPLACE_WITH_SHA256_PARAKEET_V3",
     compressed_size: 0,
     uncompressed_size: 0,
 };
@@ -712,13 +722,161 @@ pub async fn download_diarization_model(
     Ok(())
 }
 
+pub async fn download_parakeet_model(
+    on_event: Channel<DownloadEvent>,
+    data_dir: PathBuf,
+    cancel_flag: DownloadCancelFlag,
+) -> Result<(), String> {
+    cancel_flag.store(false, Ordering::SeqCst);
+
+    let models_dir = model::models_dir(data_dir.as_path());
+    std::fs::create_dir_all(&models_dir)
+        .map_err(|_| format!("Failed to create models directory: {}", models_dir.display()))?;
+
+    if model::check_parakeet_assets_ready(data_dir.as_path()) {
+        let _ = on_event.send(DownloadEvent::Complete);
+        return Ok(());
+    }
+
+    // Disk pre-check (D-19): before any HTTP download begins.
+    if let Err(err) = check_disk_space(data_dir.as_path(), PARAKEET_V3_ARCHIVE.required_free_space())
+    {
+        let msg = err.message();
+        send_extract_error(&on_event, &err);
+        return Err(msg);
+    }
+
+    let client = Client::new();
+    let total_bytes = content_length(&client, PARAKEET_V3_URL).await;
+    let archive_tmp = models_dir.join(PARAKEET_V3_TMP_NAME);
+
+    match download_to_file(
+        &client,
+        DownloadRequest {
+            url: PARAKEET_V3_URL,
+            destination_tmp: &archive_tmp,
+            total_bytes,
+            base_downloaded: 0,
+            on_event: &on_event,
+            cancel_flag: &cancel_flag,
+            resumable: true,
+        },
+    )
+    .await
+    {
+        Ok(_) => {}
+        Err(err) if err == "range_not_satisfiable" => {
+            cleanup_tmp(&archive_tmp);
+            match download_to_file(
+                &client,
+                DownloadRequest {
+                    url: PARAKEET_V3_URL,
+                    destination_tmp: &archive_tmp,
+                    total_bytes,
+                    base_downloaded: 0,
+                    on_event: &on_event,
+                    cancel_flag: &cancel_flag,
+                    resumable: false,
+                },
+            )
+            .await
+            {
+                Ok(_) => {}
+                Err(err) if err == "cancelled" => {
+                    cleanup_tmp(&archive_tmp);
+                    let _ = on_event.send(DownloadEvent::Cancelled);
+                    return Err(err);
+                }
+                Err(err) => {
+                    cleanup_tmp(&archive_tmp);
+                    send_error(&on_event, "Unable to download Parakeet model archive. Please retry.");
+                    return Err(err);
+                }
+            }
+        }
+        Err(err) if err == "cancelled" => {
+            cleanup_tmp(&archive_tmp);
+            let _ = on_event.send(DownloadEvent::Cancelled);
+            return Err(err);
+        }
+        Err(err) => {
+            cleanup_tmp(&archive_tmp);
+            send_error(&on_event, "Unable to download Parakeet model archive. Please retry.");
+            return Err(err);
+        }
+    }
+
+    let _ = on_event.send(DownloadEvent::Extracting);
+
+    // SHA256 verification (D-18) on the .tmp file, BEFORE extraction.
+    if let Err(err) = verify_sha256(&archive_tmp, PARAKEET_V3_ARCHIVE.sha256) {
+        cleanup_tmp(&archive_tmp);
+        let msg = err.message();
+        send_extract_error(&on_event, &err);
+        return Err(msg);
+    }
+
+    let archive_path = archive_tmp.clone();
+    let dst_path = models_dir.clone();
+    let extract_result =
+        tokio::task::spawn_blocking(move || extract_tar_bz2(&archive_path, &dst_path)).await;
+
+    match extract_result {
+        Ok(Ok(())) => {
+            cleanup_tmp(&archive_tmp);
+        }
+        Ok(Err(err)) => {
+            cleanup_tmp(&archive_tmp);
+            let msg = err.message();
+            send_extract_error(&on_event, &err);
+            return Err(msg);
+        }
+        Err(join_err) => {
+            cleanup_tmp(&archive_tmp);
+            let err = ExtractError::Unknown(std::io::Error::other(format!(
+                "parakeet extraction task panicked: {join_err}"
+            )));
+            let msg = err.message();
+            send_extract_error(&on_event, &err);
+            return Err(msg);
+        }
+    }
+
+    if !model::check_parakeet_assets_ready(data_dir.as_path()) {
+        send_error(
+            &on_event,
+            "Parakeet model files are incomplete after download. Please retry.",
+        );
+        return Err("download finished but parakeet readiness check failed".to_string());
+    }
+
+    let _ = on_event.send(DownloadEvent::Complete);
+    Ok(())
+}
+
 #[cfg(test)]
 // These tests intentionally compare const placeholder fields against `0` and use string
 // literals that are constant-foldable. They are a fail-loud maintainer gate per Plan 03
 // Task 0 + CONTEXT.md D-17 — the asserts MUST run at test time, not be elided by clippy.
 #[allow(clippy::absurd_extreme_comparisons, clippy::assertions_on_constants)]
 mod model_archive_consts_tests {
-    use super::{DIARIZATION_SEGMENTATION_ARCHIVE, WHISPER_TURBO_ARCHIVE};
+    use super::{DIARIZATION_SEGMENTATION_ARCHIVE, PARAKEET_V3_ARCHIVE, WHISPER_TURBO_ARCHIVE};
+
+    #[test]
+    fn parakeet_archive_sha256_is_filled_in() {
+        assert!(
+            !PARAKEET_V3_ARCHIVE.sha256.contains("REPLACE_WITH_"),
+            "PARAKEET_V3_ARCHIVE.sha256 still contains REPLACE_WITH_ — maintainer must fill the real lowercase-hex SHA256 of the downloaded archive"
+        );
+        assert_eq!(PARAKEET_V3_ARCHIVE.sha256.len(), 64);
+        assert!(PARAKEET_V3_ARCHIVE
+            .sha256
+            .chars()
+            .all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase()));
+        assert!(
+            PARAKEET_V3_ARCHIVE.compressed_size > 0 && PARAKEET_V3_ARCHIVE.uncompressed_size > 0,
+        );
+    }
 
     #[test]
     fn whisper_archive_sha256_is_filled_in() {

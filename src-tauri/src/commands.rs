@@ -621,6 +621,20 @@ pub async fn download_diarization_model(
 }
 
 #[tauri::command]
+pub async fn download_parakeet_model(
+    data_dir: tauri::State<'_, DataDir>,
+    cancel_flag: tauri::State<'_, download::DownloadCancelFlag>,
+    on_event: Channel<crate::download::DownloadEvent>,
+) -> Result<(), String> {
+    crate::download::download_parakeet_model(
+        on_event,
+        data_dir.inner().0.clone(),
+        cancel_flag.inner().clone(),
+    )
+    .await
+}
+
+#[tauri::command]
 pub async fn cancel_download(
     data_dir: tauri::State<'_, DataDir>,
     cancel_flag: tauri::State<'_, download::DownloadCancelFlag>,
