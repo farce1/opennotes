@@ -4,8 +4,8 @@ use std::sync::{mpsc, Arc};
 use std::time::Duration;
 
 use sherpa_rs::silero_vad::{SileroVad, SileroVadConfig};
-use sherpa_rs::whisper::{WhisperConfig, WhisperRecognizer};
 
+use super::engine::{AsrEngine, WhisperEngine};
 use super::resampler::{AudioResampler, RingAccumulator};
 use super::{SegmentResult, WorkerCommand};
 
@@ -22,7 +22,7 @@ pub struct WorkerConfig {
 
 fn process_completed_segments(
     vad: &mut SileroVad,
-    recognizer: &mut WhisperRecognizer,
+    engine: &mut dyn AsrEngine,
     result_tx: &mpsc::Sender<SegmentResult>,
     recording_start_ms: u64,
 ) {
@@ -36,13 +36,13 @@ fn process_completed_segments(
                 continue;
             }
 
-            let result = recognizer.transcribe(ASR_SAMPLE_RATE, samples);
+            let result = engine.transcribe(ASR_SAMPLE_RATE, samples);
             let text = result.text.trim().to_string();
             if text.is_empty() {
                 continue;
             }
 
-            let lang = result.lang.trim();
+            let lang = result.language.trim();
             let detected_language = if lang.is_empty() {
                 None
             } else {
@@ -112,33 +112,18 @@ pub fn run_worker(
     };
     eprintln!("[transcription] VAD loaded OK");
 
-    let asr_encoder = config.model_dir.join("turbo-encoder.int8.onnx");
-    let asr_decoder = config.model_dir.join("turbo-decoder.int8.onnx");
-    let asr_tokens = config.model_dir.join("turbo-tokens.txt");
-
     eprintln!(
-        "[transcription] loading whisper turbo — encoder={}, decoder={}, tokens={}",
-        asr_encoder.display(),
-        asr_decoder.display(),
-        asr_tokens.display()
+        "[transcription] loading ASR engine from {}",
+        config.model_dir.display()
     );
 
-    let mut recognizer = match WhisperRecognizer::new(WhisperConfig {
-        encoder: asr_encoder.to_string_lossy().to_string(),
-        decoder: asr_decoder.to_string_lossy().to_string(),
-        tokens: asr_tokens.to_string_lossy().to_string(),
-        language: "".to_string(),
-        num_threads: Some(2),
-        provider: Some("cpu".to_string()),
-        debug: false,
-        ..Default::default()
-    }) {
-        Ok(recognizer) => {
+    let mut engine: Box<dyn AsrEngine> = match WhisperEngine::load(&config.model_dir) {
+        Ok(engine) => {
             eprintln!("[transcription] whisper turbo loaded OK");
-            recognizer
+            Box::new(engine)
         }
         Err(err) => {
-            eprintln!("failed to initialize whisper recognizer: {err}");
+            eprintln!("{err}");
             return;
         }
     };
@@ -149,7 +134,7 @@ pub fn run_worker(
                 vad.flush();
                 process_completed_segments(
                     &mut vad,
-                    &mut recognizer,
+                    engine.as_mut(),
                     &config.result_tx,
                     config.recording_start_ms,
                 );
@@ -175,7 +160,7 @@ pub fn run_worker(
                     vad.accept_waveform(chunk_16k);
                     process_completed_segments(
                         &mut vad,
-                        &mut recognizer,
+                        engine.as_mut(),
                         &config.result_tx,
                         config.recording_start_ms,
                     );
@@ -189,7 +174,7 @@ pub fn run_worker(
     vad.flush();
     process_completed_segments(
         &mut vad,
-        &mut recognizer,
+        engine.as_mut(),
         &config.result_tx,
         config.recording_start_ms,
     );
