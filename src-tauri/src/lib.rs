@@ -261,6 +261,7 @@ pub fn run() {
             commands::rename_speaker,
             commands::check_diarization_model_ready,
             commands::download_diarization_model,
+            commands::download_parakeet_model,
             commands::get_diarization_data,
             commands::cancel_download,
             commands::list_audio_input_devices,
