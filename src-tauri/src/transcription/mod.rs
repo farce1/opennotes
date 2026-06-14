@@ -45,6 +45,34 @@ pub struct SegmentResult {
     pub detected_language: Option<String>,
 }
 
+/// A transcript row ready for insertion, derived from transcription segments.
+#[derive(Debug, PartialEq)]
+pub struct TranscriptInsert {
+    pub segment_index: i64,
+    pub text: String,
+    pub start_time_ms: i64,
+    pub end_time_ms: i64,
+}
+
+/// Approximate spoken span assigned to each segment (matches the live worker).
+const SEGMENT_SPAN_MS: i64 = 1_000;
+
+pub fn transcript_rows(segments: &[SegmentResult]) -> Vec<TranscriptInsert> {
+    segments
+        .iter()
+        .enumerate()
+        .map(|(index, segment)| {
+            let start_time_ms = segment.elapsed_ms as i64;
+            TranscriptInsert {
+                segment_index: index as i64,
+                text: segment.text.clone(),
+                start_time_ms,
+                end_time_ms: start_time_ms + SEGMENT_SPAN_MS,
+            }
+        })
+        .collect()
+}
+
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase", rename_all_fields = "camelCase", tag = "event", content = "data")]
 pub enum TranscriptEvent {
@@ -92,6 +120,33 @@ fn resolve_asr_engine(preference: Option<&str>, data_dir: &Path) -> (String, Pat
     }
 }
 
+/// Re-transcribe a saved recording end-to-end and return its segments. Returns an
+/// error (leaving any existing transcript untouched) when the model is missing or
+/// the run yields no speech, so a re-transcription never silently wipes a transcript.
+pub fn retranscribe_audio_file(
+    data_dir: &Path,
+    audio_path: &Path,
+) -> Result<Vec<SegmentResult>, String> {
+    let (asr_engine, model_dir) = resolve_asr_engine(None, data_dir);
+
+    if !model::check_engine_ready(&asr_engine, data_dir) {
+        return Err("transcription model is not ready; download required model files first".to_string());
+    }
+
+    let samples_48k = crate::diarization::decode::decode_ogg_opus_to_f32(audio_path)?;
+    let vad_model = model::vad_model_path(data_dir).to_string_lossy().to_string();
+    let segments = worker::transcribe_samples_48k(&samples_48k, model_dir, asr_engine, vad_model);
+
+    if segments.is_empty() {
+        return Err(
+            "re-transcription produced no transcript; the existing transcript was left unchanged"
+                .to_string(),
+        );
+    }
+
+    Ok(segments)
+}
+
 pub fn start_transcription_worker(
     state: &mut TranscriptionState,
     args: StartWorkerArgs,
@@ -110,11 +165,7 @@ pub fn start_transcription_worker(
     let (asr_engine, model_dir) =
         resolve_asr_engine(asr_engine_preference.as_deref(), data_dir.as_path());
 
-    let assets_ready = match asr_engine.as_str() {
-        "parakeet" => model::check_parakeet_assets_ready(data_dir.as_path()),
-        _ => model::check_transcription_assets_ready(data_dir.as_path()),
-    };
-    if !assets_ready || !model::vad_model_path(data_dir.as_path()).exists() {
+    if !model::check_engine_ready(&asr_engine, data_dir.as_path()) {
         return Err("transcription model is not ready; download required model files first".to_string());
     }
 
@@ -360,5 +411,41 @@ mod tests {
         assert_eq!(resolve_asr_engine(Some("parakeet"), &tmp).0, "parakeet");
 
         std::fs::remove_dir_all(&tmp).ok();
+    }
+
+    #[test]
+    fn transcript_rows_assigns_sequential_indices_and_padded_end_times() {
+        let segments = vec![
+            SegmentResult {
+                text: "hello".to_string(),
+                elapsed_ms: 0,
+                detected_language: None,
+            },
+            SegmentResult {
+                text: "world".to_string(),
+                elapsed_ms: 2_500,
+                detected_language: Some("en".to_string()),
+            },
+        ];
+
+        let rows = transcript_rows(&segments);
+
+        assert_eq!(
+            rows,
+            vec![
+                TranscriptInsert {
+                    segment_index: 0,
+                    text: "hello".to_string(),
+                    start_time_ms: 0,
+                    end_time_ms: 1_000,
+                },
+                TranscriptInsert {
+                    segment_index: 1,
+                    text: "world".to_string(),
+                    start_time_ms: 2_500,
+                    end_time_ms: 3_500,
+                },
+            ]
+        );
     }
 }

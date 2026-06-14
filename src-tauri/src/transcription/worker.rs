@@ -180,3 +180,49 @@ pub fn run_worker(
         config.recording_start_ms,
     );
 }
+
+/// Transcribe a complete 48 kHz mono buffer by driving `run_worker` to completion,
+/// reusing the exact streaming VAD -> chunk -> transcribe pipeline. Returns the
+/// collected segments (empty if the model fails to load or no speech is found).
+pub fn transcribe_samples_48k(
+    samples_48k: &[f32],
+    model_dir: PathBuf,
+    asr_engine: String,
+    vad_model: String,
+) -> Vec<SegmentResult> {
+    // Bounded audio channel for backpressure; unbounded result channel so the
+    // worker never blocks while we are still feeding audio.
+    let (audio_tx, audio_rx) = mpsc::sync_channel::<Vec<f32>>(64);
+    // Held (never sent on) for the worker's lifetime so its command_rx never sees a
+    // disconnect and breaks early; dropped at scope end after the worker has joined.
+    let (_command_tx, command_rx) = mpsc::channel::<WorkerCommand>();
+    let (result_tx, result_rx) = mpsc::channel::<SegmentResult>();
+    let shutdown = Arc::new(AtomicBool::new(false));
+
+    let config = WorkerConfig {
+        model_dir,
+        asr_engine,
+        vad_model,
+        recording_start_ms: 0,
+        result_tx,
+    };
+
+    let worker = std::thread::spawn(move || run_worker(audio_rx, command_rx, config, shutdown));
+
+    for chunk in samples_48k.chunks(ASR_SAMPLE_RATE as usize) {
+        if audio_tx.send(chunk.to_vec()).is_err() {
+            break;
+        }
+    }
+    // Closing the audio channel makes the worker drain, do its final flush, and exit.
+    drop(audio_tx);
+
+    let segments: Vec<SegmentResult> = result_rx.iter().collect();
+    // A panicked worker yields only partial segments; discard them so the caller's
+    // empty-result guard preserves the existing transcript instead of replacing it.
+    if worker.join().is_ok() {
+        segments
+    } else {
+        Vec::new()
+    }
+}
