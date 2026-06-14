@@ -7,7 +7,7 @@
  * dirty-tree refusal, missing-arg refusal, and bad-semver refusal.
  */
 
-import { test } from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { execSync, spawnSync } from 'node:child_process';
 import { mkdtempSync, writeFileSync, readFileSync, mkdirSync, copyFileSync } from 'node:fs';
