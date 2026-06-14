@@ -419,9 +419,68 @@ pub async fn get_transcript_page(
 }
 
 #[tauri::command]
-pub async fn retranscribe_meeting(meeting_id: i64) -> Result<(), String> {
-    eprintln!("[retranscribe] requested for meeting_id={meeting_id} — not yet implemented");
-    Err("Re-transcription is not yet available. Coming in a future update.".to_string())
+pub async fn retranscribe_meeting(
+    pool: tauri::State<'_, SqlitePool>,
+    data_dir: tauri::State<'_, DataDir>,
+    meeting_id: i64,
+) -> Result<(), String> {
+    let db = pool.inner();
+
+    let audio_path = sqlx::query_scalar::<_, Option<String>>(
+        "SELECT audio_path FROM meetings WHERE id = ?",
+    )
+    .bind(meeting_id)
+    .fetch_optional(db)
+    .await
+    .map_err(|err| format!("failed to load meeting audio path: {err}"))?
+    .flatten()
+    .ok_or_else(|| "meeting has no recording to re-transcribe".to_string())?;
+
+    let data_dir = data_dir.inner().0.clone();
+    let segments = tokio::task::spawn_blocking(move || {
+        transcription::retranscribe_audio_file(&data_dir, Path::new(&audio_path))
+    })
+    .await
+    .map_err(|err| format!("re-transcription task failed: {err}"))??;
+
+    let rows = transcription::transcript_rows(&segments);
+
+    let mut tx = db
+        .begin()
+        .await
+        .map_err(|err| format!("failed to begin transcript transaction: {err}"))?;
+
+    sqlx::query("DELETE FROM transcripts WHERE meeting_id = ?")
+        .bind(meeting_id)
+        .execute(&mut *tx)
+        .await
+        .map_err(|err| format!("failed to clear old transcript: {err}"))?;
+
+    for row in &rows {
+        sqlx::query(
+            "INSERT INTO transcripts (meeting_id, segment_index, text, start_time_ms, end_time_ms, is_final)
+             VALUES (?, ?, ?, ?, ?, 1)",
+        )
+        .bind(meeting_id)
+        .bind(row.segment_index)
+        .bind(&row.text)
+        .bind(row.start_time_ms)
+        .bind(row.end_time_ms)
+        .execute(&mut *tx)
+        .await
+        .map_err(|err| format!("failed to insert transcript segment: {err}"))?;
+    }
+
+    tx.commit()
+        .await
+        .map_err(|err| format!("failed to commit re-transcription: {err}"))?;
+
+    // The transcript is already replaced; a stale search index must not fail the command.
+    if let Err(err) = fts_upsert(db, meeting_id).await {
+        eprintln!("[fts] upsert after re-transcription failed: {err}");
+    }
+
+    Ok(())
 }
 
 #[tauri::command]

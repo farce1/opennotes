@@ -52,6 +52,13 @@ pub fn check_parakeet_model_ready(data_dir: &Path) -> bool {
     check_parakeet_assets_ready(data_dir) && vad_model_path(data_dir).exists()
 }
 
+pub fn check_engine_ready(engine: &str, data_dir: &Path) -> bool {
+    match engine {
+        "parakeet" => check_parakeet_model_ready(data_dir),
+        _ => check_model_ready(data_dir),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -100,6 +107,31 @@ mod tests {
 
         std::fs::write(vad_model_path(&tmp), b"x").unwrap();
         assert!(check_parakeet_model_ready(&tmp));
+
+        std::fs::remove_dir_all(&tmp).ok();
+    }
+
+    #[test]
+    fn check_engine_ready_dispatches_by_engine() {
+        let tmp = std::env::temp_dir().join(format!("on-engine-ready-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&tmp);
+
+        assert!(!check_engine_ready("whisper", &tmp));
+        assert!(!check_engine_ready("parakeet", &tmp));
+
+        let whisper_dir = whisper_turbo_model_dir(&tmp);
+        std::fs::create_dir_all(&whisper_dir).unwrap();
+        for f in [
+            "turbo-encoder.int8.onnx",
+            "turbo-decoder.int8.onnx",
+            "turbo-tokens.txt",
+        ] {
+            std::fs::write(whisper_dir.join(f), b"x").unwrap();
+        }
+        std::fs::write(vad_model_path(&tmp), b"x").unwrap();
+
+        assert!(check_engine_ready("whisper", &tmp));
+        assert!(!check_engine_ready("parakeet", &tmp));
 
         std::fs::remove_dir_all(&tmp).ok();
     }
